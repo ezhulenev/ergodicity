@@ -3,8 +3,8 @@ package com.ergodicity.engine.plaza2.futures
 import org.joda.time.Interval
 import org.joda.time.format.DateTimeFormat
 import org.scala_tools.time.Implicits._
-import com.ergodicity.engine.plaza2.SessionRecord
 import akka.actor.{Actor, FSM}
+import com.ergodicity.engine.plaza2.protocol.{Session => SessionRecord}
 
 
 sealed trait SessionState

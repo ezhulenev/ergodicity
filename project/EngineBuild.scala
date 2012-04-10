@@ -12,7 +12,7 @@ object EngineBuild extends Build {
   lazy val engine = Project(
     id = "engine",
     base = file("."),
-    aggregate = Seq(core)
+    aggregate = Seq(core, plaza2)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
   

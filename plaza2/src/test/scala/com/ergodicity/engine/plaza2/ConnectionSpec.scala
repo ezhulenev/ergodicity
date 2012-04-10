@@ -1,6 +1,5 @@
 package com.ergodicity.engine.plaza2
 
-import org.scalatest.WordSpec
 import org.slf4j.LoggerFactory
 import org.mockito.Mockito._
 import org.mockito.Matchers._
@@ -14,6 +13,7 @@ import plaza2.RouterStatus.{RouterReconnecting, RouterDisconnected, RouterConnec
 import akka.actor.{FSM, Terminated, ActorSystem}
 import plaza2.{Connection => P2Connection}
 import com.jacob.com.ComFailException
+import org.scalatest.{Spec, WordSpec}
 
 
 class ConnectionSpec extends TestKit(ActorSystem()) with WordSpec {
