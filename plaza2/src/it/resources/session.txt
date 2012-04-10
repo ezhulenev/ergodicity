@@ -1,0 +1,44 @@
+01:07:00.135 [pool-2-thread-1] INFO  plaza2.BaselessClient - Start client
+01:07:00.141 [pool-2-thread-1] TRACE plaza2.P2Connection - Connect; Host = localhost; Port = 4001; AppName = BaselessClient
+01:07:00.178 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamStateChangedEvent(LocalSnapshot)
+01:07:00.182 [pool-2-thread-1] INFO  plaza2.BaselessClient - Process Messages
+01:07:00.277 [pool-2-thread-1] INFO  plaza2.BaselessClient - Connection status updated: ConnectionConnected
+01:07:00.289 [pool-2-thread-1] INFO  plaza2.BaselessClient - Rounter status updated: RouterConnected
+
+01:07:00.301 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamStateChangedEvent(Reopen)
+01:07:00.302 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamLifeNumChangedEvent(1180)
+01:07:00.304 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamStateChangedEvent(RemoteSnapshot)
+
+01:07:00.307 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDatumDeletedEvent(session,263)
+
+01:07:00.308 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataBeginEvent
+01:07:00.312 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataDeletedEvent(session,31,plaza2.Record@3790ce52)
+01:07:00.318 [pool-2-thread-1] INFO  plaza2.BaselessClient - StreamDataInserted: SessionRecord(32,275,0,4015,2012/04/04 07:15:00.000,2012/04/04 14:45:00.000,4,3541,2012/04/04 12:00:00.000,2012/04/04 12:05:00.000,5136,1,2012/04/03 15:30:00.000,2012/04/03 23:50:00.000,1,2012/04/04 07:00:00.000,2012/04/04 07:15:00.000,2012/04/04 13:00:00.000,2012/04/04 13:15:00.000)
+01:07:00.321 [pool-2-thread-1] INFO  plaza2.BaselessClient - StreamDataInserted: SessionRecord(33,280,0,4016,2012/04/05 07:15:00.000,2012/04/05 14:45:00.000,2,3542,2012/04/05 12:00:00.000,2012/04/05 12:05:00.000,1,1,2012/04/04 15:30:00.000,2012/04/04 23:50:00.000,1,2012/04/05 07:00:00.000,2012/04/05 07:15:00.000,2012/04/05 13:00:00.000,2012/04/05 13:15:00.000)
+01:07:00.324 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataEndEvent
+
+01:07:00.324 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamStateChangedEvent(Online)
+
+04:34:37.188 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataBeginEvent
+04:34:37.189 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataDeletedEvent(session,32,plaza2.Record@47c44bd4)
+04:34:37.189 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataEndEvent
+
+04:35:19.809 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataBeginEvent
+04:35:19.811 [pool-2-thread-1] INFO  plaza2.BaselessClient - StreamDataInserted: SessionRecord(33,283,0,4016,2012/04/05 07:15:00.000,2012/04/05 14:45:00.000,2,3542,2012/04/05 12:00:00.000,2012/04/05 12:05:00.000,1,1,2012/04/04 15:30:00.000,2012/04/04 23:50:00.000,1,2012/04/05 07:00:00.000,2012/04/05 07:15:00.000,2012/04/05 13:00:00.000,2012/04/05 13:15:00.000)
+04:35:19.811 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataEndEvent
+
+05:00:11.499 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDatumDeletedEvent(session,283)
+
+05:30:40.335 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDatumDeletedEvent(session,284)
+
+05:30:40.335 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataBeginEvent
+05:30:40.336 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataDeletedEvent(session,33,plaza2.Record@854f13c)
+05:30:40.336 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataEndEvent
+
+05:30:40.337 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataBeginEvent
+05:30:40.339 [pool-2-thread-1] INFO  plaza2.BaselessClient - StreamDataInserted: SessionRecord(34,285,0,4016,2012/04/05 07:15:00.000,2012/04/05 14:45:00.000,2,3542,2012/04/05 12:00:00.000,2012/04/05 12:05:00.000,1,1,2012/04/04 15:30:00.000,2012/04/04 23:50:00.000,1,2012/04/05 07:00:00.000,2012/04/05 07:15:00.000,2012/04/05 13:00:00.000,2012/04/05 13:15:00.000)
+05:30:40.339 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataEndEvent
+
+07:00:12.259 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataBeginEvent
+07:00:12.261 [pool-2-thread-1] INFO  plaza2.BaselessClient - StreamDataInserted: SessionRecord(34,286,0,4016,2012/04/05 07:15:00.000,2012/04/05 14:45:00.000,1,3542,2012/04/05 12:00:00.000,2012/04/05 12:05:00.000,1,1,2012/04/04 15:30:00.000,2012/04/04 23:50:00.000,1,2012/04/05 07:00:00.000,2012/04/05 07:15:00.000,2012/04/05 13:00:00.000,2012/04/05 13:15:00.000)
+07:00:12.261 [pool-2-thread-1] INFO  plaza2.BaselessClient - Trades event: StreamDataEndEvent
