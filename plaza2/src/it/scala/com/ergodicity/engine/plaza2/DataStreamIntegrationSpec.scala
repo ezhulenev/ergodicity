@@ -5,10 +5,10 @@ import java.io.File
 import org.scalatest.WordSpec
 import akka.actor.ActorSystem
 import akka.testkit.{TestFSMRef, TestKit}
-import com.ergodicity.engine.plaza2.DataStream.Open
 import plaza2.RequestType.CombinedDynamic
 import com.ergodicity.engine.plaza2.Connection.Connect
 import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
+import com.ergodicity.engine.plaza2.DataStream.{SetLifeNumToIni, Open}
 
 class DataStreamIntegrationSpec extends TestKit(ActorSystem()) with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
@@ -28,6 +28,7 @@ class DataStreamIntegrationSpec extends TestKit(ActorSystem()) with WordSpec {
       val underlyingStream = P2DataStream("FORTS_FUTINFO_REPL", CombinedDynamic, tableSet)
       val dataStream = TestFSMRef(new DataStream(underlyingStream), "FuturesInfo")
 
+      dataStream ! SetLifeNumToIni(ini)
       dataStream ! Open(connection.underlyingActor)
 
       Thread.sleep(10000)

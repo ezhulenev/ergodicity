@@ -1,16 +1,18 @@
 package com.ergodicity.engine.plaza2
 
-import akka.actor.{FSM, Actor}
 import akka.util.duration._
-import com.ergodicity.engine.plaza2.DataStream.Open
-import plaza2.{Connection => P2Connection, DataStream => P2DataStream, _}
+import plaza2.{Connection => P2Connection, DataStream => P2DataStream, Record => _, _}
 import akka.actor.FSM.Failure
 import plaza2.StreamState._
+import akka.actor.{FSM, Actor}
+import java.io.File
+import com.ergodicity.engine.plaza2.DataStream.{SetLifeNumToIni, Open}
 
 sealed trait DataStreamState
 object DataStreamState {
   case object Idle extends DataStreamState
   case object Opening extends DataStreamState
+  case object Reopen extends DataStreamState
   case object Synchronizing extends DataStreamState
   case object Online extends DataStreamState
 }
@@ -18,6 +20,7 @@ object DataStreamState {
 
 object DataStream {
   case class Open(connection: Connection)
+  case class SetLifeNumToIni(ini: File)
 
   def apply(underlying: P2DataStream) = new DataStream(underlying)
 }
@@ -25,39 +28,46 @@ object DataStream {
 class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor with FSM[DataStreamState, Option[SafeRelease]] {
   import DataStreamState._
 
+  private var setLifeNumToIni: Option[File] = None
+
   startWith(Idle, None)
 
   when(Idle) {
     case Event(Open(connection), None) => goto(Opening) using Some(open(connection.underlying))
+    case Event(SetLifeNumToIni(file), _) => setLifeNumToIni = Some(file); stay()
   }
 
   when(Opening, stateTimeout = 10.seconds) {
-    case Event(StreamStateChanged(LocalSnapshot), _) => stay()
-    case Event(StreamStateChanged(Reopen), _) => stay()
-    case Event(StreamLifeNumChanged(ln), _) => log.error("Stream lifenum changed: "+ln); stay()
-    case Event(StreamStateChanged(RemoteSnapshot), _) => goto(Synchronizing)
+    case Event(StreamStateChanged(StreamState.LocalSnapshot), _) => goto(Synchronizing)
 
     case Event(FSM.StateTimeout, _) => stop(Failure("DataStream opening timed out"))
   }
 
+  when(Reopen) {
+    case Event(StreamStateChanged(StreamState.RemoteSnapshot), _) => goto(Synchronizing)
+    case Event(StreamLifeNumChanged(lifeNum), _) => updateStreamLifeNumber(lifeNum)
+  }
+
   when(Synchronizing) {
+    case Event(StreamStateChanged(StreamState.Reopen), _) => goto(Reopen)
+    case Event(StreamStateChanged(StreamState.RemoteSnapshot), _) => stay()
     case Event(StreamStateChanged(StreamState.Online), _) => goto(Online)
   }
 
   when(Online) {
-    case Event(StreamDataUpdated(table, id, record), _) => stay()
+    case Event(StreamStateChanged(StreamState.Reopen), _) => goto(Reopen)
   }
-
 
   onTransition {
     case Idle -> Opening             => log.info("Trying to open DataStream")
-    case Opening -> Synchronizing    => log.info("DataStream synchonization started")
+    case _ -> Synchronizing          => log.info("DataStream synchonization started")
+    case _ -> Reopen                 => log.info("DataStream reopened")
     case Synchronizing -> Online     => log.info("DataStream goes Online")
     case transition                  => log.error("Unexpected transition: " + transition)
   }
 
   whenUnhandled {
-    case Event(StreamStateChanged(state@(Close|CloseComplete|StreamState.Reopen|StreamState.Error)), safeRelease) => stop(Failure(state))
+    case Event(StreamStateChanged(state@(Close|CloseComplete|StreamState.Error)), safeRelease) => stop(Failure(state))
   }
 
   onTermination { case StopEvent(reason, s, d) =>
@@ -68,11 +78,19 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   initialize
 
   private def open(connection: P2Connection) = {
-    val safeRelease = underlying.dispatchEvents {event =>
-      log.info("GOT EVENT: "+event)
-      self ! event
+    val safeRelease = underlying.dispatchEvents {
+      self ! _
     }
     underlying.open(connection)
     safeRelease
+  }
+
+  private def updateStreamLifeNumber(lifeNum: Long) = {
+    setLifeNumToIni.map {file =>
+        log.debug("Update stream life number up to " + lifeNum)
+        underlying.tableSet.lifeNum = lifeNum
+        underlying.tableSet.setLifeNumToIni(file)
+        stay()
+    } getOrElse stop(Failure("SetLifeNumToIni is not defined, life num updated up to = " + lifeNum))
   }
 }

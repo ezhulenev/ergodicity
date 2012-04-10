@@ -76,7 +76,7 @@ object Dependency {
     val SBinary      = "0.4.0"
     val ScalaTime    = "0.5"
     val Ostrich      = "4.10.6"
-    val Akka         = "2.1-SNAPSHOT"
+    val Akka         = "2.0"
   }
 
   // Compile

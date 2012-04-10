@@ -1,9 +1,9 @@
 package com.ergodicity.engine.plaza2
 
-import akka.actor.{FSM, Actor}
 import com.ergodicity.engine.plaza2.RepositoryState.{Synchronizing, Snapshot}
 import protocol.{Deserializer, Record}
-import plaza2._
+import plaza2.{DataStream => _, _}
+import akka.actor.{Props, FSM, Actor}
 
 sealed trait RepositoryState
 object RepositoryState {
@@ -33,7 +33,7 @@ class Repository[T <: Record](implicit deserializer: Deserializer[T]) extends Ac
 
   onTransition {
     case Snapshot -> Synchronizing    => log.info("Begin receiving Plaza2 transaction")
-    case Synchronizing -> Snapshot    => log.info("Plaza2 transaction received")
+    case Synchronizing -> Snapshot    => log.info("Plaza2 transaction received; Data = "+stateData)
   }
 
   initialize

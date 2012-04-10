@@ -110,7 +110,24 @@ class DataStreamSpec extends TestKit(ActorSystem()) with WordSpec {
       expectMsg(Terminated(dataStream))
     }
 
-    "go throught Idle -> Opening -> Synchronizing -> Online " in {
+    "terminate if not ini for life number updates" in {
+      val conn = mock(classOf[Connection])
+      val stream = mock(classOf[P2DataStream])
+
+      val dataStream = TestFSMRef(DataStream(stream), "DataStream")
+      val streamEvents = captureEventDispatcher(stream)
+
+      watch(dataStream)
+      dataStream ! Open(conn)
+      streamEvents ! StreamStateChanged(StreamState.LocalSnapshot)
+      streamEvents ! StreamStateChanged(StreamState.Reopen)
+      assert(dataStream.stateName == Reopen)
+
+      streamEvents ! StreamLifeNumChanged(1000)
+      expectMsg(Terminated(dataStream))
+    }
+
+    "go throught Idle -> Opening -> Synchronizing -> Reopen -> Synchronizing -> Online -> Reopen -> Stop" in {
       val conn = mock(classOf[Connection])
       val stream = mock(classOf[P2DataStream])
 
@@ -125,10 +142,10 @@ class DataStreamSpec extends TestKit(ActorSystem()) with WordSpec {
       assert(dataStream.stateName == Opening)
 
       streamEvents ! StreamStateChanged(StreamState.LocalSnapshot)
-      assert(dataStream.stateName == Opening)
+      assert(dataStream.stateName == Synchronizing)
 
       streamEvents ! StreamStateChanged(StreamState.Reopen)
-      assert(dataStream.stateName == Opening)
+      assert(dataStream.stateName == Reopen)
 
       streamEvents ! StreamStateChanged(StreamState.RemoteSnapshot)
       assert(dataStream.stateName == Synchronizing)
@@ -137,6 +154,9 @@ class DataStreamSpec extends TestKit(ActorSystem()) with WordSpec {
       assert(dataStream.stateName == Online)
 
       streamEvents ! StreamStateChanged(StreamState.Reopen)
+      assert(dataStream.stateName == Reopen)
+
+      streamEvents ! StreamStateChanged(StreamState.Close)
       expectMsg(Terminated(dataStream))
     }
   }
