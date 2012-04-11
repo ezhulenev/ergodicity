@@ -71,7 +71,7 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   onTransition {
     case Idle -> Opening             => log.info("Trying to open DataStream")
     case _ -> Synchronizing          => log.info("DataStream synchonization started")
-    case _ -> Reopen                 => log.info("DataStream reopened")
+    case _ -> Reopen                 => log.info("DataStream reopened"); notifyStreamReopened()
     case Synchronizing -> Online     => log.info("DataStream goes Online")
     case transition                  => log.error("Unexpected transition: " + transition)
   }
@@ -86,7 +86,15 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   }
 
   initialize
-  
+
+  private def notifyStreamReopened() {
+    tableDataEventsListeners.foreach { case (table, ref) =>
+      ref ! StreamDataBegin
+      ref ! StreamDatumDeleted(table, 0)
+      ref ! StreamDataEnd
+    }
+  }
+
   private def handleStreamDataEvents: StateFunction = {
     case Event(e@StreamDataBegin, _)                  => tableDataEventsListeners.foreach(_._2 ! e); stay()
     case Event(e@StreamDataEnd, _)                    => tableDataEventsListeners.foreach(_._2 ! e); stay()
@@ -96,8 +104,8 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   }
 
   private def open(connection: P2Connection) = {
-    val safeRelease = underlying.dispatchEvents {
-      self ! _
+    val safeRelease = underlying.dispatchEvents {event =>
+      self ! event
     }
     underlying.open(connection)
     safeRelease

@@ -187,6 +187,24 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
       streamEvents ! StreamDataEnd
       expectMsg(StreamDataEnd)
     }
+
+    "notify subscribers when Reopened" in {
+      val conn = mock(classOf[Connection])
+      val stream = mock(classOf[P2DataStream])
+
+      val dataStream = TestFSMRef(DataStream(stream), "DataStream")
+      val streamEvents = captureEventDispatcher(stream)
+
+      dataStream ! JoinTable(self, "table")
+      dataStream ! Open(conn)
+
+      dataStream.setState(Synchronizing)
+      streamEvents ! StreamStateChanged(StreamState.Reopen)
+
+      expectMsg(StreamDataBegin)
+      expectMsg(StreamDatumDeleted("table", 0))
+      expectMsg(StreamDataEnd)
+    }
   }
 
   private def captureEventDispatcher(stream: P2DataStream) = {

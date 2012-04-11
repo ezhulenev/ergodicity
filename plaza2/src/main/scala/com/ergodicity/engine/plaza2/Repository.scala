@@ -17,14 +17,14 @@ object Repository {
   def apply[T <: Record](implicit deserializer: Deserializer[T]) = new Repository[T]
 
   case class SubscribeSnapshots(ref: ActorRef)
-  case class Snapshot[T](internal: Seq[T])
+  case class Snapshot[T](internal: Iterable[T])
 }
 
-class Repository[T <: Record](implicit deserializer: Deserializer[T]) extends Actor with FSM[RepositoryState, Seq[T]] {
+class Repository[T <: Record](implicit deserializer: Deserializer[T]) extends Actor with FSM[RepositoryState, Map[Long,  T]] {
 
   var snapshotSubscribers: Seq[ActorRef] = Seq()
   
-  startWith(Idle, Seq())
+  startWith(Idle, Map())
   
   when(Idle) {
     case Event(StreamDatumDeleted(_, _), _) => stay()
@@ -32,15 +32,25 @@ class Repository[T <: Record](implicit deserializer: Deserializer[T]) extends Ac
   }
 
   when(Consistent) {
-    case Event(StreamDatumDeleted(_, rev), seq) => stay() using seq.filterNot {_.replRev < rev}
-    case Event(StreamDataBegin, _) => goto(Synchronizing)    
+    case Event(StreamDatumDeleted(_, rev), map) => stay() using map.filterNot{_._2.replRev < rev}
+    case Event(StreamDataBegin, _) => goto(Synchronizing)
+
+    case Event(SubscribeSnapshots(ref), _) =>
+      snapshotSubscribers = ref +: snapshotSubscribers; ref ! Snapshot(stateData.values); stay();
   }
 
   when(Synchronizing) {
-    case Event(StreamDataInserted(_, p2Record), seq) => stay() using deserializer(p2Record) +: seq
-    case Event(StreamDataDeleted(_, id, _), seq) => stay() using seq.filterNot {_.replID == id}
+    case Event(StreamDataInserted(_, p2Record), map) =>
+      val record = deserializer(p2Record)
+      stay() using map + (record.replID -> record)
+
+    case Event(StreamDataDeleted(_, id, _), map) => stay() using map - id
 
     case Event(StreamDataEnd, _) => goto(Consistent)
+  }
+
+  whenUnhandled {
+    case Event(SubscribeSnapshots(ref), _) => snapshotSubscribers = ref +: snapshotSubscribers; stay();
   }
 
   onTransition {
@@ -50,13 +60,7 @@ class Repository[T <: Record](implicit deserializer: Deserializer[T]) extends Ac
 
     case Synchronizing -> Consistent =>
       log.info("Completed Plaza2 transaction")
-      snapshotSubscribers.foreach {
-        _ ! Snapshot(stateData)
-      }
-  }
-
-  whenUnhandled {
-    case Event(SubscribeSnapshots(ref), _) => snapshotSubscribers = ref +: snapshotSubscribers; stay();
+      snapshotSubscribers.foreach {_ ! Snapshot(stateData.values)}
   }
 
   initialize

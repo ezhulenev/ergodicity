@@ -27,9 +27,18 @@ class RepositorySpec  extends TestKit(ActorSystem()) with ImplicitSender with Wo
       assert(repository.stateName == Synchronizing)
     }
 
+    "receive snapshot immediately in Consistent state" in {
+      val repository = TestFSMRef(Repository[SessionRecord], "Repository")
+      val rec = mock(classOf[SessionRecord])
+      repository.setState(Consistent, Map(1l -> rec))
+
+      repository ! SubscribeSnapshots(self)
+      expectMsg(Snapshot(Map(1l -> rec)))
+    }
+
     "handle new data" in {
       val repository = TestFSMRef(Repository[SessionRecord], "Repository")
-      repository.setState(Consistent, Seq())
+      repository.setState(Consistent, Map())
 
       repository ! SubscribeSnapshots(self)      
       repository ! StreamDataBegin

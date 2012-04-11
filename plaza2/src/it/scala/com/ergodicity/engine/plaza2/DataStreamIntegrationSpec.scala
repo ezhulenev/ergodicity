@@ -1,15 +1,17 @@
 package com.ergodicity.engine.plaza2
 
+import futures.Sessions
 import org.slf4j.LoggerFactory
 import java.io.File
 import org.scalatest.WordSpec
 import akka.actor.ActorSystem
-import akka.testkit.{TestFSMRef, TestKit}
 import plaza2.RequestType.CombinedDynamic
 import com.ergodicity.engine.plaza2.Connection.Connect
 import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
 import scheme.{FutInfo, SessionRecord}
 import com.ergodicity.engine.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
+import akka.testkit.{TestActorRef, TestFSMRef, TestKit}
+import java.util.concurrent.TimeUnit
 
 class DataStreamIntegrationSpec extends TestKit(ActorSystem()) with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
@@ -29,14 +31,16 @@ class DataStreamIntegrationSpec extends TestKit(ActorSystem()) with WordSpec {
       val underlyingStream = P2DataStream("FORTS_FUTINFO_REPL", CombinedDynamic, tableSet)
 
       val dataStream = TestFSMRef(new DataStream(underlyingStream), "FuturesInfo")
-      val repository = TestFSMRef(new Repository[SessionRecord]()(FutInfo.SessionDeserializer), "SessionsRepository")
-
-      dataStream ! JoinTable(repository, "session")
       dataStream ! SetLifeNumToIni(ini)
+      val sessions = TestActorRef(new Sessions(dataStream), "Sessions")
+
+      /*val repository = TestFSMRef(new Repository[SessionRecord]()(FutInfo.SessionDeserializer), "SessionsRepository")
+
+      dataStream ! JoinTable(repository, "session")*/
+
       dataStream ! Open(connection.underlyingActor)
 
-      Thread.sleep(10000)
-
+      Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
   }
 }
