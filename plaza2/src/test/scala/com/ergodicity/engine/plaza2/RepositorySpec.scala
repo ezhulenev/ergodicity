@@ -9,6 +9,7 @@ import com.ergodicity.engine.plaza2.scheme.FutInfo._
 import org.mockito.Mockito._
 import plaza2._
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
+import com.ergodicity.engine.plaza2.Repository.{SubscribeSnapshots, Snapshot}
 
 class RepositorySpec  extends TestKit(ActorSystem()) with ImplicitSender with WordSpec {
   val log = LoggerFactory.getLogger(classOf[RepositorySpec])
@@ -28,8 +29,9 @@ class RepositorySpec  extends TestKit(ActorSystem()) with ImplicitSender with Wo
 
     "handle new data" in {
       val repository = TestFSMRef(Repository[SessionRecord], "Repository")
-      repository.setState(Snapshot, Seq())
+      repository.setState(Consistent, Seq())
 
+      repository ! SubscribeSnapshots(self)      
       repository ! StreamDataBegin
       assert(repository.stateName == Synchronizing)
 
@@ -48,7 +50,8 @@ class RepositorySpec  extends TestKit(ActorSystem()) with ImplicitSender with Wo
 
       // Close transaction
       repository ! StreamDataEnd
-      assert(repository.stateName == Snapshot)
+      assert(repository.stateName == RepositoryState.Consistent)
+      expectMsgType[Snapshot[SessionRecord]]
 
       // Remove old data
       repository ! StreamDatumDeleted("session", 3)
