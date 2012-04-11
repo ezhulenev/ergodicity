@@ -4,9 +4,9 @@ import akka.util.duration._
 import plaza2.{Connection => P2Connection, DataStream => P2DataStream, Record => _, _}
 import akka.actor.FSM.Failure
 import plaza2.StreamState._
-import akka.actor.{FSM, Actor}
 import java.io.File
-import com.ergodicity.engine.plaza2.DataStream.{SetLifeNumToIni, Open}
+import akka.actor.{ActorRef, FSM, Actor}
+import com.ergodicity.engine.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
 
 sealed trait DataStreamState
 object DataStreamState {
@@ -21,6 +21,7 @@ object DataStreamState {
 object DataStream {
   case class Open(connection: Connection)
   case class SetLifeNumToIni(ini: File)
+  case class JoinTable(ref: ActorRef,  table: String)
 
   def apply(underlying: P2DataStream) = new DataStream(underlying)
 }
@@ -29,17 +30,18 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   import DataStreamState._
 
   private var setLifeNumToIni: Option[File] = None
+  private var tableDataEventsListeners = Seq[(String, ActorRef)]()
 
   startWith(Idle, None)
 
   when(Idle) {
     case Event(Open(connection), None) => goto(Opening) using Some(open(connection.underlying))
     case Event(SetLifeNumToIni(file), _) => setLifeNumToIni = Some(file); stay()
+    case Event(JoinTable(ref, table), _) => tableDataEventsListeners = (table, ref) +: tableDataEventsListeners; stay()
   }
 
   when(Opening, stateTimeout = 10.seconds) {
     case Event(StreamStateChanged(StreamState.LocalSnapshot), _) => goto(Synchronizing)
-
     case Event(FSM.StateTimeout, _) => stop(Failure("DataStream opening timed out"))
   }
 
@@ -49,13 +51,21 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   }
 
   when(Synchronizing) {
+      case Event(StreamStateChanged(StreamState.Reopen), _) => goto(Reopen)
+      case Event(StreamStateChanged(StreamState.RemoteSnapshot), _) => stay()
+      case Event(StreamStateChanged(StreamState.Online), _) => goto(Online)
+  }
+
+  when(Synchronizing) {
+    handleStreamDataEvents
+  }
+  
+  when(Online) {
     case Event(StreamStateChanged(StreamState.Reopen), _) => goto(Reopen)
-    case Event(StreamStateChanged(StreamState.RemoteSnapshot), _) => stay()
-    case Event(StreamStateChanged(StreamState.Online), _) => goto(Online)
   }
 
   when(Online) {
-    case Event(StreamStateChanged(StreamState.Reopen), _) => goto(Reopen)
+    handleStreamDataEvents
   }
 
   onTransition {
@@ -76,6 +86,14 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   }
 
   initialize
+  
+  private def handleStreamDataEvents: StateFunction = {
+    case Event(e@StreamDataBegin, _)                  => tableDataEventsListeners.foreach(_._2 ! e); stay()
+    case Event(e@StreamDataEnd, _)                    => tableDataEventsListeners.foreach(_._2 ! e); stay()
+    case Event(e@StreamDatumDeleted(table, _), _)     => tableDataEventsListeners.filter(_._1 == table).foreach(_._2 ! e); stay()
+    case Event(e@StreamDataInserted(table, _), _)     => tableDataEventsListeners.filter(_._1 == table).foreach(_._2 ! e); stay()
+    case Event(e@StreamDataDeleted(table, _, _), _)   => tableDataEventsListeners.filter(_._1 == table).foreach(_._2 ! e); stay()
+  }
 
   private def open(connection: P2Connection) = {
     val safeRelease = underlying.dispatchEvents {

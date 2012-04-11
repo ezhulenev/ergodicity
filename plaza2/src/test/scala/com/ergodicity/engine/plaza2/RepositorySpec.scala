@@ -3,31 +3,32 @@ package com.ergodicity.engine.plaza2
 import org.scalatest.WordSpec
 import org.slf4j.LoggerFactory
 import akka.actor.ActorSystem
-import protocol.Session
-import akka.testkit.{TestFSMRef, TestKit}
+import scheme.SessionRecord
 import RepositoryState._
-import com.ergodicity.engine.plaza2.protocol.FutInfo._
+import com.ergodicity.engine.plaza2.scheme.FutInfo._
 import org.mockito.Mockito._
 import plaza2._
+import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 
-class RepositorySpec  extends TestKit(ActorSystem()) with WordSpec {
+class RepositorySpec  extends TestKit(ActorSystem()) with ImplicitSender with WordSpec {
   val log = LoggerFactory.getLogger(classOf[RepositorySpec])
 
   "Repository" must {
-    "be initialized in Snapshot state" in {
-      val repository = TestFSMRef(Repository[Session], "Repository")
+    "be initialized in Idle state" in {
+      val repository = TestFSMRef(Repository[SessionRecord], "Repository")
       log.info("State: " + repository.stateName)
-      assert(repository.stateName == Snapshot)
+      assert(repository.stateName == Idle)
     }
 
     "go to Synchronizing state as stream data begins" in {
-      val repository = TestFSMRef(Repository[Session], "Repository")
+      val repository = TestFSMRef(Repository[SessionRecord], "Repository")
       repository ! StreamDataBegin
       assert(repository.stateName == Synchronizing)
     }
 
     "handle new data" in {
-      val repository = TestFSMRef(Repository[Session], "Repository")
+      val repository = TestFSMRef(Repository[SessionRecord], "Repository")
+      repository.setState(Snapshot, Seq())
 
       repository ! StreamDataBegin
       assert(repository.stateName == Synchronizing)

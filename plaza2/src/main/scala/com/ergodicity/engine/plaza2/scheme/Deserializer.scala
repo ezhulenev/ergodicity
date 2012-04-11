@@ -1,4 +1,4 @@
-package com.ergodicity.engine.plaza2.protocol
+package com.ergodicity.engine.plaza2.scheme
 
 import plaza2.{Record => P2Record}
 

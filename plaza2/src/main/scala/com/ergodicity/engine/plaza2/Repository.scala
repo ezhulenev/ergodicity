@@ -1,12 +1,13 @@
 package com.ergodicity.engine.plaza2
 
-import com.ergodicity.engine.plaza2.RepositoryState.{Synchronizing, Snapshot}
-import protocol.{Deserializer, Record}
+import com.ergodicity.engine.plaza2.RepositoryState.{Idle, Synchronizing, Snapshot}
+import scheme.{Deserializer, Record}
 import plaza2.{DataStream => _, _}
-import akka.actor.{Props, FSM, Actor}
+import akka.actor.{FSM, Actor}
 
 sealed trait RepositoryState
 object RepositoryState {
+  case object Idle extends RepositoryState
   case object Snapshot extends RepositoryState
   case object Synchronizing extends RepositoryState
 }
@@ -17,8 +18,13 @@ object Repository {
 
 class Repository[T <: Record](implicit deserializer: Deserializer[T]) extends Actor with FSM[RepositoryState, Seq[T]] {
   
-  startWith(Snapshot, Seq())
+  startWith(Idle, Seq())
   
+  when(Idle) {
+    case Event(StreamDatumDeleted(_, _), _) => stay()
+    case Event(StreamDataBegin, _) => goto(Synchronizing)
+  }
+
   when(Snapshot) {
     case Event(StreamDatumDeleted(_, rev), seq) => stay() using seq.filterNot {_.replRev < rev}
     case Event(StreamDataBegin, _) => goto(Synchronizing)
@@ -32,8 +38,9 @@ class Repository[T <: Record](implicit deserializer: Deserializer[T]) extends Ac
   }
 
   onTransition {
-    case Snapshot -> Synchronizing    => log.info("Begin receiving Plaza2 transaction")
-    case Synchronizing -> Snapshot    => log.info("Plaza2 transaction received; Data = "+stateData)
+    case Idle -> Synchronizing        => log.info("Begin initializing repository")
+    case Snapshot -> Synchronizing    => log.info("Begin updating repository")
+    case Synchronizing -> Snapshot    => log.info("Completed Plaza2 transaction; Data = "+stateData)
   }
 
   initialize

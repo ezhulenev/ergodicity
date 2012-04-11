@@ -1,11 +1,11 @@
 package com.ergodicity.engine.plaza2.futures
 
 import org.joda.time.Interval
-import org.joda.time.format.DateTimeFormat
 import org.scala_tools.time.Implicits._
-import akka.actor.{Actor, FSM}
-import com.ergodicity.engine.plaza2.protocol.{Session => SessionRecord}
-
+import com.ergodicity.engine.plaza2.scheme.SessionRecord
+import akka.actor.{ActorRef, Props, Actor, FSM}
+import com.ergodicity.engine.plaza2.scheme.FutInfo._
+import akka.actor.FSM._
 
 sealed trait SessionState
 
@@ -53,34 +53,87 @@ object IntClearingState {
 }
 
 
-case class SessionContent(id: Long, intClearingInterval: Interval,
-                          primarySession: Interval, eveningSession: Option[Interval],
-                          morningSession: Option[Interval], positionTransfer: Interval)
+case class IntClearing(state: IntClearingState) extends Actor with FSM[IntClearingState, Unit] {
+  import IntClearingState._
+  
+  startWith(state, ())
 
-object SessionContent {
-  def TimeFormat = DateTimeFormat.forPattern("yyyy/MM/dd HH:mm:ss.SSS")
+  when (Undefined) {handleState}
+  when (Oncoming) {handleState}
+  when (Canceled) {handleState}
+  when (Running) {handleState}
+  when (Finalizing) {handleState}
+  when (Completed) {handleState}
 
+  onTransition {
+    case from -> to => log.info("Intermediate clearing updated from " + from + " -> " + to)
+  }
+  
+  initialize
+
+  private def handleState: StateFunction = {
+    case Event(s:IntClearingState, _) => goto(s)
+  } 
+}
+
+case class SessionContent(id: Long, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval) {
+  def this(rec: SessionRecord) = this(
+    rec.sessionId,
+    parseInterval(rec.begin, rec.end),
+    if (rec.eveOn != 0) Some(parseInterval(rec.eveBegin, rec.eveEnd)) else None,
+    if (rec.monOn != 0) Some(parseInterval(rec.monBegin, rec.monEnd)) else None,
+    TimeFormat.parseDateTime(rec.posTransferBegin) to TimeFormat.parseDateTime(rec.posTransferEnd)
+  )
+}
+
+
+object Session {
   def apply(rec: SessionRecord) = {
-    val primarySession = TimeFormat.parseDateTime(rec.begin) to TimeFormat.parseDateTime(rec.end)
-    val intermediateClearingInterval = TimeFormat.parseDateTime(rec.interClBegin) to TimeFormat.parseDateTime(rec.interClEnd)
-    val eveningSession = if (rec.eveOn != 0) Some(TimeFormat.parseDateTime(rec.eveBegin) to TimeFormat.parseDateTime(rec.eveEnd)) else None
-    val morningSession = if (rec.monOn != 0) Some(TimeFormat.parseDateTime(rec.monBegin) to TimeFormat.parseDateTime(rec.monEnd)) else None
-    val positionTransfer = TimeFormat.parseDateTime(rec.posTransferBegin) to TimeFormat.parseDateTime(rec.posTransferEnd)
-
-    new SessionContent(rec.sessionId,
-      intermediateClearingInterval,
-      primarySession,
-      eveningSession,
-      morningSession,
-      positionTransfer)
+    new Session(
+      new SessionContent(rec),
+      SessionState(rec.state),
+      IntClearingState(rec.interClState)
+    )
   }
 }
 
+case class Session(content: SessionContent, state: SessionState, intClearingState: IntClearingState) extends Actor with FSM[SessionState, ActorRef] {
+  import SessionState._
 
-case class Session(content: SessionContent, state: SessionState,
-                   intClearingState: IntClearingState) extends Actor with FSM[SessionState, IntClearingState] {
+  val intClearing = context.actorOf(Props(new IntClearing(intClearingState)), "IntClearing")
 
-  startWith(state, intClearingState)
+  startWith(state, intClearing)
+
+  when(Assigned) {
+    handleSessionState orElse handleClearingState
+  }
+  when(Online) {
+    handleSessionState orElse handleClearingState
+  }
+  when(Suspended) {
+    handleSessionState orElse handleClearingState
+  }
+  when(Canceled) {
+    case Event(e, _) => stop(Failure("Unexpected event after canceled: " + e))
+  }
+  when(Completed) {
+    case Event(e, _) => stop(Failure("Unexpected event after completion: " + e))
+  }
+
+  onTransition {
+    case from -> to => log.info("Session updated from " + from + " -> " + to)
+  }
 
   initialize
+
+  log.info("Created session; Id = " + content.id + "; State = " + state + "; content = " + content)
+
+  private def handleSessionState: StateFunction = {
+    case Event(state: SessionState, _) => goto(state)
+  }
+
+  private def handleClearingState: StateFunction = {
+    case Event(state: IntClearingState, clearing) => clearing ! state; stay()
+  }
 }
+

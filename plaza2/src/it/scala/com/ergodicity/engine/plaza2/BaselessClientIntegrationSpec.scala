@@ -46,7 +46,7 @@ class BaselessClient {
   val dataStream = P2DataStream("FORTS_FUTINFO_REPL", CombinedDynamic, TableSet(new File("plaza2/scheme/FuturesSession.ini")))
 
   def run() {
-    import com.ergodicity.engine.plaza2.protocol.FutInfo._
+    import com.ergodicity.engine.plaza2.scheme.FutInfo._
     log.info("Start client")
 
     connection.host = Host

@@ -6,13 +6,13 @@ import org.mockito.Mockito._
 import org.mockito.Matchers._
 import org.hamcrest.{Description, BaseMatcher}
 import plaza2.{DataStream => P2DataStream, Connection => _, _}
-import akka.testkit.{TestFSMRef, TestKit}
 import com.ergodicity.engine.plaza2.DataStreamState._
-import com.ergodicity.engine.plaza2.DataStream.Open
 import akka.actor.{FSM, Terminated, ActorSystem}
 import com.jacob.com.ComFailException
+import com.ergodicity.engine.plaza2.DataStream.{JoinTable, Open}
+import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 
-class DataStreamSpec extends TestKit(ActorSystem()) with WordSpec {
+class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
 
   type EventHandler = StreamEvent => Any
@@ -158,6 +158,34 @@ class DataStreamSpec extends TestKit(ActorSystem()) with WordSpec {
 
       streamEvents ! StreamStateChanged(StreamState.Close)
       expectMsg(Terminated(dataStream))
+    }
+
+    "support subscribe for data events" in {
+      val conn = mock(classOf[Connection])
+      val stream = mock(classOf[P2DataStream])
+
+      val dataStream = TestFSMRef(DataStream(stream), "DataStream")
+      val streamEvents = captureEventDispatcher(stream)
+
+      watch(dataStream)
+
+      assert(dataStream.stateName == Idle)
+      dataStream ! JoinTable(self, "good_table")
+
+      dataStream ! Open(conn)
+      streamEvents ! StreamStateChanged(StreamState.LocalSnapshot)
+      streamEvents ! StreamStateChanged(StreamState.RemoteSnapshot)
+
+      streamEvents ! StreamDataBegin
+      expectMsg(StreamDataBegin)
+
+      val msg = StreamDataInserted("good_table", mock(classOf[Record]))
+      streamEvents ! msg
+      expectMsg(msg)
+
+      streamEvents ! StreamDataInserted("bad_table", mock(classOf[Record]))
+      streamEvents ! StreamDataEnd
+      expectMsg(StreamDataEnd)
     }
   }
 
