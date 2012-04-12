@@ -113,11 +113,23 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
   when(Suspended) {
     handleSessionState orElse handleClearingState
   }
+  
   when(Canceled) {
+    case Event(SessionState.Canceled, _) => stay()
     case Event(e, _) => stop(Failure("Unexpected event after canceled: " + e))
   }
+  
+  when(Canceled) {
+    handleClearingState
+  }
+  
   when(Completed) {
+    case Event(SessionState.Completed, _) => stay()
     case Event(e, _) => stop(Failure("Unexpected event after completion: " + e))
+  }
+
+  when(Completed) {
+    handleClearingState
   }
 
   onTransition {

@@ -33,7 +33,7 @@ class RepositorySpec  extends TestKit(ActorSystem()) with ImplicitSender with Wo
       repository.setState(Consistent, Map(1l -> rec))
 
       repository ! SubscribeSnapshots(self)
-      expectMsg(Snapshot(Map(1l -> rec)))
+      expectMsgType[Snapshot[SessionRecord]]
     }
 
     "handle new data" in {
