@@ -1,0 +1,57 @@
+[INFO] [04/11/2012 23:16:41.528] [main] [akka://default/user/Connection] Connect; Host = localhost; Port = 4001; AppName = DataStreamIntegrationSpec
+[INFO] [04/11/2012 23:16:41.710] [main] [akka://default/user/Connection] Trying to establish connection to Plaza2
+[INFO] [04/11/2012 23:16:41.727] [main] [akka://default/user/Connection] Successfully connected to Plaza2
+[INFO] [04/11/2012 23:16:42.89] [main] [akka://default/user/FuturesInfo] Trying to open DataStream
+[INFO] [04/11/2012 23:16:42.89] [main] [akka://default/user/FuturesInfo] DataStream synchonization started
+[INFO] [04/11/2012 23:16:42.379] [default-akka.actor.default-dispatcher-3] [akka://default/user/Sessions/$a] Begin initializing repository
+[INFO] [04/11/2012 23:16:42.394] [default-akka.actor.default-dispatcher-2] [akka://default/user/FuturesInfo] DataStream goes Online
+[INFO] [04/11/2012 23:16:42.400] [default-akka.actor.default-dispatcher-3] [akka://default/user/Sessions/$a] Completed Plaza2 transaction
+[INFO] [04/11/2012 23:16:42.405] [default-akka.actor.default-dispatcher-3] [akka://default/user/Sessions] Snapshot: MapLike(SessionRecord(45,381,0,4021,2012/04/12 07:15:00.000,2012/04/12 14:45:00.000,1,3547,2012/04/12 12:00:00.000,2012/04/12 12:05:00.000,1,1,2012/04/11 15:30:00.000,2012/04/11 23:50:00.000,1,2012/04/12 07:00:00.000,2012/04/12 07:15:00.000,2012/04/12 13:00:00.000,2012/04/12 13:15:00.000))
+[INFO] [04/11/2012 23:16:42.529] [default-akka.actor.default-dispatcher-3] [akka://default/user/Sessions] Id: 4021; State: Online; IntClState: Oncoming; Content = SessionContent(4021,2012-04-12T07:15:00.000/2012-04-12T14:45:00.000,Some(2012-04-11T15:30:00.000/2012-04-11T23:50:00.000),Some(2012-04-12T07:00:00.000/2012-04-12T07:15:00.000),2012-04-12T13:00:00.000/2012-04-12T13:15:00.000)
+[INFO] [04/11/2012 23:50:12.611] [default-akka.actor.default-dispatcher-6] [akka://default/user/Sessions/$a] Begin updating repository
+[INFO] [04/11/2012 23:50:12.612] [default-akka.actor.default-dispatcher-6] [akka://default/user/Sessions/$a] Completed Plaza2 transaction
+[INFO] [04/11/2012 23:50:12.612] [default-akka.actor.default-dispatcher-6] [akka://default/user/Sessions] Snapshot: MapLike(SessionRecord(45,382,0,4021,2012/04/12 07:15:00.000,2012/04/12 14:45:00.000,2,3547,2012/04/12 12:00:00.000,2012/04/12 12:05:00.000,1,1,2012/04/11 15:30:00.000,2012/04/11 23:50:00.000,1,2012/04/12 07:00:00.000,2012/04/12 07:15:00.000,2012/04/12 13:00:00.000,2012/04/12 13:15:00.000))
+[INFO] [04/11/2012 23:50:12.614] [default-akka.actor.default-dispatcher-6] [akka://default/user/Sessions] Id: 4021; State: Suspended; IntClState: Oncoming; Content = SessionContent(4021,2012-04-12T07:15:00.000/2012-04-12T14:45:00.000,Some(2012-04-11T15:30:00.000/2012-04-11T23:50:00.000),Some(2012-04-12T07:00:00.000/2012-04-12T07:15:00.000),2012-04-12T13:00:00.000/2012-04-12T13:15:00.000)
+[INFO] [04/12/2012 04:35:12.15] [default-akka.actor.default-dispatcher-8] [akka://default/user/Sessions/$a] Begin updating repository
+[INFO] [04/12/2012 04:35:12.15] [default-akka.actor.default-dispatcher-8] [akka://default/user/Sessions/$a] Completed Plaza2 transaction
+[INFO] [04/12/2012 04:35:12.15] [default-akka.actor.default-dispatcher-8] [akka://default/user/Sessions] Snapshot: MapLike(SessionRecord(45,382,0,4021,2012/04/12 07:15:00.000,2012/04/12 14:45:00.000,2,3547,2012/04/12 12:00:00.000,2012/04/12 12:05:00.000,1,1,2012/04/11 15:30:00.000,2012/04/11 23:50:00.000,1,2012/04/12 07:00:00.000,2012/04/12 07:15:00.000,2012/04/12 13:00:00.000,2012/04/12 13:15:00.000))
+[INFO] [04/12/2012 04:35:12.17] [default-akka.actor.default-dispatcher-8] [akka://default/user/Sessions] Id: 4021; State: Suspended; IntClState: Oncoming; Content = SessionContent(4021,2012-04-12T07:15:00.000/2012-04-12T14:45:00.000,Some(2012-04-11T15:30:00.000/2012-04-11T23:50:00.000),Some(2012-04-12T07:00:00.000/2012-04-12T07:15:00.000),2012-04-12T13:00:00.000/2012-04-12T13:15:00.000)
+[INFO] [04/12/2012 04:36:00.802] [default-akka.actor.default-dispatcher-8] [akka://default/user/Sessions/$a] Begin updating repository
+[INFO] [04/12/2012 04:36:00.803] [default-akka.actor.default-dispatcher-8] [akka://default/user/Sessions/$a] Completed Plaza2 transaction
+[INFO] [04/12/2012 04:36:00.804] [default-akka.actor.default-dispatcher-8] [akka://default/user/Sessions] Snapshot: MapLike(SessionRecord(45,385,0,4021,2012/04/12 07:15:00.000,2012/04/12 14:45:00.000,2,3547,2012/04/12 12:00:00.000,2012/04/12 12:05:00.000,1,1,2012/04/11 15:30:00.000,2012/04/11 23:50:00.000,1,2012/04/12 07:00:00.000,2012/04/12 07:15:00.000,2012/04/12 13:00:00.000,2012/04/12 13:15:00.000))
+[INFO] [04/12/2012 04:36:00.805] [default-akka.actor.default-dispatcher-8] [akka://default/user/Sessions] Id: 4021; State: Suspended; IntClState: Oncoming; Content = SessionContent(4021,2012-04-12T07:15:00.000/2012-04-12T14:45:00.000,Some(2012-04-11T15:30:00.000/2012-04-11T23:50:00.000),Some(2012-04-12T07:00:00.000/2012-04-12T07:15:00.000),2012-04-12T13:00:00.000/2012-04-12T13:15:00.000)
+[INFO] [04/12/2012 05:30:41.304] [default-akka.actor.default-dispatcher-7] [akka://default/user/Sessions/$a] Begin updating repository
+[INFO] [04/12/2012 05:30:41.304] [default-akka.actor.default-dispatcher-7] [akka://default/user/Sessions/$a] Completed Plaza2 transaction
+[INFO] [04/12/2012 05:30:41.304] [default-akka.actor.default-dispatcher-7] [akka://default/user/Sessions] Snapshot: MapLike()
+[INFO] [04/12/2012 05:30:41.412] [default-akka.actor.default-dispatcher-7] [akka://default/user/Sessions/$a] Begin updating repository
+[INFO] [04/12/2012 05:30:41.413] [default-akka.actor.default-dispatcher-7] [akka://default/user/Sessions/$a] Completed Plaza2 transaction
+[INFO] [04/12/2012 05:30:41.413] [default-akka.actor.default-dispatcher-7] [akka://default/user/Sessions] Snapshot: MapLike(SessionRecord(46,387,0,4021,2012/04/12 07:15:00.000,2012/04/12 14:45:00.000,2,3547,2012/04/12 12:00:00.000,2012/04/12 12:05:00.000,1,1,2012/04/11 15:30:00.000,2012/04/11 23:50:00.000,1,2012/04/12 07:00:00.000,2012/04/12 07:15:00.000,2012/04/12 13:00:00.000,2012/04/12 13:15:00.000))
+[INFO] [04/12/2012 05:30:41.413] [default-akka.actor.default-dispatcher-7] [akka://default/user/Sessions] Id: 4021; State: Suspended; IntClState: Oncoming; Content = SessionContent(4021,2012-04-12T07:15:00.000/2012-04-12T14:45:00.000,Some(2012-04-11T15:30:00.000/2012-04-11T23:50:00.000),Some(2012-04-12T07:00:00.000/2012-04-12T07:15:00.000),2012-04-12T13:00:00.000/2012-04-12T13:15:00.000)
+[INFO] [04/12/2012 07:00:12.77] [default-akka.actor.default-dispatcher-7] [akka://default/user/Sessions/$a] Begin updating repository
+[INFO] [04/12/2012 07:00:12.77] [default-akka.actor.default-dispatcher-7] [akka://default/user/Sessions/$a] Completed Plaza2 transaction
+[INFO] [04/12/2012 07:00:12.77] [default-akka.actor.default-dispatcher-7] [akka://default/user/Sessions] Snapshot: MapLike(SessionRecord(46,388,0,4021,2012/04/12 07:15:00.000,2012/04/12 14:45:00.000,1,3547,2012/04/12 12:00:00.000,2012/04/12 12:05:00.000,1,1,2012/04/11 15:30:00.000,2012/04/11 23:50:00.000,1,2012/04/12 07:00:00.000,2012/04/12 07:15:00.000,2012/04/12 13:00:00.000,2012/04/12 13:15:00.000))
+[INFO] [04/12/2012 07:00:12.78] [default-akka.actor.default-dispatcher-7] [akka://default/user/Sessions] Id: 4021; State: Online; IntClState: Oncoming; Content = SessionContent(4021,2012-04-12T07:15:00.000/2012-04-12T14:45:00.000,Some(2012-04-11T15:30:00.000/2012-04-11T23:50:00.000),Some(2012-04-12T07:00:00.000/2012-04-12T07:15:00.000),2012-04-12T13:00:00.000/2012-04-12T13:15:00.000)
+[ERROR] [04/12/2012 10:52:07.232] [default-akka.actor.default-dispatcher-4] [TaskInvocation] Invoke of: ProcessMessage2
+Source: P2ClientGateMTA.P2ConnectionMTA.1
+Description: Coudn't get MQ message
+
+com.jacob.com.ComFailException: Invoke of: ProcessMessage2
+Source: P2ClientGateMTA.P2ConnectionMTA.1
+Description: Coudn't get MQ message
+
+	at com.jacob.com.Dispatch.invokev(Native Method)
+	at com.jacob.com.Dispatch.invokev(Dispatch.java:625)
+	at com.jacob.com.Dispatch.callN(Dispatch.java:453)
+	at com.jacob.com.Dispatch.call(Dispatch.java:541)
+	at plaza2.Connection.processMessage(Connection.scala:173)
+	at com.ergodicity.engine.plaza2.Connection$$anonfun$1.apply$mcV$sp(Connection.scala:73)
+	at akka.actor.DefaultScheduler$$anon$1.run(Scheduler.scala:142)
+	at akka.dispatch.TaskInvocation.run(AbstractDispatcher.scala:83)
+	at akka.jsr166y.ForkJoinTask$AdaptedRunnableAction.exec(ForkJoinTask.java:1381)
+	at akka.jsr166y.ForkJoinTask.doExec(ForkJoinTask.java:259)
+	at akka.jsr166y.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:997)
+	at akka.jsr166y.ForkJoinPool.runWorker(ForkJoinPool.java:1495)
+	at akka.jsr166y.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:104)
+
+[ERROR] [04/12/2012 10:52:07.280] [default-akka.actor.default-dispatcher-8] [akka://default/user/Connection] ConnectionInvalid
+[ERROR] [04/12/2012 10:52:07.281] [default-akka.actor.default-dispatcher-8] [akka://default/user/Connection] Connection failed, reason = Failure(ConnectionInvalid)
