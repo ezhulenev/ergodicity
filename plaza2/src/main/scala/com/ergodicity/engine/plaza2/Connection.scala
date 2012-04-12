@@ -7,10 +7,12 @@ import akka.actor.FSM.Failure
 import ConnectionState._
 import plaza2.{SafeRelease, ConnectionStatusChanged, Connection => P2Connection}
 import plaza2.ConnectionStatus.{ConnectionInvalid, ConnectionDisconnected, ConnectionConnected}
+import akka.dispatch.Future
 
 
 object Connection {
   case class Connect(host: String, port: Int, appName: String)
+  case class ProcessMessages(timeout: Long)
   case object Disconnect
 
   def apply(underlying: P2Connection) = new Connection(underlying)
@@ -25,7 +27,7 @@ object ConnectionState {
 
 class Connection(protected[plaza2] val underlying: P2Connection) extends Actor with FSM[ConnectionState, Option[SafeRelease]] {
   import Connection._
-
+  
   startWith(Idle, None)
 
   when(Idle) { case Event(Connect(host, port, appName), _) =>
@@ -47,11 +49,13 @@ class Connection(protected[plaza2] val underlying: P2Connection) extends Actor w
     case Event(Disconnect, _) => stop(Failure(Disconnect))
     case Event(ConnectionStatusChanged(status@(ConnectionDisconnected | ConnectionInvalid), _), _) => stop(Failure(status))
     case Event(ConnectionStatusChanged(_, Some(routerStatus)), _) if (routerStatus != RouterConnected) => stop(Failure(routerStatus))
+
+    case Event(ProcessMessages(timeout), _) => underlying.processMessage(timeout); self ! ProcessMessages(timeout); stay()
   }
 
   onTransition {
     case Idle -> Connecting        => log.info("Trying to establish connection to Plaza2")
-    case Connecting -> Connected   => log.info("Successfully connected to Plaza2")
+    case Connecting -> Connected   => log.info("Successfully connected to Plaza2"); self ! ProcessMessages
   }
 
   onTermination { case StopEvent(reason, s, d) =>
@@ -69,16 +73,12 @@ class Connection(protected[plaza2] val underlying: P2Connection) extends Actor w
     underlying.connect()
 
     val releaseEventListener = underlying.dispatchEvents {self ! _}
-    val processMessageTask = context.system.scheduler.schedule(0.nanos, 0.nanos) {
-      underlying.processMessage(100)
-    }
 
     // Send current status immediately
     self ! ConnectionStatusChanged(underlying.status, underlying.routerStatus)
 
     new SafeRelease {
       def apply() {
-        processMessageTask.cancel()
         releaseEventListener()
         underlying.disconnect()
       }

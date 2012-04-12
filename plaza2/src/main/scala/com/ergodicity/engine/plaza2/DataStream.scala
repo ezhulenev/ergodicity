@@ -19,7 +19,7 @@ object DataStreamState {
 
 
 object DataStream {
-  case class Open(connection: Connection)
+  case class Open(connection: P2Connection)
   case class SetLifeNumToIni(ini: File)
   case class JoinTable(ref: ActorRef,  table: String)
 
@@ -35,7 +35,7 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   startWith(Idle, None)
 
   when(Idle) {
-    case Event(Open(connection), None) => goto(Opening) using Some(open(connection.underlying))
+    case Event(Open(connection), None) => goto(Opening) using Some(open(connection))
     case Event(SetLifeNumToIni(file), _) => setLifeNumToIni = Some(file); stay()
     case Event(JoinTable(ref, table), _) => tableDataEventsListeners = (table, ref) +: tableDataEventsListeners; stay()
   }

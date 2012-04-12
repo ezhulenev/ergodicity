@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import org.hamcrest.{Description, BaseMatcher}
-import plaza2.{DataStream => P2DataStream, Connection => _, _}
+import plaza2.{DataStream => P2DataStream, Connection => P2Connection, _}
 import com.ergodicity.engine.plaza2.DataStreamState._
 import akka.actor.{FSM, Terminated, ActorSystem}
 import com.jacob.com.ComFailException
@@ -30,7 +30,7 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
     }
 
     "propagate exception on open" in {
-      val conn = mock(classOf[Connection])
+      val conn = mock(classOf[P2Connection])
       val stream = mock(classOf[P2DataStream])
       val err = mock(classOf[ComFailException])
       when(stream.open(any())).thenThrow(err)
@@ -42,7 +42,7 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
     }
 
     "go to Opening status" in {
-      val conn = mock(classOf[Connection])
+      val conn = mock(classOf[P2Connection])
       val stream = mock(classOf[P2DataStream])
 
       val dataStream = TestFSMRef(DataStream(stream), "DataStream")
@@ -53,7 +53,7 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
     }
 
     "terminate after P2Stream goes to Error state" in {
-      val conn = mock(classOf[Connection])
+      val conn = mock(classOf[P2Connection])
       val stream = mock(classOf[P2DataStream])
 
       val dataStream = TestFSMRef(DataStream(stream), "DataStream")
@@ -68,7 +68,7 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
     }
 
     "terminate after P2Stream goes to Close state" in {
-      val conn = mock(classOf[Connection])
+      val conn = mock(classOf[P2Connection])
       val stream = mock(classOf[P2DataStream])
 
       val dataStream = TestFSMRef(DataStream(stream), "DataStream")
@@ -83,7 +83,7 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
     }
 
     "terminate after P2Stream goes to CloseComplete state" in {
-      val conn = mock(classOf[Connection])
+      val conn = mock(classOf[P2Connection])
       val stream = mock(classOf[P2DataStream])
 
       val dataStream = TestFSMRef(DataStream(stream), "DataStream")
@@ -96,7 +96,7 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
     }
 
     "terminate on Opening time out" in {
-      val conn = mock(classOf[Connection])
+      val conn = mock(classOf[P2Connection])
       val stream = mock(classOf[P2DataStream])
 
       val dataStream = TestFSMRef(DataStream(stream), "DataStream")
@@ -111,7 +111,7 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
     }
 
     "terminate if not ini for life number updates" in {
-      val conn = mock(classOf[Connection])
+      val conn = mock(classOf[P2Connection])
       val stream = mock(classOf[P2DataStream])
 
       val dataStream = TestFSMRef(DataStream(stream), "DataStream")
@@ -128,7 +128,7 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
     }
 
     "go throught Idle -> Opening -> Synchronizing -> Reopen -> Synchronizing -> Online -> Reopen -> Stop" in {
-      val conn = mock(classOf[Connection])
+      val conn = mock(classOf[P2Connection])
       val stream = mock(classOf[P2DataStream])
 
       val dataStream = TestFSMRef(DataStream(stream), "DataStream")
@@ -161,7 +161,7 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
     }
 
     "support subscribe for data events" in {
-      val conn = mock(classOf[Connection])
+      val conn = mock(classOf[P2Connection])
       val stream = mock(classOf[P2DataStream])
 
       val dataStream = TestFSMRef(DataStream(stream), "DataStream")
@@ -189,7 +189,7 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
     }
 
     "notify subscribers when Reopened" in {
-      val conn = mock(classOf[Connection])
+      val conn = mock(classOf[P2Connection])
       val stream = mock(classOf[P2DataStream])
 
       val dataStream = TestFSMRef(DataStream(stream), "DataStream")
