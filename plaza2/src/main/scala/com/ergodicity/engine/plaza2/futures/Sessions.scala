@@ -8,8 +8,6 @@ import com.ergodicity.engine.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import akka.event.Logging
 import akka.actor.{PoisonPill, Props, Actor, ActorRef}
 
-sealed trait SessionsState
-
 object Sessions {
   def apply(dataStream: ActorRef) = new Sessions(dataStream)
 }
