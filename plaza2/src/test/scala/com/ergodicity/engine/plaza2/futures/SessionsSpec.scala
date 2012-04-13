@@ -8,6 +8,7 @@ import com.ergodicity.engine.plaza2.scheme.SessionRecord
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import akka.actor.{Terminated, ActorSystem}
 import org.scalatest.{GivenWhenThen, WordSpec}
+import com.ergodicity.engine.plaza2.futures.Sessions.{OngoingSession, GetOngoingSession}
 
 class SessionsSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSpec with GivenWhenThen {
   val log = LoggerFactory.getLogger(classOf[SessionSpec])
@@ -54,7 +55,10 @@ class SessionsSpec extends TestKit(ActorSystem()) with ImplicitSender with WordS
       
       session2 ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(session2, SessionState.Assigned))
-      assert(underlying.ongoingSession == Some(session2))
+
+      sessions ! GetOngoingSession
+      expectMsg(OngoingSession(Some(session2)))
+
       assert(underlying.trackingSessions.size == 2)
 
       when("second session goes online and first removed")

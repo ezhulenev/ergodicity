@@ -55,7 +55,7 @@ class Connection(protected[plaza2] val underlying: P2Connection) extends Actor w
 
   onTransition {
     case Idle -> Connecting        => log.info("Trying to establish connection to Plaza2")
-    case Connecting -> Connected   => log.info("Successfully connected to Plaza2"); self ! ProcessMessages
+    case Connecting -> Connected   => log.info("Successfully connected to Plaza2");
   }
 
   onTermination { case StopEvent(reason, s, d) =>

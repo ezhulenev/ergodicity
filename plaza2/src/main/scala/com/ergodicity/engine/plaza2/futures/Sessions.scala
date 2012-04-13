@@ -7,9 +7,13 @@ import com.ergodicity.engine.plaza2.Repository
 import com.ergodicity.engine.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import akka.event.Logging
 import akka.actor.{PoisonPill, Props, Actor, ActorRef}
+import com.ergodicity.engine.plaza2.futures.Sessions.{OngoingSession, GetOngoingSession}
 
 object Sessions {
   def apply(dataStream: ActorRef) = new Sessions(dataStream)
+  
+  case object GetOngoingSession
+  case class OngoingSession(session: Option[ActorRef])
 }
 
 class Sessions(dataStream: ActorRef) extends Actor {
@@ -24,6 +28,7 @@ class Sessions(dataStream: ActorRef) extends Actor {
 
   protected def receive = {
     case Snapshot(records: Iterable[SessionRecord]) => updateSessions(records)
+    case GetOngoingSession => sender ! OngoingSession(ongoingSession)
   }
 
   private def updateSessions(records: Iterable[SessionRecord]) {
