@@ -19,6 +19,7 @@ object EngineBuild extends Build {
   lazy val core = Project(
     id = "core",
     base = file("core"),
+    dependencies = Seq(plaza2),
     settings = Project.defaultSettings ++ repositoriesSetting ++ Seq(libraryDependencies ++= Dependencies.core)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)

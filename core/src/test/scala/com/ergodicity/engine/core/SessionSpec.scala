@@ -1,14 +1,13 @@
-package com.ergodicity.engine.plaza2.futures
+package com.ergodicity.engine.core
 
 import org.slf4j.LoggerFactory
-import com.ergodicity.engine.plaza2.futures.SessionState._
 import org.scalatest.WordSpec
-import com.ergodicity.engine.plaza2.futures.IntClearingState.Finalizing
 import org.joda.time.DateTime
 import org.scala_tools.time.Implicits._
 import akka.actor.{Terminated, ActorSystem}
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 import akka.actor.FSM.{CurrentState, Transition, SubscribeTransitionCallBack}
+import SessionState._
 
 class SessionSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSpec {
   val log = LoggerFactory.getLogger(classOf[SessionSpec])
@@ -29,8 +28,8 @@ class SessionSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSp
 
   "IntClearing" must {
     "handle state updates" in {
-      val clearing = TestFSMRef(new IntClearing(Finalizing), "IntClearing")
-      assert(clearing.stateName == Finalizing)
+      val clearing = TestFSMRef(new IntClearing(IntClearingState.Finalizing), "IntClearing")
+      assert(clearing.stateName == IntClearingState.Finalizing)
 
       clearing ! IntClearingState.Completed
       log.info("State: " + clearing.stateName)
@@ -40,7 +39,7 @@ class SessionSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSp
 
   "Session" must {
     "be inititliazed in given state and terminate child clearing actor" in {
-      val content = SessionContent(100, primaryInterval, None, None, positionTransferInterval)
+      val content = SessionContent(100, 101, primaryInterval, None, None, positionTransferInterval)
       val session = TestFSMRef(Session(content, SessionState.Online, IntClearingState.Oncoming))
 
       assert(session.stateName == SessionState.Online)
@@ -53,13 +52,13 @@ class SessionSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSp
 
       expectMsg(Terminated(session))
       expectMsg(Terminated(intClearing))
-      
+
       assert(session.isTerminated)
       assert(intClearing.isTerminated)
     }
 
     "apply state and int. clearing updates" in {
-      val content = SessionContent(100, primaryInterval, None, None, positionTransferInterval)
+      val content = SessionContent(100, 101, primaryInterval, None, None, positionTransferInterval)
       val session = TestFSMRef(Session(content, SessionState.Online, IntClearingState.Oncoming), "Session")
 
       // Subscribe for clearing transitions

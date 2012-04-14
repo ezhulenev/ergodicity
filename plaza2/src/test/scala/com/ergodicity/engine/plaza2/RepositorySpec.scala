@@ -3,7 +3,6 @@ package com.ergodicity.engine.plaza2
 import org.scalatest.WordSpec
 import org.slf4j.LoggerFactory
 import akka.actor.ActorSystem
-import scheme.SessionRecord
 import RepositoryState._
 import com.ergodicity.engine.plaza2.scheme.FutInfo._
 import org.mockito.Mockito._

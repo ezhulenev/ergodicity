@@ -1,19 +1,20 @@
-package com.ergodicity.engine.plaza2.futures
+package com.ergodicity.engine.core
 
-import com.ergodicity.engine.plaza2.scheme.SessionRecord
 import com.ergodicity.engine.plaza2.scheme.FutInfo._
 import com.ergodicity.engine.plaza2.DataStream.JoinTable
 import com.ergodicity.engine.plaza2.Repository
 import com.ergodicity.engine.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import akka.event.Logging
 import akka.actor.{PoisonPill, Props, Actor, ActorRef}
-import com.ergodicity.engine.plaza2.futures.Sessions.{OngoingSession, GetOngoingSession}
+import com.ergodicity.engine.core.Sessions.{OngoingSession, GetOngoingSession}
 
 object Sessions {
   def apply(dataStream: ActorRef) = new Sessions(dataStream)
-  
+
   case object GetOngoingSession
+
   case class OngoingSession(session: Option[ActorRef])
+
 }
 
 class Sessions(dataStream: ActorRef) extends Actor {
@@ -23,8 +24,8 @@ class Sessions(dataStream: ActorRef) extends Actor {
   repository ! SubscribeSnapshots(self)
   dataStream ! JoinTable(repository, "session")
 
-  protected[futures] var ongoingSession: Option[ActorRef] = None
-  protected[futures] var trackingSessions: Map[Long, ActorRef] = Map()
+  protected[core] var ongoingSession: Option[ActorRef] = None
+  protected[core] var trackingSessions: Map[Long, ActorRef] = Map()
 
   protected def receive = {
     case Snapshot(records: Iterable[SessionRecord]) => updateSessions(records)

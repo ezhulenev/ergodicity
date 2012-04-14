@@ -1,27 +1,32 @@
-package com.ergodicity.engine.plaza2
+package com.ergodicity.engine.core
 
-import futures.Sessions
 import org.slf4j.LoggerFactory
 import java.io.File
 import org.scalatest.WordSpec
 import plaza2.RequestType.CombinedDynamic
 import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
-import com.ergodicity.engine.plaza2.DataStream.{SetLifeNumToIni, Open}
 import akka.testkit.{TestActorRef, TestFSMRef, TestKit}
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
+import com.ergodicity.engine.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
+import com.ergodicity.engine.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
+import com.ergodicity.engine.plaza2.scheme.FutInfo.SessContentsRecord
+import com.ergodicity.engine.plaza2.scheme.FutInfo
+import com.ergodicity.engine.plaza2._
 
-class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSpec", Config)) with WordSpec {
+
+class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", Config)) with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
+
 
   val Host = "localhost"
   val Port = 4001
-  val AppName = "SessionsIntegrationSpec"
+  val AppName = "FuturesDataStreamIntegrationSpec"
 
-  "Sessions" must {
-    "should work" in {
+  "DataStream" must {
+    "do some stuff" in {
       val underlyingConnection = P2Connection()
       val connection = system.actorOf(Props(Connection(underlyingConnection)), "Connection")
       connection ! Connect(Host, Port, AppName)
@@ -38,9 +43,21 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
 
       val dataStream = TestFSMRef(new DataStream(underlyingStream), "FuturesInfo")
       dataStream ! SetLifeNumToIni(ini)
-      TestActorRef(new Sessions(dataStream), "Sessions")
 
+      val repository = TestFSMRef(new Repository[SessContentsRecord]()(FutInfo.SessContentsDeserializer), "SessionsRepository")
+
+      dataStream ! JoinTable(repository, "fut_sess_contents")
       dataStream ! Open(underlyingConnection)
+
+      repository ! SubscribeSnapshots(TestActorRef(new Actor {
+        protected def receive = {
+          case snapshot@Snapshot(data: Iterable[SessContentsRecord]) =>
+            log.info("Got snapshot")
+            data.foreach(sessionContents =>
+              log.info("SessContents: " + sessionContents)
+            )
+        }
+      }))
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }

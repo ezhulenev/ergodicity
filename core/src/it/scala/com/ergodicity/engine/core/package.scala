@@ -2,7 +2,7 @@ package com.ergodicity.engine
 
 import com.typesafe.config.ConfigFactory
 
-package object plaza2 {
+package object core {
   val Config = ConfigFactory.parseString("""
     akka.loglevel = DEBUG
     akka.actor.debug {

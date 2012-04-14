@@ -1,6 +1,5 @@
-package com.ergodicity.engine.plaza2
+package com.ergodicity.engine.core
 
-import futures.Sessions
 import org.slf4j.LoggerFactory
 import java.io.File
 import org.scalatest.WordSpec
@@ -10,19 +9,20 @@ import akka.testkit.{TestActorRef, TestFSMRef, TestKit}
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
-import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
-import scheme.{FutInfo, SessContentsRecord}
 import com.ergodicity.engine.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
 import com.ergodicity.engine.plaza2.Repository.{Snapshot, SubscribeSnapshots}
+import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
+import com.ergodicity.engine.plaza2.scheme.OptInfo.SessContentsRecord
+import com.ergodicity.engine.plaza2.scheme.OptInfo
+import com.ergodicity.engine.plaza2._
 
-
-class DataStreamIntegrationSpec extends TestKit(ActorSystem("DataStreamIntegrationSpec", Config)) with WordSpec {
+class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", Config)) with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
 
 
   val Host = "localhost"
   val Port = 4001
-  val AppName = "DataStreamIntegrationSpec"
+  val AppName = "OptionsDataStreamIntegrationSpec"
 
   "DataStream" must {
     "do some stuff" in {
@@ -36,16 +36,17 @@ class DataStreamIntegrationSpec extends TestKit(ActorSystem("DataStreamIntegrati
         }
       })))
 
-      val ini = new File("plaza2/scheme/FutInfo.ini")
+      val ini = new File("plaza2/scheme/OptInfo.ini")
       val tableSet = TableSet(ini)
-      val underlyingStream = P2DataStream("FORTS_FUTINFO_REPL", CombinedDynamic, tableSet)
+      val underlyingStream = P2DataStream("FORTS_OPTINFO_REPL", CombinedDynamic, tableSet)
 
-      val dataStream = TestFSMRef(new DataStream(underlyingStream), "FuturesInfo")
+      val dataStream = TestFSMRef(new DataStream(underlyingStream), "OptionsInfo")
       dataStream ! SetLifeNumToIni(ini)
 
-      val repository = TestFSMRef(new Repository[SessContentsRecord]()(FutInfo.SessContentsDeserializer), "SessionsRepository")
+      // Handle options data
+      val repository = TestFSMRef(new Repository[SessContentsRecord]()(OptInfo.SessContentsDeserializer), "SessContentRepo")
 
-      dataStream ! JoinTable(repository, "fut_sess_contents")
+      dataStream ! JoinTable(repository, "opt_sess_contents")
       dataStream ! Open(underlyingConnection)
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {

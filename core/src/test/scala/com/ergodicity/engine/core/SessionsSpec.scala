@@ -1,14 +1,14 @@
-package com.ergodicity.engine.plaza2.futures
+package com.ergodicity.engine.core
 
 import org.slf4j.LoggerFactory
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import com.ergodicity.engine.plaza2.DataStream.JoinTable
 import com.ergodicity.engine.plaza2.Repository.Snapshot
-import com.ergodicity.engine.plaza2.scheme.SessionRecord
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import akka.actor.{Terminated, ActorSystem}
 import org.scalatest.{GivenWhenThen, WordSpec}
-import com.ergodicity.engine.plaza2.futures.Sessions.{OngoingSession, GetOngoingSession}
+import com.ergodicity.engine.plaza2.scheme.FutInfo.SessionRecord
+import com.ergodicity.engine.core.Sessions._
 
 class SessionsSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSpec with GivenWhenThen {
   val log = LoggerFactory.getLogger(classOf[SessionSpec])
@@ -42,7 +42,7 @@ class SessionsSpec extends TestKit(ActorSystem()) with ImplicitSender with WordS
 
       when("revision changed for same record")
       sessions ! Snapshot(Seq(sessionRecord(46, 398, 4021, SessionState.Completed)))
-      
+
       then("should remain in the same state")
       assert(underlying.ongoingSession == None)
 
@@ -52,7 +52,7 @@ class SessionsSpec extends TestKit(ActorSystem()) with ImplicitSender with WordS
       then("new actor should be created")
       val session2 = underlying.trackingSessions(4022)
       watch(session2)
-      
+
       session2 ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(session2, SessionState.Assigned))
 
@@ -73,7 +73,7 @@ class SessionsSpec extends TestKit(ActorSystem()) with ImplicitSender with WordS
 
       when("all sessions removed")
       sessions ! Snapshot(Seq())
-      
+
       then("second session should also be terminated")
       expectMsg(Terminated(session2))
 

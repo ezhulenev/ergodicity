@@ -7,7 +7,6 @@ import akka.actor.FSM.Failure
 import ConnectionState._
 import plaza2.{SafeRelease, ConnectionStatusChanged, Connection => P2Connection}
 import plaza2.ConnectionStatus.{ConnectionInvalid, ConnectionDisconnected, ConnectionConnected}
-import akka.dispatch.Future
 
 
 object Connection {
