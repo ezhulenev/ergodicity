@@ -1,4 +1,4 @@
-package com.ergodicity.engine.core
+package integration.ergodicity.engine.core
 
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -12,18 +12,28 @@ import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.engine.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
 import com.ergodicity.engine.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
-import com.ergodicity.engine.plaza2.scheme.FutInfo.SessContentsRecord
 import com.ergodicity.engine.plaza2.scheme.FutInfo
 import com.ergodicity.engine.plaza2._
+import AkkaIntegrationConfigurations._
+import com.ergodicity.engine.core.model.Future
+import scheme.FutInfo.{SessionRecord, Signs, SessContentsRecord}
+import akka.testkit.TestActorRef._
+import com.ergodicity.engine.core.{Sessions, SessionContents}
 
-
-class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", Config)) with WordSpec {
+class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
 
 
   val Host = "localhost"
   val Port = 4001
   val AppName = "FuturesDataStreamIntegrationSpec"
+
+  val SessionContentToFuture = (record: SessContentsRecord) => new Future(record.isin, record.shortIsin, record.isinId, record.name)
+
+  def IsFuture(record: SessContentsRecord) = {
+    val signs = Signs(record.signs)
+    !signs.spot && !signs.moneyMarket && signs.anonymous
+  }
 
   "DataStream" must {
     "do some stuff" in {
@@ -37,7 +47,7 @@ class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
         }
       })))
 
-      val ini = new File("plaza2/scheme/FutInfo.ini")
+      val ini = new File("core/scheme/FutInfo.ini")
       val tableSet = TableSet(ini)
       val underlyingStream = P2DataStream("FORTS_FUTINFO_REPL", CombinedDynamic, tableSet)
 
@@ -49,13 +59,19 @@ class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
       dataStream ! JoinTable(repository, "fut_sess_contents")
       dataStream ! Open(underlyingConnection)
 
+      val futures = TestActorRef(new SessionContents(SessionContentToFuture), "Futures")
+
       repository ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
-          case snapshot@Snapshot(data: Iterable[SessContentsRecord]) =>
-            log.info("Got snapshot")
-            data.foreach(sessionContents =>
-              log.info("SessContents: " + sessionContents)
-            )
+          case snapshot: Snapshot[SessContentsRecord] =>
+            log.info("Got snapshot!!!")
+            snapshot.data foreach {
+              rec =>
+                log.info("Record: " + rec)
+            }
+            futures ! snapshot.filter {
+              IsFuture _
+            }
         }
       }))
 

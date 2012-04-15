@@ -1,4 +1,4 @@
-package com.ergodicity.engine.core
+package integration.ergodicity.engine.core
 
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -15,8 +15,9 @@ import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
 import com.ergodicity.engine.plaza2.scheme.OptInfo.SessContentsRecord
 import com.ergodicity.engine.plaza2.scheme.OptInfo
 import com.ergodicity.engine.plaza2._
+import AkkaIntegrationConfigurations._
 
-class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", Config)) with WordSpec {
+class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
 
 
@@ -51,7 +52,7 @@ class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
-          case snapshot@Snapshot(data: Iterable[SessContentsRecord]) =>
+          case snapshot@Snapshot(_, data: Iterable[SessContentsRecord]) =>
             log.info("Got snapshot")
             data.foreach(sessionContents =>
               log.info("SessContents: " + sessionContents)

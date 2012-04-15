@@ -99,7 +99,7 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
     case Event(e@StreamDataBegin, _)                  => tableDataEventsListeners.foreach(_._2 ! e); stay()
     case Event(e@StreamDataEnd, _)                    => tableDataEventsListeners.foreach(_._2 ! e); stay()
     case Event(e@StreamDatumDeleted(table, _), _)     => tableDataEventsListeners.filter(_._1 == table).foreach(_._2 ! e); stay()
-    case Event(e@StreamDataInserted(table, _), _)     => tableDataEventsListeners.filter(_._1 == table).foreach(_._2 ! e); stay()
+    case Event(e@StreamDataInserted(table, _), _)     => log.info("ReplId = "+e.record.getLong("replID")); tableDataEventsListeners.filter(_._1 == table).foreach(_._2 ! e); stay()
     case Event(e@StreamDataDeleted(table, _, _), _)   => tableDataEventsListeners.filter(_._1 == table).foreach(_._2 ! e); stay()
   }
 

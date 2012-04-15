@@ -1,20 +1,27 @@
-package com.ergodicity.engine.core
+package com.ergodicity.engine.core.model
 
-import org.slf4j.LoggerFactory
-import org.scalatest.WordSpec
 import org.joda.time.DateTime
 import org.scala_tools.time.Implicits._
 import akka.actor.{Terminated, ActorSystem}
-import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 import akka.actor.FSM.{CurrentState, Transition, SubscribeTransitionCallBack}
 import SessionState._
+import akka.event.Logging
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import com.ergodicity.engine.plaza2.scheme.FutInfo.SessContentsRecord
+import com.ergodicity.engine.plaza2.Repository.Snapshot
+import com.ergodicity.engine.core.AkkaConfigurations._
+import com.ergodicity.engine.core.model.Session.FutInfoSessionContents
+import akka.testkit.{TestActorRef, ImplicitSender, TestFSMRef, TestKit}
 
-class SessionSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSpec {
-  val log = LoggerFactory.getLogger(classOf[SessionSpec])
+class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+  val log = Logging(system, self)
 
   val primaryInterval = new DateTime to new DateTime
   val positionTransferInterval = new DateTime to new DateTime
 
+  override def afterAll() {
+    system.shutdown()
+  }
 
   "SessionState" must {
     "support all codes" in {
@@ -50,8 +57,8 @@ class SessionSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSp
 
       session.stop()
 
-      expectMsg(Terminated(session))
-      expectMsg(Terminated(intClearing))
+      expectMsgType[Terminated]
+      expectMsgType[Terminated]
 
       assert(session.isTerminated)
       assert(intClearing.isTerminated)
@@ -71,6 +78,23 @@ class SessionSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSp
 
       session ! IntClearingState.Running
       expectMsg(Transition(intClearing, IntClearingState.Oncoming, IntClearingState.Running))
+    }
+
+    "handle SessContentsRecord from FutInfo" in {
+      val content = SessionContent(100, 101, primaryInterval, None, None, positionTransferInterval)
+      val session = TestActorRef(new Session(content, SessionState.Online, IntClearingState.Oncoming), "Session2")
+
+      val future = SessContentsRecord(7477, 47740, 0, 4023, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
+      val repo = SessContentsRecord(7700,47964,0,4023,170971,"HYDRT0T3","HYDR-16.04.12R3","Репо инструмент на ОАО \"ГидроОГК\"",4965,2,1)
+
+      session ! FutInfoSessionContents(Snapshot(self, repo :: future :: Nil))
+      
+      Thread.sleep(300)
+
+      val futureInstrument = system.actorFor("user/Session2/Futures/GMKR-6.12")
+      
+      futureInstrument ! SubscribeTransitionCallBack(self)
+      expectMsg(CurrentState(futureInstrument, InstrumentState.SuspendedAll))
     }
   }
 }

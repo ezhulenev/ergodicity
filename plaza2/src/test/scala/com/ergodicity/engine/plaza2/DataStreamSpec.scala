@@ -1,7 +1,5 @@
 package com.ergodicity.engine.plaza2
 
-import org.scalatest.WordSpec
-import org.slf4j.LoggerFactory
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import org.hamcrest.{Description, BaseMatcher}
@@ -11,14 +9,20 @@ import akka.actor.{FSM, Terminated, ActorSystem}
 import com.jacob.com.ComFailException
 import com.ergodicity.engine.plaza2.DataStream.{JoinTable, Open}
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import akka.event.Logging
 
-class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSpec {
-  val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
+class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+  val log = Logging(system, self)
 
   type EventHandler = StreamEvent => Any
 
   val ReleaseNothing = new SafeRelease {
     def apply() {}
+  }
+
+  override def afterAll() {
+    system.shutdown()
   }
 
   "DataStream" must {

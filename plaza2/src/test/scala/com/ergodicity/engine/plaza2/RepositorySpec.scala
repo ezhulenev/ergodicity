@@ -1,7 +1,5 @@
 package com.ergodicity.engine.plaza2
 
-import org.scalatest.WordSpec
-import org.slf4j.LoggerFactory
 import akka.actor.ActorSystem
 import RepositoryState._
 import com.ergodicity.engine.plaza2.scheme.FutInfo._
@@ -9,9 +7,15 @@ import org.mockito.Mockito._
 import plaza2._
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 import com.ergodicity.engine.plaza2.Repository.{SubscribeSnapshots, Snapshot}
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import akka.event.Logging
 
-class RepositorySpec  extends TestKit(ActorSystem()) with ImplicitSender with WordSpec {
-  val log = LoggerFactory.getLogger(classOf[RepositorySpec])
+class RepositorySpec  extends TestKit(ActorSystem()) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+  val log = Logging(system, self)
+
+  override def afterAll() {
+    system.shutdown()
+  }
 
   "Repository" must {
     "be initialized in Idle state" in {

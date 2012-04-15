@@ -1,27 +1,39 @@
 package com.ergodicity.engine.core
 
-import org.slf4j.LoggerFactory
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import com.ergodicity.engine.plaza2.DataStream.JoinTable
 import com.ergodicity.engine.plaza2.Repository.Snapshot
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import akka.actor.{Terminated, ActorSystem}
-import org.scalatest.{GivenWhenThen, WordSpec}
 import com.ergodicity.engine.plaza2.scheme.FutInfo.SessionRecord
 import com.ergodicity.engine.core.Sessions._
+import akka.event.Logging
+import model.Session.FutInfoSessionContents
+import model.SessionState
+import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
+import com.ergodicity.engine.plaza2.scheme.FutInfo
 
-class SessionsSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSpec with GivenWhenThen {
-  val log = LoggerFactory.getLogger(classOf[SessionSpec])
+class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
+  val log = Logging(system, self)
+
+  override def afterAll() {
+    system.shutdown()
+  }
 
   "Sessions" must {
     "track sessions state" in {
 
       val sessions = TestActorRef(new Sessions(self), "SessionsSpec")
+
+      // Join two tables: session, fut_sess_contents
       expectMsgType[JoinTable]
+      expectMsgType[JoinTable]
+
       val underlying = sessions.underlyingActor
+      val sessionRepository = underlying.sessionRepository
 
       when("initialized with Online session")
-      sessions ! Snapshot(Seq(sessionRecord(46, 396, 4021, SessionState.Online)))
+      sessions ! Snapshot(sessionRepository, Seq(sessionRecord(46, 396, 4021, SessionState.Online)))
 
       then("should create actor for it")
       val session1 = underlying.trackingSessions(4021)
@@ -34,20 +46,20 @@ class SessionsSpec extends TestKit(ActorSystem()) with ImplicitSender with WordS
       assert(underlying.trackingSessions.size == 1)
 
       when("session completed")
-      sessions ! Snapshot(Seq(sessionRecord(46, 397, 4021, SessionState.Completed)))
+      sessions ! Snapshot(sessionRepository, Seq(sessionRecord(46, 397, 4021, SessionState.Completed)))
 
       then("actor should transite from Online to Copmpleted state")
       expectMsg(Transition(session1, SessionState.Online, SessionState.Completed))
       assert(underlying.ongoingSession == None)
 
       when("revision changed for same record")
-      sessions ! Snapshot(Seq(sessionRecord(46, 398, 4021, SessionState.Completed)))
+      sessions ! Snapshot(sessionRepository, Seq(sessionRecord(46, 398, 4021, SessionState.Completed)))
 
       then("should remain in the same state")
       assert(underlying.ongoingSession == None)
 
       when("assigned new session")
-      sessions ! Snapshot(sessionRecord(46, 398, 4021, SessionState.Completed) :: sessionRecord(47, 399, 4022, SessionState.Assigned) :: Nil)
+      sessions ! Snapshot(sessionRepository, sessionRecord(46, 398, 4021, SessionState.Completed) :: sessionRecord(47, 399, 4022, SessionState.Assigned) :: Nil)
 
       then("new actor should be created")
       val session2 = underlying.trackingSessions(4022)
@@ -62,7 +74,7 @@ class SessionsSpec extends TestKit(ActorSystem()) with ImplicitSender with WordS
       assert(underlying.trackingSessions.size == 2)
 
       when("second session goes online and first removed")
-      sessions ! Snapshot(Seq(sessionRecord(47, 400, 4022, SessionState.Online)))
+      sessions ! Snapshot(sessionRepository, Seq(sessionRecord(47, 400, 4022, SessionState.Online)))
 
       then("first actor should be termindated")
       expectMsg(Transition(session2, SessionState.Assigned, SessionState.Online))
@@ -72,13 +84,32 @@ class SessionsSpec extends TestKit(ActorSystem()) with ImplicitSender with WordS
       assert(underlying.trackingSessions.size == 1)
 
       when("all sessions removed")
-      sessions ! Snapshot(Seq())
+      sessions ! Snapshot(sessionRepository, Seq.empty[SessionRecord])
 
       then("second session should also be terminated")
       expectMsg(Terminated(session2))
 
       assert(underlying.ongoingSession == None)
       assert(underlying.trackingSessions.size == 0)
+    }
+
+    "should forward SessContentsRecord snapshot to child sessions" in {
+      val sessions = TestActorRef(new Sessions(self), "SessionsSpec")
+
+      // Join two tables: session, fut_sess_contents
+      expectMsgType[JoinTable]
+      expectMsgType[JoinTable]
+
+      val underlying = sessions.underlyingActor
+      val futSessContentsRepository = underlying.futSessContentsRepository
+
+      underlying.trackingSessions = Map(100l -> self)
+
+      val future1 = FutInfo.SessContentsRecord(7477, 47740, 0, 100, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
+      val future2 = FutInfo.SessContentsRecord(7477, 47740, 0, 102, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
+
+      sessions ! Snapshot(futSessContentsRepository, future1 :: future2 :: Nil)
+      expectMsg(FutInfoSessionContents(Snapshot(futSessContentsRepository, future1 :: Nil)))
     }
   }
 

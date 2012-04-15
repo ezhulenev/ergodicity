@@ -1,20 +1,23 @@
-package com.ergodicity.engine.core
+package integration.ergodicity.engine.core
 
 import org.slf4j.LoggerFactory
 import java.io.File
 import org.scalatest.WordSpec
 import plaza2.RequestType.CombinedDynamic
 import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
-import com.ergodicity.engine.plaza2.DataStream.{SetLifeNumToIni, Open}
 import akka.testkit.{TestActorRef, TestFSMRef, TestKit}
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
-import com.ergodicity.engine.plaza2.{Connection, DataStream, ConnectionState, ConnectionSpec}
+import integration.ergodicity.engine.core.AkkaIntegrationConfigurations._
+import com.ergodicity.engine.plaza2._
+import com.ergodicity.engine.core.Sessions
+import com.ergodicity.engine.plaza2.DataStream.Open._
+import com.ergodicity.engine.plaza2.DataStream.{Open, SetLifeNumToIni}
 
 
-class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSpec", Config)) with WordSpec {
+class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
 
   val Host = "localhost"
@@ -38,10 +41,14 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
       val underlyingStream = P2DataStream("FORTS_FUTINFO_REPL", CombinedDynamic, tableSet)
 
       val dataStream = TestFSMRef(new DataStream(underlyingStream), "FuturesInfo")
-      dataStream ! SetLifeNumToIni(ini)
-      TestActorRef(new Sessions(dataStream), "Sessions")
+      val sessions = TestActorRef(new Sessions(dataStream), "Sessions")
 
+      Thread.sleep(1000)
+      
+      dataStream ! SetLifeNumToIni(ini)
       dataStream ! Open(underlyingConnection)
+
+
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }

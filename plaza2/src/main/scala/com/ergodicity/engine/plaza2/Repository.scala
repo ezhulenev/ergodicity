@@ -17,7 +17,9 @@ object Repository {
   def apply[T <: Record](implicit deserializer: Deserializer[T]) = new Repository[T]
 
   case class SubscribeSnapshots(ref: ActorRef)
-  case class Snapshot[T](internal: Iterable[T])
+  case class Snapshot[T <% Record](repository: ActorRef, data: Iterable[T]) {
+    def filter(p: T => Boolean) = Snapshot(repository, data.filter(p))
+  }
 }
 
 class Repository[T <: Record](implicit deserializer: Deserializer[T]) extends Actor with FSM[RepositoryState, Map[Long,  T]] {
@@ -36,12 +38,14 @@ class Repository[T <: Record](implicit deserializer: Deserializer[T]) extends Ac
     case Event(StreamDataBegin, _) => goto(Synchronizing)
 
     case Event(SubscribeSnapshots(ref), _) =>
-      snapshotSubscribers = ref +: snapshotSubscribers; ref ! Snapshot(stateData.values); stay();
+      snapshotSubscribers = ref +: snapshotSubscribers; ref ! Snapshot(self, stateData.values); stay();
   }
 
   when(Synchronizing) {
-    case Event(StreamDataInserted(_, p2Record), map) =>
+    case Event(event@StreamDataInserted(_, p2Record), map) =>
+      log.info("RepoReplId = "+p2Record.getLong("replID"));
       val record = deserializer(p2Record)
+      log.info("GOT EVENT = "+event+"; SIZE = "+map.size+"; replID = "+record.replID)
       stay() using map + (record.replID -> record)
 
     case Event(StreamDataDeleted(_, id, _), map) => stay() using map - id
@@ -59,8 +63,8 @@ class Repository[T <: Record](implicit deserializer: Deserializer[T]) extends Ac
     case Consistent -> Synchronizing => log.info("Begin updating repository")
 
     case Synchronizing -> Consistent =>
-      log.info("Completed Plaza2 transaction")
-      snapshotSubscribers.foreach {_ ! Snapshot(stateData.values)}
+      log.info("Completed Plaza2 transaction; Repository size = "+stateData.size)
+      snapshotSubscribers.foreach {_ ! Snapshot(self, stateData.values)}
   }
 
   initialize

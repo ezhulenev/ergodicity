@@ -1,10 +1,14 @@
-package com.ergodicity.engine.core
+package com.ergodicity.engine.core.model
 
 import org.joda.time.Interval
 import org.scala_tools.time.Implicits._
 import akka.actor.{ActorRef, Props, Actor, FSM}
 import com.ergodicity.engine.plaza2.scheme.FutInfo._
 import akka.actor.FSM._
+import com.ergodicity.engine.core.SessionContents
+import com.ergodicity.engine.plaza2.scheme.FutInfo
+import com.ergodicity.engine.plaza2.Repository.Snapshot
+import com.ergodicity.engine.core.model.Session.FutInfoSessionContents
 
 sealed trait SessionState
 
@@ -119,6 +123,8 @@ object Session {
       IntClearingState(rec.interClState)
     )
   }
+
+  case class FutInfoSessionContents(snapshot: Snapshot[FutInfo.SessContentsRecord])
 }
 
 case class Session(content: SessionContent, state: SessionState, intClearingState: IntClearingState) extends Actor with FSM[SessionState, ActorRef] {
@@ -126,35 +132,36 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
   import SessionState._
 
   val intClearing = context.actorOf(Props(new IntClearing(intClearingState)), "IntClearing")
+  val futures = context.actorOf(Props(new SessionContents(FutureConverter)), "Futures")
 
   startWith(state, intClearing)
 
   when(Assigned) {
-    handleSessionState orElse handleClearingState
+    handleSessionState orElse handleClearingState orElse handleFutSessContents
   }
   when(Online) {
-    handleSessionState orElse handleClearingState
+    handleSessionState orElse handleClearingState orElse handleFutSessContents
   }
   when(Suspended) {
-    handleSessionState orElse handleClearingState
+    handleSessionState orElse handleClearingState orElse handleFutSessContents
   }
 
   when(Canceled) {
     case Event(SessionState.Canceled, _) => stay()
-    case Event(e, _) => stop(Failure("Unexpected event after canceled: " + e))
+    case Event(e: SessionState, _) => stop(Failure("Unexpected event after canceled: " + e))
   }
 
   when(Canceled) {
-    handleClearingState
+    handleClearingState orElse handleFutSessContents
   }
 
   when(Completed) {
     case Event(SessionState.Completed, _) => stay()
-    case Event(e, _) => stop(Failure("Unexpected event after completion: " + e))
+    case Event(e: SessionState, _) => stop(Failure("Unexpected event after completion: " + e))
   }
 
   when(Completed) {
-    handleClearingState
+    handleClearingState orElse handleFutSessContents
   }
 
   onTransition {
@@ -164,6 +171,12 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
   initialize
 
   log.info("Created session; Id = " + content.id + "; State = " + state + "; content = " + content)
+
+
+  private def handleFutSessContents: StateFunction = {
+    case Event(FutInfoSessionContents(snapshot), _) =>
+      futures ! snapshot.filter(isFuture _); stay()
+  }
 
   private def handleSessionState: StateFunction = {
     case Event(state: SessionState, _) => goto(state)

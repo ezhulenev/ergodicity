@@ -1,9 +1,7 @@
 package com.ergodicity.engine.plaza2
 
-import org.slf4j.LoggerFactory
 import org.mockito.Mockito._
 import org.mockito.Matchers._
-import akka.testkit.{TestFSMRef, TestKit}
 import com.ergodicity.engine.plaza2.ConnectionState._
 import org.hamcrest.{Description, BaseMatcher}
 import plaza2.{SafeRelease, ConnectionStatusChanged}
@@ -13,11 +11,13 @@ import plaza2.RouterStatus.{RouterReconnecting, RouterDisconnected, RouterConnec
 import akka.actor.{FSM, Terminated, ActorSystem}
 import plaza2.{Connection => P2Connection}
 import com.jacob.com.ComFailException
-import org.scalatest.{Spec, WordSpec}
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import akka.event.Logging
+import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 
 
-class ConnectionSpec extends TestKit(ActorSystem()) with WordSpec {
-  val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
+class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
+  val log = Logging(system, self)
 
   type StatusHandler = ConnectionStatusChanged => Unit
 
@@ -27,6 +27,10 @@ class ConnectionSpec extends TestKit(ActorSystem()) with WordSpec {
 
   val ReleaseNothing = new SafeRelease {
     def apply() {}
+  }
+
+  override def afterAll() {
+    system.shutdown()
   }
 
   "Connection" must {

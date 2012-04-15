@@ -1,9 +1,9 @@
-package com.ergodicity.engine
+package integration.ergodicity.engine.core
 
 import com.typesafe.config.ConfigFactory
 
-package object core {
-  val Config = ConfigFactory.parseString("""
+object AkkaIntegrationConfigurations {
+  val ConfigWithDetailedLogging = ConfigFactory.parseString("""
     akka.loglevel = DEBUG
     akka.actor.debug {
       receive = on
