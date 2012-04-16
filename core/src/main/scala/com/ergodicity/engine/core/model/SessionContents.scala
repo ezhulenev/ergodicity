@@ -2,30 +2,16 @@ package com.ergodicity.engine.core.model
 
 import com.ergodicity.engine.plaza2.Repository.Snapshot
 import akka.actor.{FSM, Props, ActorRef, Actor}
-import akka.dispatch.Await
-import akka.util.duration._
-import akka.pattern.ask
-import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
-import akka.util.Timeout
+import akka.actor.FSM.{SubscribeTransitionCallBack, CurrentState, Transition}
 
+case class TrackSession(session: ActorRef)
 
 trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[SessionState, Unit] {
   import SessionState._
-
-  def session: ActorRef
-
+  
   def converter: R => S
-
+  
   protected[core] var instruments: Map[String, ActorRef] = Map()
-
-  session ! SubscribeTransitionCallBack(self)
-
-  implicit val timeout = Timeout(1.second)
-  val initialState = Await.result(session ? SubscribeTransitionCallBack(self) map {
-    case CurrentState(_, state: SessionState) => state
-  }, 1.second)
-
-  startWith(initialState, ())
 
   when(Assigned) {
     handleSessionTransitions orElse handleSessionContents
@@ -47,10 +33,18 @@ trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[S
     case from -> to => log.info("SessionContents updated from " + from + " -> " + to)
   }
 
-  initialize
-
+  whenUnhandled
+  private def handleTrackSession: StateFunction = {
+    case Event(TrackSession(session), _) => session ! SubscribeTransitionCallBack(self); stay()
+  }
+  
   private def handleSessionTransitions: StateFunction = {
-    case Event(Transition(ref, from: SessionState, to: SessionState), _) if (ref == session) => goto(to)
+    case Event(CurrentState(_, s: SessionState), _) =>
+      startWith(s, ())
+      initialize
+      goto(s)
+
+    case Event(Transition(_, from: SessionState, to: SessionState), _) => goto(to)
   }
 
   private def handleSessionContents: StateFunction = {
@@ -60,7 +54,7 @@ trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[S
   protected def handleSessionContentsRecord(records: Iterable[R]);
 }
 
-class StatefulSessionContents[S <: Security, R <: StatefulSessContents](val session: ActorRef)(implicit val converter: R => S) extends SessionContents[S, R] {
+class StatefulSessionContents[S <: Security, R <: StatefulSessContents](implicit val converter: R => S) extends SessionContents[S, R] {
 
   private var originalInstrumentState: Map[String, InstrumentState]  = Map()
 
@@ -104,7 +98,7 @@ class StatefulSessionContents[S <: Security, R <: StatefulSessContents](val sess
   }
 }
 
-class StatelessSessionContents[S <: Security, R <: StatelessSessContents](val session: ActorRef)(implicit val converter: R => S) extends SessionContents[S, R] {
+class StatelessSessionContents[S <: Security, R <: StatelessSessContents](implicit val converter: R => S) extends SessionContents[S, R] {
   onTransition {
     case _ -> to => instruments.foreach {
       case (isin, ref) => ref ! InstrumentState(to)

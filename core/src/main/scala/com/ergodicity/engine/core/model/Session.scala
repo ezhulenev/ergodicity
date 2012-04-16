@@ -38,7 +38,7 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
   import SessionState._
 
   val intClearing = context.actorOf(Props(new IntClearing(intClearingState)), "IntClearing")
-  val futures = context.actorOf(Props(new StatefulSessionContents[Future, FutInfo.SessContentsRecord](self)), "Futures")
+  val futures = context.actorOf(Props(new StatefulSessionContents[Future, FutInfo.SessContentsRecord]), "Futures")
 
   startWith(state, intClearing)
 

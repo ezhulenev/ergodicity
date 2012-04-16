@@ -58,8 +58,7 @@ class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
       dataStream ! JoinTable(repository, "fut_sess_contents", implicitly[Deserializer[FutInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
 
-      val session = TestActorRef(new Sessions(dataStream))
-      val futures = TestActorRef(new StatefulSessionContents[Future, FutInfo.SessContentsRecord](session), "Futures")
+      val futures = TestActorRef(new StatefulSessionContents[Future, FutInfo.SessContentsRecord], "Futures")
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
