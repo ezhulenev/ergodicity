@@ -2,7 +2,6 @@ package com.ergodicity.engine.core.model
 
 import org.joda.time.DateTime
 import org.scala_tools.time.Implicits._
-import akka.actor.{Terminated, ActorSystem}
 import akka.actor.FSM.{CurrentState, Transition, SubscribeTransitionCallBack}
 import SessionState._
 import akka.event.Logging
@@ -12,6 +11,7 @@ import com.ergodicity.engine.plaza2.Repository.Snapshot
 import com.ergodicity.engine.core.AkkaConfigurations._
 import com.ergodicity.engine.core.model.Session.FutInfoSessionContents
 import akka.testkit.{TestActorRef, ImplicitSender, TestFSMRef, TestKit}
+import akka.actor.{Props, Terminated, ActorSystem}
 
 class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -94,7 +94,7 @@ class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedL
       val futureInstrument = system.actorFor("user/Session2/Futures/GMKR-6.12")
       
       futureInstrument ! SubscribeTransitionCallBack(self)
-      expectMsg(CurrentState(futureInstrument, InstrumentState.SuspendedAll))
+      expectMsg(CurrentState(futureInstrument, InstrumentState.Suspended))
     }
   }
 }

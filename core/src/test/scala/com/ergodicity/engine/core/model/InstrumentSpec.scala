@@ -3,10 +3,10 @@ package com.ergodicity.engine.core.model
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.actor.ActorSystem
-import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import InstrumentState._
 import com.ergodicity.engine.core.AkkaConfigurations
 import AkkaConfigurations._
+import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 
 class InstrumentSpec extends TestKit(ActorSystem("InstrumentSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)

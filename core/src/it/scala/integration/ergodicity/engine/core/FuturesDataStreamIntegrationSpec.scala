@@ -14,10 +14,10 @@ import com.ergodicity.engine.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
 import com.ergodicity.engine.plaza2._
 import AkkaIntegrationConfigurations._
-import com.ergodicity.engine.core.model.Future
 import scheme.FutInfo.{Signs, SessContentsRecord}
-import com.ergodicity.engine.core.SessionContents
 import scheme.{Deserializer, FutInfo}
+import com.ergodicity.engine.core.model.{StatefulSessionContents, Future}
+import com.ergodicity.engine.core.Sessions
 
 class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
@@ -58,7 +58,8 @@ class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
       dataStream ! JoinTable(repository, "fut_sess_contents", implicitly[Deserializer[FutInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
 
-      val futures = TestActorRef(new SessionContents(SessionContentToFuture), "Futures")
+      val session = TestActorRef(new Sessions(dataStream))
+      val futures = TestActorRef(new StatefulSessionContents[Future, FutInfo.SessContentsRecord](session), "Futures")
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {

@@ -37,7 +37,7 @@ class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
         }
       })))
 
-      val ini = new File("plaza2/scheme/OptInfo.ini")
+      val ini = new File("core/scheme/OptInfo.ini")
       val tableSet = TableSet(ini)
       val underlyingStream = P2DataStream("FORTS_OPTINFO_REPL", CombinedDynamic, tableSet)
 
@@ -46,6 +46,8 @@ class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
 
       // Handle options data
       val repository = TestFSMRef(new Repository[SessContentsRecord](), "SessContentRepo")
+
+//      val options = TestActorRef(new SessionContents(com.ergodicity.engine.core.model.OptionConverter), "Options")
 
       dataStream ! JoinTable(repository, "opt_sess_contents", implicitly[Deserializer[OptInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
@@ -57,6 +59,8 @@ class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
             data.foreach(sessionContents =>
               log.info("SessContents: " + sessionContents)
             )
+
+//          options ! snapshot
         }
       }))
 
