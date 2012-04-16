@@ -7,10 +7,12 @@ import plaza2.{DataStream => P2DataStream, Connection => P2Connection, _}
 import com.ergodicity.engine.plaza2.DataStreamState._
 import akka.actor.{FSM, Terminated, ActorSystem}
 import com.jacob.com.ComFailException
-import com.ergodicity.engine.plaza2.DataStream.{JoinTable, Open}
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
+import scheme.Deserializer
+import scheme.FutInfo.SessionRecord
+import DataStream._
 
 class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -174,22 +176,22 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
       watch(dataStream)
 
       assert(dataStream.stateName == Idle)
-      dataStream ! JoinTable(self, "good_table")
+      dataStream ! JoinTable(self, "good_table", implicitly[Deserializer[SessionRecord]])
 
       dataStream ! Open(conn)
       streamEvents ! StreamStateChanged(StreamState.LocalSnapshot)
       streamEvents ! StreamStateChanged(StreamState.RemoteSnapshot)
 
       streamEvents ! StreamDataBegin
-      expectMsg(StreamDataBegin)
+      expectMsg(DataBegin)
 
       val msg = StreamDataInserted("good_table", mock(classOf[Record]))
       streamEvents ! msg
-      expectMsg(msg)
+      expectMsgType[DataInserted[SessionRecord]]
 
       streamEvents ! StreamDataInserted("bad_table", mock(classOf[Record]))
       streamEvents ! StreamDataEnd
-      expectMsg(StreamDataEnd)
+      expectMsg(DataEnd)
     }
 
     "notify subscribers when Reopened" in {
@@ -199,15 +201,15 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
       val dataStream = TestFSMRef(DataStream(stream), "DataStream")
       val streamEvents = captureEventDispatcher(stream)
 
-      dataStream ! JoinTable(self, "table")
+      dataStream ! JoinTable(self, "table", implicitly[Deserializer[SessionRecord]])
       dataStream ! Open(conn)
 
       dataStream.setState(Synchronizing)
       streamEvents ! StreamStateChanged(StreamState.Reopen)
 
-      expectMsg(StreamDataBegin)
-      expectMsg(StreamDatumDeleted("table", 0))
-      expectMsg(StreamDataEnd)
+      expectMsg(DataBegin)
+      expectMsg(DatumDeleted(0))
+      expectMsg(DataEnd)
     }
   }
 

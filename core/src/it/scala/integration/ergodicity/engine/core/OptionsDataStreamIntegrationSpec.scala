@@ -13,9 +13,9 @@ import com.ergodicity.engine.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open
 import com.ergodicity.engine.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
 import com.ergodicity.engine.plaza2.scheme.OptInfo.SessContentsRecord
-import com.ergodicity.engine.plaza2.scheme.OptInfo
 import com.ergodicity.engine.plaza2._
 import AkkaIntegrationConfigurations._
+import scheme.{Deserializer, OptInfo}
 
 class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
@@ -45,9 +45,9 @@ class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
       dataStream ! SetLifeNumToIni(ini)
 
       // Handle options data
-      val repository = TestFSMRef(new Repository[SessContentsRecord]()(OptInfo.SessContentsDeserializer), "SessContentRepo")
+      val repository = TestFSMRef(new Repository[SessContentsRecord](), "SessContentRepo")
 
-      dataStream ! JoinTable(repository, "opt_sess_contents")
+      dataStream ! JoinTable(repository, "opt_sess_contents", implicitly[Deserializer[OptInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {

@@ -12,13 +12,12 @@ import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.engine.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
 import com.ergodicity.engine.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
-import com.ergodicity.engine.plaza2.scheme.FutInfo
 import com.ergodicity.engine.plaza2._
 import AkkaIntegrationConfigurations._
 import com.ergodicity.engine.core.model.Future
-import scheme.FutInfo.{SessionRecord, Signs, SessContentsRecord}
-import akka.testkit.TestActorRef._
-import com.ergodicity.engine.core.{Sessions, SessionContents}
+import scheme.FutInfo.{Signs, SessContentsRecord}
+import com.ergodicity.engine.core.SessionContents
+import scheme.{Deserializer, FutInfo}
 
 class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
@@ -54,9 +53,9 @@ class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
       val dataStream = TestFSMRef(new DataStream(underlyingStream), "FuturesInfo")
       dataStream ! SetLifeNumToIni(ini)
 
-      val repository = TestFSMRef(new Repository[SessContentsRecord]()(FutInfo.SessContentsDeserializer), "SessionsRepository")
+      val repository = TestFSMRef(new Repository[SessContentsRecord], "SessionsRepository")
 
-      dataStream ! JoinTable(repository, "fut_sess_contents")
+      dataStream ! JoinTable(repository, "fut_sess_contents", implicitly[Deserializer[FutInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
 
       val futures = TestActorRef(new SessionContents(SessionContentToFuture), "Futures")

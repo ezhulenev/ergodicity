@@ -9,9 +9,7 @@ import akka.actor.{PoisonPill, Props, Actor, ActorRef}
 import com.ergodicity.engine.core.Sessions.{OngoingSession, GetOngoingSession}
 import model.Session.FutInfoSessionContents
 import model.{Session, SessionState, IntClearingState, SessionContent}
-import com.ergodicity.engine.plaza2.scheme.FutInfo
-import akka.testkit.TestActorRef._
-import akka.testkit.TestActorRef
+import com.ergodicity.engine.plaza2.scheme.{Deserializer, FutInfo}
 
 object Sessions {
   def apply(dataStream: ActorRef) = new Sessions(dataStream)
@@ -31,30 +29,19 @@ class Sessions(dataStream: ActorRef) extends Actor {
   // Handle 'session' table
   val sessionRepository = context.actorOf(Props(Repository[SessionRecord]), "SessionRepository")
   sessionRepository ! SubscribeSnapshots(self)
-  dataStream ! JoinTable(sessionRepository, "session")
+  dataStream ! JoinTable(sessionRepository, "session", implicitly[Deserializer[SessionRecord]])
 
   // Handle 'fut_sess_contents' table
-  val futSessContentsRepository = context.actorOf(Props(Repository[FutInfo.SessContentsRecord](FutInfo.SessContentsDeserializer)), "FutSessContentesRepository")
+  val futSessContentsRepository = context.actorOf(Props(Repository[FutInfo.SessContentsRecord]), "FutSessContentesRepository")
   futSessContentsRepository ! SubscribeSnapshots(self)
-  dataStream ! JoinTable(futSessContentsRepository, "fut_sess_contents")
-
-  futSessContentsRepository ! SubscribeSnapshots(context.actorOf(Props(new Actor {
-    protected def receive = {
-      case snapshot: Snapshot[SessContentsRecord] =>
-        log.info("SessContentsRecord SIZE = "+snapshot.data.size)
-        snapshot.data foreach {
-          rec =>
-            log.info("SessContentsRecord: " + rec)
-        }
-    }
-  })))
-
+  dataStream ! JoinTable(futSessContentsRepository, "fut_sess_contents", implicitly[Deserializer[FutInfo.SessContentsRecord]])
 
   protected def receive = {
     case GetOngoingSession => sender ! OngoingSession(ongoingSession)
 
     case Snapshot(repo, data: Iterable[SessionRecord]) if (repo == sessionRepository) =>
       updateSessions(data)
+      futSessContentsRepository ! SubscribeSnapshots(self)
 
     case snapshot@Snapshot(repo, _) if (repo == futSessContentsRepository) =>
       handleFutSessContents(snapshot.asInstanceOf[Snapshot[SessContentsRecord]])

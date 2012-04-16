@@ -6,7 +6,8 @@ import akka.actor.FSM.Failure
 import plaza2.StreamState._
 import java.io.File
 import akka.actor.{ActorRef, FSM, Actor}
-import com.ergodicity.engine.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
+import com.ergodicity.engine.plaza2.DataStream._
+import scheme.{Deserializer, Record}
 
 sealed trait DataStreamState
 object DataStreamState {
@@ -21,23 +22,30 @@ object DataStreamState {
 object DataStream {
   case class Open(connection: P2Connection)
   case class SetLifeNumToIni(ini: File)
-  case class JoinTable(ref: ActorRef,  table: String)
+  case class JoinTable[R <: Record](ref: ActorRef, table: String, deserializer: Deserializer[R])
 
   def apply(underlying: P2DataStream) = new DataStream(underlying)
+
+  sealed trait DataStreamEvent
+  case object DataBegin extends DataStreamEvent
+  case object DataEnd extends DataStreamEvent
+  case class DatumDeleted(repLRev: Long) extends DataStreamEvent
+  case class DataInserted[R <: Record](record: R) extends DataStreamEvent
+  case class DataDeleted(replId: Long) extends DataStreamEvent
 }
 
 class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor with FSM[DataStreamState, Option[SafeRelease]] {
   import DataStreamState._
 
   private var setLifeNumToIni: Option[File] = None
-  private var tableDataEventsListeners = Seq[(String, ActorRef)]()
+  private var tableDataEventsListeners = Seq[(String, ActorRef, Deserializer[_ <: Record])]()
 
   startWith(Idle, None)
 
   when(Idle) {
     case Event(Open(connection), None) => goto(Opening) using Some(open(connection))
     case Event(SetLifeNumToIni(file), _) => setLifeNumToIni = Some(file); stay()
-    case Event(JoinTable(ref, table), _) => tableDataEventsListeners = (table, ref) +: tableDataEventsListeners; stay()
+    case Event(JoinTable(ref, table, deserializer), _) => tableDataEventsListeners = (table, ref, deserializer) +: tableDataEventsListeners; stay()
   }
 
   when(Opening, stateTimeout = 10.seconds) {
@@ -88,19 +96,36 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   initialize
 
   private def notifyStreamReopened() {
-    tableDataEventsListeners.foreach { case (table, ref) =>
-      ref ! StreamDataBegin
-      ref ! StreamDatumDeleted(table, 0)
-      ref ! StreamDataEnd
+    tableDataEventsListeners.foreach { case (table, ref, _) =>
+      ref ! DataBegin
+      ref ! DatumDeleted(0)
+      ref ! DataEnd
     }
   }
 
   private def handleStreamDataEvents: StateFunction = {
-    case Event(e@StreamDataBegin, _)                  => tableDataEventsListeners.foreach(_._2 ! e); stay()
-    case Event(e@StreamDataEnd, _)                    => tableDataEventsListeners.foreach(_._2 ! e); stay()
-    case Event(e@StreamDatumDeleted(table, _), _)     => tableDataEventsListeners.filter(_._1 == table).foreach(_._2 ! e); stay()
-    case Event(e@StreamDataInserted(table, _), _)     => log.info("ReplId = "+e.record.getLong("replID")); tableDataEventsListeners.filter(_._1 == table).foreach(_._2 ! e); stay()
-    case Event(e@StreamDataDeleted(table, _, _), _)   => tableDataEventsListeners.filter(_._1 == table).foreach(_._2 ! e); stay()
+    case Event(e@StreamDataBegin, _) =>
+      tableDataEventsListeners.foreach(_._2 ! DataBegin);
+      stay()
+
+    case Event(e@StreamDataEnd, _) =>
+      tableDataEventsListeners.foreach(_._2 ! DataEnd);
+      stay()
+
+    case Event(e@StreamDatumDeleted(table, replRev), _) =>
+      tableDataEventsListeners.filter(_._1 == table).foreach(_._2 ! DatumDeleted(replRev));
+      stay()
+
+    case Event(e@StreamDataInserted(table, record), _) =>
+      tableDataEventsListeners.filter(_._1 == table).foreach {
+        case (_, ref, deserializer) =>
+          ref ! DataInserted(deserializer(record))
+      }
+      stay()
+
+    case Event(e@StreamDataDeleted(table, replId, _), _) =>
+      tableDataEventsListeners.filter(_._1 == table).foreach(_._2 ! DataDeleted(replId));
+      stay()
   }
 
   private def open(connection: P2Connection) = {

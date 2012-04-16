@@ -26,8 +26,8 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       val sessions = TestActorRef(new Sessions(self), "SessionsSpec")
 
       // Join two tables: session, fut_sess_contents
-      expectMsgType[JoinTable]
-      expectMsgType[JoinTable]
+      expectMsgType[JoinTable[SessionRecord]]
+      expectMsgType[JoinTable[FutInfo.SessContentsRecord]]
 
       val underlying = sessions.underlyingActor
       val sessionRepository = underlying.sessionRepository
@@ -97,8 +97,8 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       val sessions = TestActorRef(new Sessions(self), "SessionsSpec")
 
       // Join two tables: session, fut_sess_contents
-      expectMsgType[JoinTable]
-      expectMsgType[JoinTable]
+      expectMsgType[JoinTable[SessionRecord]]
+      expectMsgType[JoinTable[FutInfo.SessContentsRecord]]
 
       val underlying = sessions.underlyingActor
       val futSessContentsRepository = underlying.futSessContentsRepository
