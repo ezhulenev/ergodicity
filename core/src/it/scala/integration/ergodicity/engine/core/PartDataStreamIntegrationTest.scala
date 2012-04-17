@@ -14,17 +14,15 @@ import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
 import com.ergodicity.engine.plaza2.scheme.OptInfo.SessContentsRecord
 import com.ergodicity.engine.plaza2._
 import AkkaIntegrationConfigurations._
-import scheme.{Deserializer, OptInfo}
-import com.ergodicity.engine.core.model._
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
+import scheme.{Part, Deserializer}
 
-class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
-  val log = LoggerFactory.getLogger(classOf[OptionsDataStreamIntegrationSpec])
-
+class PartDataStreamIntegrationTest extends TestKit(ActorSystem("PartDataStreamIntegrationTest", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
+  val log = LoggerFactory.getLogger(classOf[PartDataStreamIntegrationTest])
 
   val Host = "localhost"
   val Port = 4001
-  val AppName = "OptionsDataStreamIntegrationSpec"
+  val AppName = "PartDataStreamIntegrationTest"
 
   "DataStream" must {
     "do some stuff" in {
@@ -38,34 +36,31 @@ class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
         }
       })))
 
-      val ini = new File("core/scheme/OptInfo.ini")
+      val ini = new File("core/scheme/Part.ini")
       val tableSet = TableSet(ini)
-      val underlyingStream = P2DataStream("FORTS_OPTINFO_REPL", CombinedDynamic, tableSet)
+      val underlyingStream = P2DataStream("FORTS_PART_REPL", CombinedDynamic, tableSet)
 
-      val dataStream = TestFSMRef(new DataStream(underlyingStream), "OptionsInfo")
+      val dataStream = TestFSMRef(new DataStream(underlyingStream), "FORTS_PART_REPL")
       dataStream ! SetLifeNumToIni(ini)
 
       // Handle options data
-      val repository = TestFSMRef(new Repository[SessContentsRecord](), "SessContentRepo")
+      val repository = TestFSMRef(new Repository[Part.PartRecord](), "PartRepo")
 
-      dataStream ! JoinTable(repository, "opt_sess_contents", implicitly[Deserializer[OptInfo.SessContentsRecord]])
+      dataStream ! JoinTable(repository, "part", implicitly[Deserializer[Part.PartRecord]])
       dataStream ! Open(underlyingConnection)
-
-      val options = TestActorRef(new StatelessSessionContents[OptionContract, OptInfo.SessContentsRecord](SessionState.Online), "Options")
-      options ! JoinSession(self)
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
-          case snapshot@Snapshot(_, data: Iterable[SessContentsRecord]) =>
-            log.info("Got snapshot")
+          case snapshot@Snapshot(_, data: Iterable[Part.PartRecord]) =>
+            log.info("Got snapshot; Size = "+snapshot.data.size)
             data.foreach(sessionContents =>
-              log.info("SessContents: " + sessionContents)
+              log.info("Part: " + sessionContents)
             )
-          options ! snapshot
         }
       }))
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
   }
+
 }

@@ -19,7 +19,7 @@ import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
 import com.ergodicity.engine.core.model.{JoinSession, SessionState, StatefulSessionContents, FutureContract}
 
 class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
-  val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
+  val log = LoggerFactory.getLogger(classOf[FuturesDataStreamIntegrationSpec])
 
 
   val Host = "localhost"

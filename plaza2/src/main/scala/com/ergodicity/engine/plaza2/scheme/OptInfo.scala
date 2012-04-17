@@ -23,9 +23,6 @@ object OptInfo {
                                 shortIsin: String,
                                 isin: String,
                                 name: String,
-                                signs: Long) extends Record {
-    def stateOption = None
-  }
-
+                                signs: Long) extends Record
 }
 

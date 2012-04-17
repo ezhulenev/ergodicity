@@ -18,7 +18,7 @@ import com.ergodicity.engine.core.Sessions.{JoinOptInfoRepl, JoinFutInfoRepl}
 
 
 class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec {
-  val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
+  val log = LoggerFactory.getLogger(classOf[SessionsIntegrationSpec])
 
   val Host = "localhost"
   val Port = 4001

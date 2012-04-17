@@ -75,9 +75,7 @@ object FutInfo {
                                 name: String,
                                 signs: Long,
                                 state: Long,
-                                multileg_type: Long) extends Record {
-    def stateOption = Some(state)
-  }
+                                multileg_type: Long) extends Record
 
   case class Signs(signs: Long) {
 
