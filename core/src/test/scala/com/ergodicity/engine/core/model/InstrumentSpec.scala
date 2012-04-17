@@ -17,14 +17,14 @@ class InstrumentSpec extends TestKit(ActorSystem("InstrumentSpec", ConfigWithDet
 
   "Instrument" must {
     "support state inialization" in {
-      val future = Future("GMKR-6.12", "GMM2", 166911, "Фьючерсный контракт GMKR-06.12")
-      val instrument = TestFSMRef(new Instrument[Future](future, Assigned))
+      val future = FutureContract("GMKR-6.12", "GMM2", 166911, "Фьючерсный контракт GMKR-06.12")
+      val instrument = TestFSMRef(new Instrument[FutureContract](future, Assigned))
       assert(instrument.stateName == Assigned)
     }
 
     "support state updates" in {
-      val future = Future("GMKR-6.12", "GMM2", 166911, "Фьючерсный контракт GMKR-06.12")
-      val instrument = TestFSMRef(new Instrument[Future](future, Assigned))
+      val future = FutureContract("GMKR-6.12", "GMM2", 166911, "Фьючерсный контракт GMKR-06.12")
+      val instrument = TestFSMRef(new Instrument[FutureContract](future, Assigned))
 
       instrument ! Online
       assert(instrument.stateName == Online)

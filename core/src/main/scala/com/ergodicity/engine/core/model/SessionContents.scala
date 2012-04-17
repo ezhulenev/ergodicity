@@ -42,6 +42,8 @@ trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[S
   protected def handleSessionState(state: SessionState)
 
   protected def handleSessionContentsRecord(records: Iterable[R]);
+
+  def conformIsinToActorName(isin: String) = isin.replaceAll(" ","@")
 }
 
 case class StatefulSessionContents[S <: Security, R <: StatefulSessContents](initialState: SessionState)(implicit val converter: R => S) extends SessionContents[S, R] {
@@ -101,7 +103,7 @@ case class StatelessSessionContents[S <: Security, R <: StatelessSessContents](i
         val isin = record.isin
         val state = InstrumentState(stateData)
         instruments.get(isin).map(_ ! state) getOrElse {
-          instruments = instruments + (record.isin -> context.actorOf(Props(new Instrument(converter(record), state)), isin))
+          instruments = instruments + (record.isin -> context.actorOf(Props(new Instrument(converter(record), state)), conformIsinToActorName(isin)))
         }
     }
   }

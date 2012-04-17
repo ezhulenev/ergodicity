@@ -13,8 +13,8 @@ import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
 import integration.ergodicity.engine.core.AkkaIntegrationConfigurations._
 import com.ergodicity.engine.plaza2._
 import com.ergodicity.engine.core.Sessions
-import com.ergodicity.engine.plaza2.DataStream.Open._
 import com.ergodicity.engine.plaza2.DataStream.{Open, SetLifeNumToIni}
+import com.ergodicity.engine.core.Sessions.{JoinOptInfoRepl, JoinFutInfoRepl}
 
 
 class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec {
@@ -36,17 +36,27 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
         }
       })))
 
-      val ini = new File("core/scheme/FutInfo.ini")
-      val tableSet = TableSet(ini)
-      val underlyingStream = P2DataStream("FORTS_FUTINFO_REPL", CombinedDynamic, tableSet)
+      val futInfoIni = new File("core/scheme/FutInfo.ini")
+      val futInfoTableSet = TableSet(futInfoIni)
+      val FutInfoRepl = P2DataStream("FORTS_FUTINFO_REPL", CombinedDynamic, futInfoTableSet)
+      val futInfoDataStream = TestFSMRef(new DataStream(FutInfoRepl), "FORTS_FUTINFO_REPL")
 
-      val dataStream = TestFSMRef(new DataStream(underlyingStream), "FuturesInfo")
-      val sessions = TestActorRef(new Sessions(dataStream), "Sessions")
+      val optInfoIni = new File("core/scheme/OptInfo.ini")
+      val optInfoTableSet = TableSet(optInfoIni)
+      val OptInfoRepl = P2DataStream("FORTS_OPTINFO_REPL", CombinedDynamic, optInfoTableSet)
+      val optInfoDataStream = TestFSMRef(new DataStream(OptInfoRepl), "FORTS_OPTINFO_REPL")
+
+      val sessions = TestActorRef(new Sessions, "Sessions")
+      sessions ! JoinFutInfoRepl(futInfoDataStream)
+      sessions ! JoinOptInfoRepl(optInfoDataStream)
 
       Thread.sleep(1000)
       
-      dataStream ! SetLifeNumToIni(ini)
-      dataStream ! Open(underlyingConnection)
+      futInfoDataStream ! SetLifeNumToIni(futInfoIni)
+      futInfoDataStream ! Open(underlyingConnection)
+
+      optInfoDataStream ! SetLifeNumToIni(optInfoIni)
+      optInfoDataStream ! Open(underlyingConnection)
 
 
 

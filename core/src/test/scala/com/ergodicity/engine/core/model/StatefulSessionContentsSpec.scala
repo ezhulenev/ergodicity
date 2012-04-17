@@ -1,15 +1,14 @@
-package com.ergodicity.engine.core
+package com.ergodicity.engine.core.model
 
-import model._
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import com.ergodicity.engine.plaza2.Repository.Snapshot
 import com.ergodicity.engine.plaza2.scheme.FutInfo.SessContentsRecord
-import AkkaConfigurations._
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import com.ergodicity.engine.plaza2.scheme.FutInfo
 import akka.actor.ActorSystem
+import com.ergodicity.engine.core.AkkaConfigurations.ConfigWithDetailedLogging
 
 class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionContentsSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -23,7 +22,7 @@ class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionCo
   "StatefulSessionContents" must {
 
     "should track record updates merging with session state" in {
-      val contents = TestActorRef(new StatefulSessionContents[Future, FutInfo.SessContentsRecord](SessionState.Online), "Futures")
+      val contents = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.SessContentsRecord](SessionState.Online), "Futures")
       contents ! TrackSession(self)
       expectMsgType[SubscribeTransitionCallBack]
 
@@ -48,7 +47,7 @@ class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionCo
     }
 
     "merge session and instrument states" in {
-      val contents = TestActorRef(new StatefulSessionContents[Future, FutInfo.SessContentsRecord](SessionState.Online), "Futures")
+      val contents = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.SessContentsRecord](SessionState.Online), "Futures")
       val underlying = contents.underlyingActor
 
       assert(underlying.mergeStates(SessionState.Canceled, InstrumentState.Online) == InstrumentState.Canceled)

@@ -1,17 +1,16 @@
 package com.ergodicity.engine.core
 
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
-import com.ergodicity.engine.plaza2.DataStream.JoinTable
 import com.ergodicity.engine.plaza2.Repository.Snapshot
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import akka.actor.{Terminated, ActorSystem}
 import com.ergodicity.engine.plaza2.scheme.FutInfo.SessionRecord
 import com.ergodicity.engine.core.Sessions._
 import akka.event.Logging
-import model.Session.FutInfoSessionContents
+import model.Session.{OptInfoSessionContents, FutInfoSessionContents}
 import model.SessionState
 import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
-import com.ergodicity.engine.plaza2.scheme.FutInfo
+import com.ergodicity.engine.plaza2.scheme.{OptInfo, FutInfo}
 
 class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -22,12 +21,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
 
   "Sessions" must {
     "track sessions state" in {
-
-      val sessions = TestActorRef(new Sessions(self), "SessionsSpec")
-
-      // Join two tables: session, fut_sess_contents
-      expectMsgType[JoinTable[SessionRecord]]
-      expectMsgType[JoinTable[FutInfo.SessContentsRecord]]
+      val sessions = TestActorRef(new Sessions, "Sessions")
 
       val underlying = sessions.underlyingActor
       val sessionRepository = underlying.sessionRepository
@@ -36,7 +30,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       sessions ! Snapshot(sessionRepository, Seq(sessionRecord(46, 396, 4021, SessionState.Online)))
 
       then("should create actor for it")
-      val session1 = underlying.trackingSessions(4021)
+      val session1 = underlying.trackingSessions(SessionId(4021, 3547))
       watch(session1)
 
       session1 ! SubscribeTransitionCallBack(self)
@@ -62,7 +56,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       sessions ! Snapshot(sessionRepository, sessionRecord(46, 398, 4021, SessionState.Completed) :: sessionRecord(47, 399, 4022, SessionState.Assigned) :: Nil)
 
       then("new actor should be created")
-      val session2 = underlying.trackingSessions(4022)
+      val session2 = underlying.trackingSessions(SessionId(4022, 3547))
       watch(session2)
 
       session2 ! SubscribeTransitionCallBack(self)
@@ -93,23 +87,34 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       assert(underlying.trackingSessions.size == 0)
     }
 
-    "should forward SessContentsRecord snapshot to child sessions" in {
-      val sessions = TestActorRef(new Sessions(self), "SessionsSpec")
-
-      // Join two tables: session, fut_sess_contents
-      expectMsgType[JoinTable[SessionRecord]]
-      expectMsgType[JoinTable[FutInfo.SessContentsRecord]]
+    "should forward FutInfo.SessContentsRecord snapshot to child sessions" in {
+      val sessions = TestActorRef(new Sessions, "SessionsSpec")
 
       val underlying = sessions.underlyingActor
       val futSessContentsRepository = underlying.futSessContentsRepository
 
-      underlying.trackingSessions = Map(100l -> self)
+      underlying.trackingSessions = Map(SessionId(100l, 0l) -> self)
 
       val future1 = FutInfo.SessContentsRecord(7477, 47740, 0, 100, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
       val future2 = FutInfo.SessContentsRecord(7477, 47740, 0, 102, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
 
       sessions ! Snapshot(futSessContentsRepository, future1 :: future2 :: Nil)
       expectMsg(FutInfoSessionContents(Snapshot(futSessContentsRepository, future1 :: Nil)))
+    }
+
+    "should forward OptInfo.SessContentsRecord snapshot to child sessions" in {
+      val sessions = TestActorRef(new Sessions, "SessionsSpec")
+
+      val underlying = sessions.underlyingActor
+      val optSessContentsRepository = underlying.optSessContentsRepository
+
+      underlying.trackingSessions = Map(SessionId(0l, 100l) -> self)
+
+      val option1 = OptInfo.SessContentsRecord(10881, 20023, 0, 100, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
+      val option2 = OptInfo.SessContentsRecord(10881, 20023, 0, 101, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
+
+      sessions ! Snapshot(optSessContentsRepository, option1 :: option2 :: Nil)
+      expectMsg(OptInfoSessionContents(Snapshot(optSessContentsRepository, option1 :: Nil)))
     }
   }
 

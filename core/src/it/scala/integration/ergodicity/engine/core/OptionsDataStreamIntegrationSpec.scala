@@ -5,7 +5,6 @@ import java.io.File
 import org.scalatest.WordSpec
 import plaza2.RequestType.CombinedDynamic
 import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
-import akka.testkit.{TestActorRef, TestFSMRef, TestKit}
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
@@ -16,8 +15,10 @@ import com.ergodicity.engine.plaza2.scheme.OptInfo.SessContentsRecord
 import com.ergodicity.engine.plaza2._
 import AkkaIntegrationConfigurations._
 import scheme.{Deserializer, OptInfo}
+import com.ergodicity.engine.core.model._
+import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
 
-class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec {
+class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
 
 
@@ -47,10 +48,11 @@ class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
       // Handle options data
       val repository = TestFSMRef(new Repository[SessContentsRecord](), "SessContentRepo")
 
-//      val options = TestActorRef(new SessionContents(com.ergodicity.engine.core.model.OptionConverter), "Options")
-
       dataStream ! JoinTable(repository, "opt_sess_contents", implicitly[Deserializer[OptInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
+
+      val options = TestActorRef(new StatelessSessionContents[OptionContract, OptInfo.SessContentsRecord](SessionState.Online), "Options")
+      options ! TrackSession(self)
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
@@ -59,8 +61,7 @@ class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
             data.foreach(sessionContents =>
               log.info("SessContents: " + sessionContents)
             )
-
-//          options ! snapshot
+          options ! snapshot
         }
       }))
 

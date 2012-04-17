@@ -5,9 +5,9 @@ import org.scala_tools.time.Implicits._
 import akka.actor.{ActorRef, Props, Actor, FSM}
 import com.ergodicity.engine.plaza2.scheme.FutInfo._
 import akka.actor.FSM._
-import com.ergodicity.engine.plaza2.scheme.FutInfo
 import com.ergodicity.engine.plaza2.Repository.Snapshot
-import com.ergodicity.engine.core.model.Session.FutInfoSessionContents
+import com.ergodicity.engine.plaza2.scheme.{OptInfo, FutInfo}
+import com.ergodicity.engine.core.model.Session.{OptInfoSessionContents, FutInfoSessionContents}
 
 case class SessionContent(id: Long, optionsSessionId: Long, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval) {
   def this(rec: SessionRecord) = this(
@@ -31,6 +31,7 @@ object Session {
   }
 
   case class FutInfoSessionContents(snapshot: Snapshot[FutInfo.SessContentsRecord])
+  case class OptInfoSessionContents(snapshot: Snapshot[OptInfo.SessContentsRecord])
 }
 
 case class Session(content: SessionContent, state: SessionState, intClearingState: IntClearingState) extends Actor with FSM[SessionState, ActorRef] {
@@ -38,19 +39,24 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
   import SessionState._
 
   val intClearing = context.actorOf(Props(new IntClearing(intClearingState)), "IntClearing")
-  val futures = context.actorOf(Props(new StatefulSessionContents[Future, FutInfo.SessContentsRecord](state)), "Futures")
+
+  val futures = context.actorOf(Props(new StatefulSessionContents[FutureContract, FutInfo.SessContentsRecord](state)), "Futures")
   futures ! TrackSession(self)
+
+  val options = context.actorOf(Props(new StatelessSessionContents[OptionContract, OptInfo.SessContentsRecord](state)), "Options")
+  options ! TrackSession(self)
+
 
   startWith(state, intClearing)
 
   when(Assigned) {
-    handleSessionState orElse handleClearingState orElse handleFutSessContents
+    handleSessionState orElse handleClearingState orElse handleSessContents
   }
   when(Online) {
-    handleSessionState orElse handleClearingState orElse handleFutSessContents
+    handleSessionState orElse handleClearingState orElse handleSessContents
   }
   when(Suspended) {
-    handleSessionState orElse handleClearingState orElse handleFutSessContents
+    handleSessionState orElse handleClearingState orElse handleSessContents
   }
 
   when(Canceled) {
@@ -59,7 +65,7 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
   }
 
   when(Canceled) {
-    handleClearingState orElse handleFutSessContents
+    handleClearingState orElse handleSessContents
   }
 
   when(Completed) {
@@ -68,7 +74,7 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
   }
 
   when(Completed) {
-    handleClearingState orElse handleFutSessContents
+    handleClearingState orElse handleSessContents
   }
 
   onTransition {
@@ -79,9 +85,9 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
 
   log.info("Created session; Id = " + content.id + "; State = " + state + "; content = " + content)
 
-  private def handleFutSessContents: StateFunction = {
-    case Event(FutInfoSessionContents(snapshot), _) =>
-      futures ! snapshot.filter(isFuture _); stay()
+  private def handleSessContents: StateFunction = {
+    case Event(FutInfoSessionContents(snapshot), _) => futures ! snapshot.filter(isFuture _); stay()
+    case Event(OptInfoSessionContents(snapshot), _) => options ! snapshot; stay()
   }
 
   private def handleSessionState: StateFunction = {

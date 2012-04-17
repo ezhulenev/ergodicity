@@ -6,6 +6,6 @@ sealed trait Security {
 
 sealed trait Derivative extends Security
 
-case class Future(isin: String, shortIsin: String, isinId: Long, name: String) extends Derivative
+case class FutureContract(isin: String, shortIsin: String, isinId: Long, name: String) extends Derivative
 
-//case class Option(isin: String, shortIsin: String, isinId: Long, name: String) extends Derivative
+case class OptionContract(isin: String, shortIsin: String, isinId: Long, name: String) extends Derivative

@@ -16,7 +16,7 @@ import scheme.FutInfo.{Signs, SessContentsRecord}
 import scheme.{Deserializer, FutInfo}
 import akka.actor.FSM.{CurrentState, Transition, SubscribeTransitionCallBack}
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
-import com.ergodicity.engine.core.model.{TrackSession, SessionState, StatefulSessionContents, Future}
+import com.ergodicity.engine.core.model.{TrackSession, SessionState, StatefulSessionContents, FutureContract}
 
 class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
@@ -26,7 +26,7 @@ class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
   val Port = 4001
   val AppName = "FuturesDataStreamIntegrationSpec"
 
-  val SessionContentToFuture = (record: SessContentsRecord) => new Future(record.isin, record.shortIsin, record.isinId, record.name)
+  val SessionContentToFuture = (record: SessContentsRecord) => new FutureContract(record.isin, record.shortIsin, record.isinId, record.name)
 
   def IsFuture(record: SessContentsRecord) = {
     val signs = Signs(record.signs)
@@ -57,7 +57,7 @@ class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
       dataStream ! JoinTable(repository, "fut_sess_contents", implicitly[Deserializer[FutInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
 
-      val futures = TestActorRef(new StatefulSessionContents[Future, FutInfo.SessContentsRecord](SessionState.Online), "Futures")
+      val futures = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.SessContentsRecord](SessionState.Online), "Futures")
       futures ! TrackSession(self)
 
 
