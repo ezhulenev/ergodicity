@@ -4,13 +4,13 @@ import com.ergodicity.engine.plaza2.Repository.Snapshot
 import akka.actor.{FSM, Props, ActorRef, Actor}
 import akka.actor.FSM.{SubscribeTransitionCallBack, CurrentState, Transition}
 
-case class TrackSession(session: ActorRef)
+case class JoinSession(session: ActorRef)
 
 sealed trait SessionContentsState
 
 object SessionContentsState {
   case object Idle extends SessionContentsState
-  case object TrackingSessionState extends SessionContentsState
+  case object Joined extends SessionContentsState
 }
 
 trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[SessionContentsState, SessionState] {
@@ -26,10 +26,10 @@ trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[S
   startWith(Idle, initialState)
 
   when(Idle) {
-    case Event(TrackSession(session), _) => session ! SubscribeTransitionCallBack(self); goto(TrackingSessionState)
+    case Event(JoinSession(session), _) => session ! SubscribeTransitionCallBack(self); goto(Joined)
   }
 
-  when(TrackingSessionState) {
+  when(Joined) {
     case Event(CurrentState(_, state: SessionState), _) => stay() using state
     case Event(Transition(_, _, to: SessionState), _) => handleSessionState(to); stay() using to
     case Event(snapshot: Snapshot[R], _) => handleSessionContentsRecord(snapshot.data); stay()

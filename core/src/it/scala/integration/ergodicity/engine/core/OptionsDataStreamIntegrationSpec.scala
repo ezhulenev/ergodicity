@@ -52,7 +52,7 @@ class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
       dataStream ! Open(underlyingConnection)
 
       val options = TestActorRef(new StatelessSessionContents[OptionContract, OptInfo.SessContentsRecord](SessionState.Online), "Options")
-      options ! TrackSession(self)
+      options ! JoinSession(self)
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
