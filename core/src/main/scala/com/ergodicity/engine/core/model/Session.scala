@@ -38,7 +38,8 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
   import SessionState._
 
   val intClearing = context.actorOf(Props(new IntClearing(intClearingState)), "IntClearing")
-  val futures = context.actorOf(Props(new StatefulSessionContents[Future, FutInfo.SessContentsRecord]), "Futures")
+  val futures = context.actorOf(Props(new StatefulSessionContents[Future, FutInfo.SessContentsRecord](state)), "Futures")
+  futures ! TrackSession(self)
 
   startWith(state, intClearing)
 
@@ -77,7 +78,6 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
   initialize
 
   log.info("Created session; Id = " + content.id + "; State = " + state + "; content = " + content)
-
 
   private def handleFutSessContents: StateFunction = {
     case Event(FutInfoSessionContents(snapshot), _) =>

@@ -11,7 +11,7 @@ import com.ergodicity.engine.plaza2.Repository.Snapshot
 import com.ergodicity.engine.core.AkkaConfigurations._
 import com.ergodicity.engine.core.model.Session.FutInfoSessionContents
 import akka.testkit.{TestActorRef, ImplicitSender, TestFSMRef, TestKit}
-import akka.actor.{Props, Terminated, ActorSystem}
+import akka.actor.{Terminated, ActorSystem}
 
 class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)

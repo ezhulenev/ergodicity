@@ -5,10 +5,8 @@ import java.io.File
 import org.scalatest.WordSpec
 import plaza2.RequestType.CombinedDynamic
 import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
-import akka.testkit.{TestActorRef, TestFSMRef, TestKit}
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
-import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.engine.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
 import com.ergodicity.engine.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
@@ -16,10 +14,11 @@ import com.ergodicity.engine.plaza2._
 import AkkaIntegrationConfigurations._
 import scheme.FutInfo.{Signs, SessContentsRecord}
 import scheme.{Deserializer, FutInfo}
-import com.ergodicity.engine.core.model.{StatefulSessionContents, Future}
-import com.ergodicity.engine.core.Sessions
+import akka.actor.FSM.{CurrentState, Transition, SubscribeTransitionCallBack}
+import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
+import com.ergodicity.engine.core.model.{TrackSession, SessionState, StatefulSessionContents, Future}
 
-class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec {
+class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
   val log = LoggerFactory.getLogger(classOf[ConnectionSpec])
 
 
@@ -58,7 +57,9 @@ class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataS
       dataStream ! JoinTable(repository, "fut_sess_contents", implicitly[Deserializer[FutInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
 
-      val futures = TestActorRef(new StatefulSessionContents[Future, FutInfo.SessContentsRecord], "Futures")
+      val futures = TestActorRef(new StatefulSessionContents[Future, FutInfo.SessContentsRecord](SessionState.Online), "Futures")
+      futures ! TrackSession(self)
+
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {

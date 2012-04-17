@@ -6,61 +6,51 @@ import akka.actor.FSM.{SubscribeTransitionCallBack, CurrentState, Transition}
 
 case class TrackSession(session: ActorRef)
 
-trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[SessionState, Unit] {
-  import SessionState._
+sealed trait SessionContentsState
+
+object SessionContentsState {
+  case object Idle extends SessionContentsState
+  case object TrackingSessionState extends SessionContentsState
+}
+
+trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[SessionContentsState, SessionState] {
+
+  import SessionContentsState._
   
+  def initialState: SessionState
+
   def converter: R => S
-  
+
   protected[core] var instruments: Map[String, ActorRef] = Map()
 
-  when(Assigned) {
-    handleSessionTransitions orElse handleSessionContents
+  startWith(Idle, initialState)
+
+  when(Idle) {
+    case Event(TrackSession(session), _) => session ! SubscribeTransitionCallBack(self); goto(TrackingSessionState)
   }
-  when(Online) {
-    handleSessionTransitions orElse handleSessionContents
-  }
-  when(Suspended) {
-    handleSessionTransitions orElse handleSessionContents
-  }
-  when(Canceled) {
-    handleSessionTransitions orElse handleSessionContents
-  }
-  when(Completed) {
-    handleSessionTransitions orElse handleSessionContents
+
+  when(TrackingSessionState) {
+    case Event(CurrentState(_, state: SessionState), _) => stay() using state
+    case Event(Transition(_, _, to: SessionState), _) => handleSessionState(to); stay() using to
+    case Event(snapshot: Snapshot[R], _) => handleSessionContentsRecord(snapshot.data); stay()
   }
 
   onTransition {
     case from -> to => log.info("SessionContents updated from " + from + " -> " + to)
   }
 
-  whenUnhandled
-  private def handleTrackSession: StateFunction = {
-    case Event(TrackSession(session), _) => session ! SubscribeTransitionCallBack(self); stay()
-  }
-  
-  private def handleSessionTransitions: StateFunction = {
-    case Event(CurrentState(_, s: SessionState), _) =>
-      startWith(s, ())
-      initialize
-      goto(s)
-
-    case Event(Transition(_, from: SessionState, to: SessionState), _) => goto(to)
-  }
-
-  private def handleSessionContents: StateFunction = {
-    case Event(snapshot: Snapshot[R], _) => handleSessionContentsRecord(snapshot.data); stay()
-  }
+  protected def handleSessionState(state: SessionState)
 
   protected def handleSessionContentsRecord(records: Iterable[R]);
 }
 
-class StatefulSessionContents[S <: Security, R <: StatefulSessContents](implicit val converter: R => S) extends SessionContents[S, R] {
+case class StatefulSessionContents[S <: Security, R <: StatefulSessContents](initialState: SessionState)(implicit val converter: R => S) extends SessionContents[S, R] {
 
-  private var originalInstrumentState: Map[String, InstrumentState]  = Map()
+  private var originalInstrumentState: Map[String, InstrumentState] = Map()
 
-  onTransition {
-    case _ -> to => instruments.foreach {
-      case (isin, ref) => ref ! mergeStates(to, originalInstrumentState(isin))
+  protected def handleSessionState(state: SessionState) {
+    instruments.foreach {
+      case (isin, ref) => ref ! mergeStates(state, originalInstrumentState(isin))
     }
   }
 
@@ -68,7 +58,7 @@ class StatefulSessionContents[S <: Security, R <: StatefulSessContents](implicit
     records.foreach {
       record =>
         val isin = record.isin
-        val state = mergeStates(stateName, InstrumentState(record.state))
+        val state = mergeStates(stateData, InstrumentState(record.state))
         instruments.get(isin).map(_ ! state) getOrElse {
           instruments = instruments + (isin -> context.actorOf(Props(new Instrument(converter(record), state)), isin))
         }
@@ -98,10 +88,10 @@ class StatefulSessionContents[S <: Security, R <: StatefulSessContents](implicit
   }
 }
 
-class StatelessSessionContents[S <: Security, R <: StatelessSessContents](implicit val converter: R => S) extends SessionContents[S, R] {
-  onTransition {
-    case _ -> to => instruments.foreach {
-      case (isin, ref) => ref ! InstrumentState(to)
+case class StatelessSessionContents[S <: Security, R <: StatelessSessContents](initialState: SessionState)(implicit val converter: R => S) extends SessionContents[S, R] {
+  protected def handleSessionState(state: SessionState) {
+    instruments.foreach {
+      case (isin, ref) => ref ! InstrumentState(state)
     }
   }
 
@@ -109,7 +99,7 @@ class StatelessSessionContents[S <: Security, R <: StatelessSessContents](implic
     records.foreach {
       record =>
         val isin = record.isin
-        val state = InstrumentState(stateName)
+        val state = InstrumentState(stateData)
         instruments.get(isin).map(_ ! state) getOrElse {
           instruments = instruments + (record.isin -> context.actorOf(Props(new Instrument(converter(record), state)), isin))
         }

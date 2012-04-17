@@ -23,8 +23,9 @@ class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionCo
   "StatefulSessionContents" must {
 
     "should track record updates merging with session state" in {
-      val contents = TestActorRef(new StatefulSessionContents[Future, FutInfo.SessContentsRecord], "Futures")
-      contents ! CurrentState(self, SessionState.Online)
+      val contents = TestActorRef(new StatefulSessionContents[Future, FutInfo.SessContentsRecord](SessionState.Online), "Futures")
+      contents ! TrackSession(self)
+      expectMsgType[SubscribeTransitionCallBack]
 
       contents ! Snapshot(self, gmkFuture :: Nil)
 
@@ -47,7 +48,7 @@ class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionCo
     }
 
     "merge session and instrument states" in {
-      val contents = TestActorRef(new StatefulSessionContents[Future, FutInfo.SessContentsRecord], "Futures")
+      val contents = TestActorRef(new StatefulSessionContents[Future, FutInfo.SessContentsRecord](SessionState.Online), "Futures")
       val underlying = contents.underlyingActor
 
       assert(underlying.mergeStates(SessionState.Canceled, InstrumentState.Online) == InstrumentState.Canceled)
