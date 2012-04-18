@@ -12,10 +12,19 @@ object EngineBuild extends Build {
   lazy val engine = Project(
     id = "engine",
     base = file("."),
-    aggregate = Seq(core, plaza2)
+    aggregate = Seq(capture, core, plaza2)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
-  
+
+  lazy val capture = Project(
+    id = "capture",
+    base = file("capture"),
+    dependencies = Seq(core),
+    settings = Project.defaultSettings ++ repositoriesSetting ++ Seq(libraryDependencies ++= Dependencies.capture)
+  ).configs( IntegrationTest )
+    .settings( Defaults.itSettings : _*)
+
+
   lazy val core = Project(
     id = "core",
     base = file("core"),
@@ -48,6 +57,8 @@ object EngineBuild extends Build {
 
 object Dependencies {
   import Dependency._
+
+  val capture = Seq()
 
   val core = Seq(akka, ostrich, scalaTime, sbinary, finagleCore, scalaSTM, slf4jApi, logback, scalaz, jodaTime, jodaConvert) ++
     Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
