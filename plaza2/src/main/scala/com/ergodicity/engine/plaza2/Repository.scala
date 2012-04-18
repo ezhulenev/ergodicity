@@ -35,7 +35,6 @@ class Repository[T <: Record] extends Actor with FSM[RepositoryState, Map[Long, 
   }
 
   when(Consistent) {
-    case Event(DatumDeleted(rev), map) => stay() using map.filterNot{_._2.replRev < rev}
     case Event(DataBegin, _) => goto(Synchronizing)
 
     case Event(SubscribeSnapshots(ref), _) =>
@@ -52,6 +51,7 @@ class Repository[T <: Record] extends Actor with FSM[RepositoryState, Map[Long, 
   }
 
   whenUnhandled {
+    case Event(DatumDeleted(rev), map) => stay() using map.filterNot{_._2.replRev < rev}
     case Event(SubscribeSnapshots(ref), _) => snapshotSubscribers = snapshotSubscribers + ref; stay();
   }
 

@@ -19,7 +19,7 @@ import scheme.{OptTrade, Deserializer}
 import java.util.concurrent.{CountDownLatch, TimeUnit}
 
 class OptTradeDataStreamIntegrationSpec extends TestKit(ActorSystem("OptTradeDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
-  val log = LoggerFactory.getLogger(classOf[FutInfoDataStreamIntegrationSpec])
+  val log = LoggerFactory.getLogger(classOf[OptTradeDataStreamIntegrationSpec])
 
 
   val Host = "localhost"

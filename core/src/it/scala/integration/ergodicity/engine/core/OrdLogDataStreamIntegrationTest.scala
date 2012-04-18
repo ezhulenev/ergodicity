@@ -15,17 +15,16 @@ import scheme.FutInfo.{Signs, SessContentsRecord}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
 import com.ergodicity.engine.core.model.FutureContract
-import scheme.{FutTrade, Deserializer}
+import scheme.{OrdLog, Deserializer}
 import java.util.concurrent.{CountDownLatch, TimeUnit}
 
-
-class FutTradeDataStreamIntegrationSpec extends TestKit(ActorSystem("FutTradeDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
-  val log = LoggerFactory.getLogger(classOf[FutTradeDataStreamIntegrationSpec])
+class OrdLogDataStreamIntegrationTest extends TestKit(ActorSystem("OrdLogDataStreamIntegrationTest", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
+  val log = LoggerFactory.getLogger(classOf[OrdLogDataStreamIntegrationTest])
 
 
   val Host = "localhost"
   val Port = 4001
-  val AppName = "FutTradeDataStreamIntegrationSpec"
+  val AppName = "OrdLogDataStreamIntegrationTest"
 
   val SessionContentToFuture = (record: SessContentsRecord) => new FutureContract(record.isin, record.shortIsin, record.isinId, record.name)
 
@@ -46,48 +45,33 @@ class FutTradeDataStreamIntegrationSpec extends TestKit(ActorSystem("FutTradeDat
         }
       })))
 
-      val ini = new File("core/scheme/FutTrade.ini")
+      val ini = new File("core/scheme/OrdLog.ini")
       val tableSet = TableSet(ini)
-      val underlyingStream = P2DataStream("FORTS_FUTTRADE_REPL", CombinedDynamic, tableSet)
+      val underlyingStream = P2DataStream("FORTS_ORDLOG_REPL", CombinedDynamic, tableSet)
 
-      val dataStream = TestFSMRef(new DataStream(underlyingStream), "FORTS_FUTTRADE_REPL")
+      val dataStream = TestFSMRef(new DataStream(underlyingStream), "FORTS_ORDLOG_REPL")
       dataStream ! SetLifeNumToIni(ini)
 
-      val ordersLogRepo = TestFSMRef(new Repository[FutTrade.OrdersLogRecord], "OrdersLogRepo")
-      val dealsRepo = TestFSMRef(new Repository[FutTrade.DealRecord], "DealsRepo")
+      val ordersLogRepo = TestFSMRef(new Repository[OrdLog.OrdersLogRecord], "OrdersLogRepo")
 
-      dataStream ! JoinTable(ordersLogRepo, "orders_log", implicitly[Deserializer[FutTrade.OrdersLogRecord]])
-      dataStream ! JoinTable(dealsRepo, "deal", implicitly[Deserializer[FutTrade.DealRecord]])
+      dataStream ! JoinTable(ordersLogRepo, "orders_log", implicitly[Deserializer[OrdLog.OrdersLogRecord]])
       dataStream ! Open(underlyingConnection)
 
-      val latch = new CountDownLatch(2)
+      val latch = new CountDownLatch(1)
 
       ordersLogRepo ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
-          case snapshot: Snapshot[FutTrade.OrdersLogRecord] =>
-            log.info("Got snapshot; size = " + snapshot.data.size)
-            snapshot.data.take(1) foreach {
-              rec =>
-                log.info("Record: " + rec)
-            }
-            latch.countDown()
-            context.stop(self)
-        }
-      }))
-
-      dealsRepo ! SubscribeSnapshots(TestActorRef(new Actor {
-        protected def receive = {
-          case snapshot: Snapshot[FutTrade.DealRecord] =>
+          case snapshot: Snapshot[OrdLog.OrdersLogRecord] =>
             log.info("Got snapshot; size = " + snapshot.data.size)
             snapshot.data foreach {
               rec =>
                 log.info("Record: " + rec)
             }
+            latch.countDown()
         }
       }))
 
-
-      latch.await(5, TimeUnit.SECONDS)
+      latch.await(10, TimeUnit.SECONDS)
     }
   }
 }

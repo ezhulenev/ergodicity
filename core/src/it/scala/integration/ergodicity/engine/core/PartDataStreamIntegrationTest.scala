@@ -11,7 +11,6 @@ import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.engine.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
 import com.ergodicity.engine.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import com.ergodicity.engine.plaza2.Connection.{ProcessMessages, Connect}
-import com.ergodicity.engine.plaza2.scheme.OptInfo.SessContentsRecord
 import com.ergodicity.engine.plaza2._
 import AkkaIntegrationConfigurations._
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
