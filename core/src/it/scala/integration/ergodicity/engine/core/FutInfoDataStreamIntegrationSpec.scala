@@ -18,13 +18,13 @@ import akka.actor.FSM.{CurrentState, Transition, SubscribeTransitionCallBack}
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
 import com.ergodicity.engine.core.model.{JoinSession, SessionState, StatefulSessionContents, FutureContract}
 
-class FuturesDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
-  val log = LoggerFactory.getLogger(classOf[FuturesDataStreamIntegrationSpec])
+class FutInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
+  val log = LoggerFactory.getLogger(classOf[FutInfoDataStreamIntegrationSpec])
 
 
   val Host = "localhost"
   val Port = 4001
-  val AppName = "FuturesDataStreamIntegrationSpec"
+  val AppName = "FutInfoDataStreamIntegrationSpec"
 
   val SessionContentToFuture = (record: SessContentsRecord) => new FutureContract(record.isin, record.shortIsin, record.isinId, record.name)
 

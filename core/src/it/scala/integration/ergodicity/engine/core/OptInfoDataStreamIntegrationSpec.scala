@@ -18,13 +18,13 @@ import scheme.{Deserializer, OptInfo}
 import com.ergodicity.engine.core.model._
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
 
-class OptionsDataStreamIntegrationSpec extends TestKit(ActorSystem("FuturesDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
-  val log = LoggerFactory.getLogger(classOf[OptionsDataStreamIntegrationSpec])
+class OptInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
+  val log = LoggerFactory.getLogger(classOf[OptInfoDataStreamIntegrationSpec])
 
 
   val Host = "localhost"
   val Port = 4001
-  val AppName = "OptionsDataStreamIntegrationSpec"
+  val AppName = "OptInfoDataStreamIntegrationSpec"
 
   "DataStream" must {
     "do some stuff" in {
