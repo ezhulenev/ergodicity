@@ -1,48 +1,62 @@
 package com.ergodicity.engine.capture
 
-import org.slf4j.LoggerFactory
-import akka.actor._
 import akka.util.duration._
-import com.twitter.ostrich.admin.{RuntimeEnvironment, ServiceTracker, Service}
+import plaza2.{Connection => P2Connection}
+import com.ergodicity.engine.plaza2.{ConnectionState, Connection}
+import akka.actor._
+import SupervisorStrategy._
+import com.jacob.com.ComFailException
+import akka.actor.FSM.{Failure, Transition, CurrentState, SubscribeTransitionCallBack}
+import com.ergodicity.engine.plaza2.Connection.Connect
 
-case class ConnectionProperties(host: String, port: Int, appName: String)
+case class CaptureFromConnection(props: ConnectionProperties)
 
-object MarketCapture {
-  val log = LoggerFactory.getLogger(getClass.getName)
+sealed trait MarketCaptureState
 
-  var marketCapture: MarketCapture = null
-  var runtime: RuntimeEnvironment = null
+case object Idle extends MarketCaptureState
 
-  def main(args: Array[String]) {
-    try {
-      runtime = RuntimeEnvironment(this, args)
-      marketCapture = runtime.loadRuntimeConfig[MarketCapture]()
-      marketCapture.start()
-    } catch {
-      case e =>
-        log.error("Exception during startup; exiting!", e)
-        System.exit(1)
-    }
-    log.info("Return from main!!!")
-  }
-}
+case object Starting extends MarketCaptureState
 
-class MarketCapture(connectionProperties: ConnectionProperties) extends Service {
-  val log = LoggerFactory.getLogger(classOf[MarketCapture])
+case object Capturing extends MarketCaptureState
 
-  implicit val system = ActorSystem("MarketCapture")
 
-  def start() {
-    log.info("Start MarketCapture")
+class MarketCapture(underlyingConnection: P2Connection) extends Actor with FSM[MarketCaptureState, Unit] {
 
-    system.scheduler.schedule(10.seconds, 10.seconds) {
-      ServiceTracker.shutdown()
-      System.exit(1)
-    }
+  val connection = context.actorOf(Props(Connection(underlyingConnection)), "Connection")
+  context.watch(connection)
+
+  override val supervisorStrategy = AllForOneStrategy() {
+    case _ : ComFailException => Stop
   }
 
-  def shutdown() {
-    log.info("Shutdown MarketCapture")
+  startWith(Idle, ())
 
+  when(Idle) {
+    case Event(CaptureFromConnection(ConnectionProperties(host, port, appName)), _) =>
+      connection ! SubscribeTransitionCallBack(self)
+      connection ! Connect(host, port, appName)
+      goto(Starting)
   }
+
+  when(Starting, stateTimeout = 10.second) {
+    case Event(Transition(fsm, _, ConnectionState.Connected), _) if (fsm == connection) => goto(Capturing)
+  }
+
+  when(Capturing) {
+    case _ => stay()
+  }
+
+  onTransition {
+    case Idle -> Starting => log.info("Starting Market capture, waiting for connection established")
+    case Starting -> Capturing => log.info("Begin capturing Market data")
+  }
+  
+  whenUnhandled {
+    case Event(Transition(fsm, _, _), _) if (fsm == connection) => stay()
+    case Event(CurrentState(fsm, _), _) if (fsm == connection) => stay()
+    case Event(Terminated(actor), _) if (actor == connection) => stop(Failure("Connection terminated"))
+  }
+
+  initialize
+
 }

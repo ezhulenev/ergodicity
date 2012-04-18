@@ -58,12 +58,11 @@ object EngineBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val capture = Seq()
+  val capture = Seq(ostrich, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
-  val core = Seq(akka, ostrich, scalaTime, sbinary, finagleCore, scalaSTM, slf4jApi, logback, scalaz, jodaTime, jodaConvert) ++
-    Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val core = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
-  val plaza2 = Seq(plaza2Connectivity, akka, ostrich, scalaTime, sbinary, finagleCore, scalaSTM, slf4jApi, logback, scalaz, jodaTime, jodaConvert) ++
+  val plaza2 = Seq(plaza2Connectivity, akka, scalaTime, slf4jApi, logback, jodaTime, jodaConvert) ++
     Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 }
 

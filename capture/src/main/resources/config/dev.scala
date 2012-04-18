@@ -1,7 +1,7 @@
-import com.ergodicity.engine.capture.{ConnectionProperties, MarketCaptureConfig}
+import com.ergodicity.engine.capture.{ConnectionProperties, CaptureEngineConfig}
 
-new MarketCaptureConfig {
+new CaptureEngineConfig {
   admin.httpPort = 19000
 
-  def connectionProperties = ConnectionProperties("localhost", 4001, "MarketCaptureDev")
+  def connectionProperties = ConnectionProperties("localhost", 4001, "CaptureEngineDev")
 }
