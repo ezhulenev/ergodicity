@@ -4,6 +4,7 @@ import akka.actor.Actor
 import akka.event.Logging
 import com.ergodicity.engine.plaza2.DataStream._
 import com.ergodicity.engine.plaza2.scheme.OrdLog
+import scalax.io.{Seekable, Resource}
 
 case class OrdersCaptureException(msg: String) extends IllegalArgumentException(msg)
 
@@ -11,6 +12,8 @@ class OrdersCapture extends Actor {
   val log = Logging(context.system, this)
 
   var count = 0;
+
+  val someFile: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\log.txt")
 
   protected def receive = {
     case DataBegin => log.debug("Begin Orders data")
@@ -23,5 +26,6 @@ class OrdersCapture extends Actor {
       if (count % 1000 == 0) {
         log.info("Inserted order#"+count+": " + order)
       }
+      someFile.append(order.toString+"\r\n")
   }
 }

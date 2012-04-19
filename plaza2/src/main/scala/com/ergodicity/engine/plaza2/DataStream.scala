@@ -111,7 +111,7 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
       }
 
       case StreamDatumDeleted(table, replRev) => tableJoiners.get(table).foreach {
-        case (ref, _) => ref ! DataDeleted(table, replRev)
+        case (ref, _) => ref ! DatumDeleted(table, replRev)
       }
       case StreamDataInserted(table, record) => tableJoiners.get(table).foreach {
         case (ref, ds) => ref ! DataInserted(table, ds(record))

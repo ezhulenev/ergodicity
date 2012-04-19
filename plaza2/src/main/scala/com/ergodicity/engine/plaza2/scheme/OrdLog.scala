@@ -1,26 +1,29 @@
 package com.ergodicity.engine.plaza2.scheme
 
 import plaza2.{Record => P2Record}
+import com.twitter.ostrich.stats.Stats
 
 object OrdLog {
 
   implicit val OrdersLogDeserializer = new Deserializer[OrdersLogRecord] {
-    def apply(record: P2Record) = OrdersLogRecord(
-      record.getLong("replID"), record.getLong("replRev"), record.getLong("replAct"),
+    def apply(record: P2Record) = Stats.timeNanos("OrdersLogDeserializer") {
+      OrdersLogRecord(
+        record.getLong("replID"), record.getLong("replRev"), record.getLong("replAct"),
 
-      record.getVariant("id_ord").getLong,
-      record.getLong("sess_id"),
-      record.getString("moment"),
-      record.getLong("status"),
-      record.getLong("action"),
-      record.getLong("isin_id"),
-      record.getLong("dir"),
-      record.getVariant("price").getDecimal,
-      record.getLong("amount"),
-      record.getLong("amount_rest"),
-      record.getLong("id_deal"),
-      record.getVariant("deal_price").getDecimal
-    )
+        record.getVariant("id_ord").getLong,
+        record.getLong("sess_id"),
+        record.getString("moment"),
+        record.getLong("status"),
+        record.getLong("action"),
+        record.getLong("isin_id"),
+        record.getLong("dir"),
+        record.getVariant("price").getDecimal,
+        record.getLong("amount"),
+        record.getLong("amount_rest"),
+        record.getLong("id_deal"),
+        record.getVariant("deal_price").getDecimal
+      )
+    }
   }
 
   /**

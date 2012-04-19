@@ -58,7 +58,7 @@ object EngineBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val capture = Seq(ostrich, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val capture = Seq(ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
   val core = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
@@ -88,6 +88,7 @@ object Dependency {
     val ScalaTime    = "0.5"
     val Ostrich      = "4.10.6"
     val Akka         = "2.0"
+    val ScalaIO      = "0.3.0"
   }
 
   // Compile
@@ -104,6 +105,7 @@ object Dependency {
   val sbinary                = "org.scala-tools.sbinary"          %% "sbinary"                % V.SBinary
   val scalaTime              = "org.scala-tools.time"             %% "time"                   % V.ScalaTime
   val akka                   = "com.typesafe.akka"                 % "akka-actor"             % V.Akka
+  val scalaIO                = "com.github.scala-incubator.io"    %% "scala-io-core"          % V.ScalaIO
 
   // Provided
 
