@@ -1,45 +1,70 @@
 package com.ergodicity.engine.capture
 
 import akka.util.duration._
-import plaza2.{Connection => P2Connection}
-import com.ergodicity.engine.plaza2.{ConnectionState, Connection}
 import akka.actor._
 import SupervisorStrategy._
 import com.jacob.com.ComFailException
 import akka.actor.FSM.{Failure, Transition, CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.engine.plaza2.Connection.Connect
+import com.ergodicity.engine.plaza2.{DataStream, ConnectionState, Connection}
+import java.io.File
+import plaza2.RequestType.CombinedDynamic
+import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
+import com.ergodicity.engine.plaza2.scheme.{OrdLog, Deserializer}
+import com.ergodicity.engine.plaza2.DataStream.Open._
+import com.ergodicity.engine.plaza2.DataStream.{Open, JoinTable, SetLifeNumToIni}
+import com.ergodicity.engine.plaza2.Connection.ProcessMessages
 
-case class CaptureFromConnection(props: ConnectionProperties)
-
-sealed trait MarketCaptureState
-
-case object Idle extends MarketCaptureState
-
-case object Starting extends MarketCaptureState
-
-case object Capturing extends MarketCaptureState
+case class Connect(props: ConnectionProperties)
 
 
-class MarketCapture(underlyingConnection: P2Connection) extends Actor with FSM[MarketCaptureState, Unit] {
+sealed trait CaptureState
+
+case object Idle extends CaptureState
+
+case object Starting extends CaptureState
+
+case object Capturing extends CaptureState
+
+
+class MarketCapture(underlyingConnection: P2Connection) extends Actor with FSM[CaptureState, Unit] {
 
   val connection = context.actorOf(Props(Connection(underlyingConnection)), "Connection")
   context.watch(connection)
 
-  override val supervisorStrategy = AllForOneStrategy() {
-    case _ : ComFailException => Stop
+  // Capture Full Orders Log
+  val ordersDataStream = {
+    val ini = new File("capture/scheme/OrdLog.ini")
+    val tableSet = TableSet(ini)
+    val underlyingStream = P2DataStream("FORTS_ORDLOG_REPL", CombinedDynamic, tableSet)
+    val ordersDataStream = context.actorOf(Props(DataStream(underlyingStream)), "FORTS_ORDLOG_REPL")
+    ordersDataStream ! SetLifeNumToIni(ini)
+    ordersDataStream
   }
+
+  val orderCapture = context.actorOf(Props(new OrdersCapture), "OrdersCapture")
+
+  ordersDataStream ! JoinTable(orderCapture, "orders_log", implicitly[Deserializer[OrdLog.OrdersLogRecord]])
+
+
+  // Supervisor
+  override val supervisorStrategy = AllForOneStrategy() {
+    case _: ComFailException => Stop
+    case _: OrdersCaptureException => Stop
+  }
+
 
   startWith(Idle, ())
 
   when(Idle) {
-    case Event(CaptureFromConnection(ConnectionProperties(host, port, appName)), _) =>
+    case Event(Connect(ConnectionProperties(host, port, appName)), _) =>
       connection ! SubscribeTransitionCallBack(self)
-      connection ! Connect(host, port, appName)
+      connection ! Connection.Connect(host, port, appName)
       goto(Starting)
   }
 
-  when(Starting, stateTimeout = 10.second) {
+  when(Starting, stateTimeout = 15.second) {
     case Event(Transition(fsm, _, ConnectionState.Connected), _) if (fsm == connection) => goto(Capturing)
+    case Event(FSM.StateTimeout, _) => stop(Failure("Starting MarketCapture timed out"))
   }
 
   when(Capturing) {
@@ -48,9 +73,14 @@ class MarketCapture(underlyingConnection: P2Connection) extends Actor with FSM[M
 
   onTransition {
     case Idle -> Starting => log.info("Starting Market capture, waiting for connection established")
-    case Starting -> Capturing => log.info("Begin capturing Market data")
+    case Starting -> Capturing =>
+      log.info("Begin capturing Market data")
+      ordersDataStream ! Open(underlyingConnection)
+      context.system.scheduler.scheduleOnce(3 seconds) {
+        connection ! ProcessMessages(100)
+      }
   }
-  
+
   whenUnhandled {
     case Event(Transition(fsm, _, _), _) if (fsm == connection) => stay()
     case Event(CurrentState(fsm, _), _) if (fsm == connection) => stay()

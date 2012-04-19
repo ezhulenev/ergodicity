@@ -57,17 +57,19 @@ class CaptureEngine(connectionProperties: ConnectionProperties) extends Service 
       }
     }), "Watcher")
     
-    marketCapture ! CaptureFromConnection(connectionProperties)
+    marketCapture ! Connect(connectionProperties)
 
-    system.scheduler.schedule(10.seconds, 10.seconds) {
+/*
+    system.scheduler.schedule(120.seconds, 10.seconds) {
       watcher ! Terminated(marketCapture)
     }
+*/
   }
 
   def shutdown() {
     log.info("Shutdown CaptureEngine")
     system.shutdown()
-    system.awaitTermination()
+    Thread.sleep(1000)
     System.exit(1)
   }
 }

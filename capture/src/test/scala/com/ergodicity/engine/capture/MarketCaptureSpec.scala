@@ -12,8 +12,8 @@ import org.slf4j.LoggerFactory
 import akka.actor.{Terminated, ActorSystem}
 import com.jacob.com.ComFailException
 
-class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
-  val log = LoggerFactory.getLogger(classOf[MarketCaptureSpec])
+class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
+    val log = LoggerFactory.getLogger(classOf[MarketCaptureSpec])
 
   type StatusHandler = ConnectionStatusChanged => Unit
 
@@ -44,7 +44,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
       val marketCapture = TestFSMRef(new MarketCapture(p2), "MarketCapture")
       val connection = marketCapture.underlyingActor.asInstanceOf[MarketCapture].connection
 
-      marketCapture ! CaptureFromConnection(ConnectionProperties(Host, Port, AppName))
+      marketCapture ! Connect(ConnectionProperties(Host, Port, AppName))
 
       log.info("State: " + marketCapture.stateName)
       assert(marketCapture.stateName == Starting)
@@ -63,7 +63,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
       val marketCapture = TestFSMRef(new MarketCapture(p2), "MarketCapture")
       watch(marketCapture)
 
-      marketCapture ! CaptureFromConnection(ConnectionProperties(Host, Port, AppName))
+      marketCapture ! Connect(ConnectionProperties(Host, Port, AppName))
       expectMsg(Terminated(marketCapture))
     }
 
