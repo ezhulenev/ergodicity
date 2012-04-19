@@ -4,7 +4,6 @@ import akka.actor.ActorSystem
 import RepositoryState._
 import com.ergodicity.engine.plaza2.scheme.FutInfo._
 import org.mockito.Mockito._
-import plaza2._
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 import com.ergodicity.engine.plaza2.Repository.{SubscribeSnapshots, Snapshot}
 import com.ergodicity.engine.plaza2.DataStream._
@@ -49,16 +48,16 @@ class RepositorySpec  extends TestKit(ActorSystem()) with ImplicitSender with Wo
       assert(repository.stateName == Synchronizing)
 
       // Add two records
-      repository ! DataInserted(mockRecord(1, 1, 0, 111))
-      repository ! DataInserted(mockRecord(2, 2, 0, 112))
+      repository ! DataInserted("table", mockRecord(1, 1, 0, 111))
+      repository ! DataInserted("table", mockRecord(2, 2, 0, 112))
       assert(repository.stateData.size == 2)
 
       // Delete one of them
-      repository ! DataDeleted(2)
+      repository ! DataDeleted("table", 2)
       assert(repository.stateData.size == 1)
 
       // Then insert another one
-      repository ! DataInserted(mockRecord(3, 3, 0, 113))
+      repository ! DataInserted("table", mockRecord(3, 3, 0, 113))
       assert(repository.stateData.size == 2)
 
       // Close transaction
@@ -67,7 +66,7 @@ class RepositorySpec  extends TestKit(ActorSystem()) with ImplicitSender with Wo
       expectMsgType[Snapshot[SessionRecord]]
 
       // Remove old data
-      repository ! DatumDeleted(3)
+      repository ! DatumDeleted("table", 3)
       log.info("Data: "+repository.stateData)
       assert(repository.stateData.size == 1)
     }

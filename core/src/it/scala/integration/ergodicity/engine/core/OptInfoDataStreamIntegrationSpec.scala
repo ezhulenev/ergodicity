@@ -48,7 +48,7 @@ class OptInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataS
       // Handle options data
       val repository = TestFSMRef(new Repository[SessContentsRecord](), "SessContentRepo")
 
-      dataStream ! JoinTable(repository, "opt_sess_contents", implicitly[Deserializer[OptInfo.SessContentsRecord]])
+      dataStream ! JoinTable("opt_sess_contents", repository, implicitly[Deserializer[OptInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
 
       val options = TestActorRef(new StatelessSessionContents[OptionContract, OptInfo.SessContentsRecord](SessionState.Online), "Options")

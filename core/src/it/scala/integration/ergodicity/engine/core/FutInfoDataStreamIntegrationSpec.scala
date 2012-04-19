@@ -14,7 +14,7 @@ import com.ergodicity.engine.plaza2._
 import AkkaIntegrationConfigurations._
 import scheme.FutInfo.{Signs, SessContentsRecord}
 import scheme.{Deserializer, FutInfo}
-import akka.actor.FSM.{CurrentState, Transition, SubscribeTransitionCallBack}
+import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
 import com.ergodicity.engine.core.model.{JoinSession, SessionState, StatefulSessionContents, FutureContract}
 
@@ -54,7 +54,7 @@ class FutInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataS
 
       val repository = TestFSMRef(new Repository[SessContentsRecord], "SessionsRepository")
 
-      dataStream ! JoinTable(repository, "fut_sess_contents", implicitly[Deserializer[FutInfo.SessContentsRecord]])
+      dataStream ! JoinTable("fut_sess_contents", repository, implicitly[Deserializer[FutInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
 
       val futures = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.SessContentsRecord](SessionState.Online), "Futures")

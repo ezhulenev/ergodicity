@@ -30,7 +30,7 @@ class Repository[T <: Record] extends Actor with FSM[RepositoryState, Map[Long, 
   startWith(Idle, Map())
   
   when(Idle) {
-    case Event(DatumDeleted(_), _) => stay()
+    case Event(DatumDeleted(_, _), _) => stay()
     case Event(DataBegin, _) => goto(Synchronizing)
   }
 
@@ -42,16 +42,16 @@ class Repository[T <: Record] extends Actor with FSM[RepositoryState, Map[Long, 
   }
 
   when(Synchronizing) {
-    case Event(event@DataInserted(record:T), map) =>
+    case Event(event@DataInserted(_, record:T), map) =>
       stay() using map + (record.replID -> record)
 
-    case Event(DataDeleted(replId), map) => stay() using map - replId
+    case Event(DataDeleted(_, replId), map) => stay() using map - replId
 
     case Event(DataEnd, _) => goto(Consistent)
   }
 
   whenUnhandled {
-    case Event(DatumDeleted(rev), map) => stay() using map.filterNot{_._2.replRev < rev}
+    case Event(DatumDeleted(_, rev), map) => stay() using map.filterNot{_._2.replRev < rev}
     case Event(SubscribeSnapshots(ref), _) => snapshotSubscribers = snapshotSubscribers + ref; stay();
   }
 

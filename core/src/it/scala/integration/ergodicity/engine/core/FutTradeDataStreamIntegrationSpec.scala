@@ -56,8 +56,8 @@ class FutTradeDataStreamIntegrationSpec extends TestKit(ActorSystem("FutTradeDat
       val ordersLogRepo = TestFSMRef(new Repository[FutTrade.OrdersLogRecord], "OrdersLogRepo")
       val dealsRepo = TestFSMRef(new Repository[FutTrade.DealRecord], "DealsRepo")
 
-      dataStream ! JoinTable(ordersLogRepo, "orders_log", implicitly[Deserializer[FutTrade.OrdersLogRecord]])
-      dataStream ! JoinTable(dealsRepo, "deal", implicitly[Deserializer[FutTrade.DealRecord]])
+      dataStream ! JoinTable("orders_log", ordersLogRepo, implicitly[Deserializer[FutTrade.OrdersLogRecord]])
+      dataStream ! JoinTable("deal", dealsRepo, implicitly[Deserializer[FutTrade.DealRecord]])
       dataStream ! Open(underlyingConnection)
 
       val latch = new CountDownLatch(2)

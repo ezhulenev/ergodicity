@@ -54,7 +54,7 @@ class OrdLogDataStreamIntegrationTest extends TestKit(ActorSystem("OrdLogDataStr
 
       val ordersLogRepo = TestFSMRef(new Repository[OrdLog.OrdersLogRecord], "OrdersLogRepo")
 
-      dataStream ! JoinTable(ordersLogRepo, "orders_log", implicitly[Deserializer[OrdLog.OrdersLogRecord]])
+      dataStream ! JoinTable("orders_log", ordersLogRepo, implicitly[Deserializer[OrdLog.OrdersLogRecord]])
       dataStream ! Open(underlyingConnection)
 
       val latch = new CountDownLatch(1)

@@ -14,11 +14,11 @@ class OrdersCapture extends Actor {
 
   protected def receive = {
     case DataBegin => log.debug("Begin Orders data")
-    case e@DatumDeleted(rev) => log.warning("Unexpected DatumDeleted event: " + e)
+    case e@DatumDeleted(_, rev) => log.warning("Unexpected DatumDeleted event: " + e)
     case DataEnd => log.debug("End Orders data")
-    case e@DataDeleted(replId) => throw OrdersCaptureException("Unexpected DataDeleted event: " + e)
+    case e@DataDeleted(_, replId) => throw OrdersCaptureException("Unexpected DataDeleted event: " + e)
 
-    case DataInserted(order: OrdLog.OrdersLogRecord) =>
+    case DataInserted(_, order: OrdLog.OrdersLogRecord) =>
       count += 1
       if (count % 1000 == 0) {
         log.info("Inserted order#"+count+": " + order)

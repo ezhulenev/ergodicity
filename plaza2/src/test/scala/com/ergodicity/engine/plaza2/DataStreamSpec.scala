@@ -176,7 +176,7 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
       watch(dataStream)
 
       assert(dataStream.stateName == Idle)
-      dataStream ! JoinTable(self, "good_table", implicitly[Deserializer[SessionRecord]])
+      dataStream ! JoinTable("good_table", self, implicitly[Deserializer[SessionRecord]])
 
       dataStream ! Open(conn)
       streamEvents ! StreamStateChanged(StreamState.LocalSnapshot)
@@ -201,14 +201,14 @@ class DataStreamSpec extends TestKit(ActorSystem()) with ImplicitSender with Wor
       val dataStream = TestFSMRef(DataStream(stream), "DataStream")
       val streamEvents = captureEventDispatcher(stream)
 
-      dataStream ! JoinTable(self, "table", implicitly[Deserializer[SessionRecord]])
+      dataStream ! JoinTable("table", self, implicitly[Deserializer[SessionRecord]])
       dataStream ! Open(conn)
 
       dataStream.setState(Synchronizing)
       streamEvents ! StreamStateChanged(StreamState.Reopen)
 
       expectMsg(DataBegin)
-      expectMsg(DatumDeleted(0))
+      expectMsg(DatumDeleted("table", 0))
       expectMsg(DataEnd)
     }
   }

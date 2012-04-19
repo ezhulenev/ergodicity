@@ -45,7 +45,7 @@ class PartDataStreamIntegrationTest extends TestKit(ActorSystem("PartDataStreamI
       // Handle options data
       val repository = TestFSMRef(new Repository[Part.PartRecord](), "PartRepo")
 
-      dataStream ! JoinTable(repository, "part", implicitly[Deserializer[Part.PartRecord]])
+      dataStream ! JoinTable("part", repository, implicitly[Deserializer[Part.PartRecord]])
       dataStream ! Open(underlyingConnection)
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {

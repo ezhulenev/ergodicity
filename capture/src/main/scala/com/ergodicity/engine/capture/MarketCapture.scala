@@ -32,7 +32,7 @@ class MarketCapture(underlyingConnection: P2Connection) extends Actor with FSM[C
   context.watch(connection)
 
   // Capture Full Orders Log
-  val ordersDataStream = {
+  lazy val ordersDataStream = {
     val ini = new File("capture/scheme/OrdLog.ini")
     val tableSet = TableSet(ini)
     val underlyingStream = P2DataStream("FORTS_ORDLOG_REPL", CombinedDynamic, tableSet)
@@ -42,9 +42,6 @@ class MarketCapture(underlyingConnection: P2Connection) extends Actor with FSM[C
   }
 
   val orderCapture = context.actorOf(Props(new OrdersCapture), "OrdersCapture")
-
-  ordersDataStream ! JoinTable(orderCapture, "orders_log", implicitly[Deserializer[OrdLog.OrdersLogRecord]])
-
 
   // Supervisor
   override val supervisorStrategy = AllForOneStrategy() {
@@ -75,6 +72,7 @@ class MarketCapture(underlyingConnection: P2Connection) extends Actor with FSM[C
     case Idle -> Starting => log.info("Starting Market capture, waiting for connection established")
     case Starting -> Capturing =>
       log.info("Begin capturing Market data")
+      ordersDataStream ! JoinTable("orders_log", orderCapture, implicitly[Deserializer[OrdLog.OrdersLogRecord]])
       ordersDataStream ! Open(underlyingConnection)
       context.system.scheduler.scheduleOnce(3 seconds) {
         connection ! ProcessMessages(100)

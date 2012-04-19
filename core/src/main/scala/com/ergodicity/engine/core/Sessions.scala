@@ -44,11 +44,11 @@ class Sessions extends Actor {
     case GetOngoingSession => sender ! OngoingSession(ongoingSession)
 
     case JoinFutInfoRepl(dataStream) =>
-      dataStream ! JoinTable(sessionRepository, "session", implicitly[Deserializer[SessionRecord]])
-      dataStream ! JoinTable(futSessContentsRepository, "fut_sess_contents", implicitly[Deserializer[FutInfo.SessContentsRecord]])
+      dataStream ! JoinTable("session", sessionRepository, implicitly[Deserializer[SessionRecord]])
+      dataStream ! JoinTable("fut_sess_contents", futSessContentsRepository, implicitly[Deserializer[FutInfo.SessContentsRecord]])
 
     case JoinOptInfoRepl(dataStream) =>
-      dataStream ! JoinTable(optSessContentsRepository, "opt_sess_contents", implicitly[Deserializer[OptInfo.SessContentsRecord]])
+      dataStream ! JoinTable("opt_sess_contents", optSessContentsRepository, implicitly[Deserializer[OptInfo.SessContentsRecord]])
 
     case Snapshot(repo, data: Iterable[SessionRecord]) if (repo == sessionRepository) =>
       updateSessions(data)
