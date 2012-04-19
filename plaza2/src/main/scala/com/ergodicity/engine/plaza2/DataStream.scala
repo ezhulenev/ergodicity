@@ -8,6 +8,7 @@ import java.io.File
 import akka.actor.{ActorRef, FSM, Actor}
 import scheme.{Deserializer, Record}
 import com.ergodicity.engine.plaza2.DataStream._
+import com.twitter.ostrich.stats.Stats
 
 sealed trait DataStreamState
 object DataStreamState {
@@ -113,7 +114,9 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
       case StreamDatumDeleted(table, replRev) => tableJoiners.get(table).foreach {
         case (ref, _) => ref ! DatumDeleted(table, replRev)
       }
-      case StreamDataInserted(table, record) => tableJoiners.get(table).foreach {
+      case StreamDataInserted(table, record) =>
+        Stats.incr(self.path.name+"@StreamDataInserted")
+        tableJoiners.get(table).foreach {
         case (ref, ds) => ref ! DataInserted(table, ds(record))
       }
       case StreamDataDeleted(table, replId, _) => tableJoiners.get(table).foreach {

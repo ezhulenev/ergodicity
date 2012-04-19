@@ -83,6 +83,8 @@ class FutTradeDataStreamIntegrationSpec extends TestKit(ActorSystem("FutTradeDat
               rec =>
                 log.info("Record: " + rec)
             }
+            latch.countDown()
+            context.stop(self)
         }
       }))
 

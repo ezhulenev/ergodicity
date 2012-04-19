@@ -5,6 +5,7 @@ import akka.event.Logging
 import com.ergodicity.engine.plaza2.DataStream._
 import com.ergodicity.engine.plaza2.scheme.OrdLog
 import scalax.io.{Seekable, Resource}
+import com.twitter.ostrich.stats.Stats
 
 case class OrdersCaptureException(msg: String) extends IllegalArgumentException(msg)
 
@@ -22,6 +23,7 @@ class OrdersCapture extends Actor {
     case e@DataDeleted(_, replId) => throw OrdersCaptureException("Unexpected DataDeleted event: " + e)
 
     case DataInserted(_, order: OrdLog.OrdersLogRecord) =>
+      Stats.incr(self.path.name+"@DataInserted")
       count += 1
       if (count % 1000 == 0) {
         log.info("Inserted order#"+count+": " + order)
