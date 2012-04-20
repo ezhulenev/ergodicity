@@ -9,5 +9,7 @@ trait CaptureEngineConfig extends ServerConfig[CaptureEngine] {
 
   def connectionProperties: ConnectionProperties
 
-  def apply(runtime: RuntimeEnvironment) = new CaptureEngine(connectionProperties)
+  def scheme: CaptureScheme
+
+  def apply(runtime: RuntimeEnvironment) = new CaptureEngine(connectionProperties, scheme)
 }

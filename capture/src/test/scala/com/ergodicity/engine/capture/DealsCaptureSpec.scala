@@ -6,8 +6,8 @@ import akka.actor.ActorSystem
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import com.ergodicity.engine.plaza2.DataStream.DataDeleted
 
-class OrdersCaptureSpec  extends TestKit(ActorSystem("OrdersCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
-  val log = LoggerFactory.getLogger(classOf[OrdersCaptureSpec])
+class DealsCaptureSpec extends TestKit(ActorSystem("DealsCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
+  val log = LoggerFactory.getLogger(classOf[DealsCaptureSpec])
 
   override def afterAll() {
     system.shutdown()
@@ -16,8 +16,8 @@ class OrdersCaptureSpec  extends TestKit(ActorSystem("OrdersCaptureSpec")) with 
   "OrdersCapture" must {
 
     "fail on DataDeleted event" in {
-      val ordersCapture = TestActorRef(new OrdersCapture)
-      intercept[OrdersCaptureException] {
+      val ordersCapture = TestActorRef(new DealsCapture)
+      intercept[DealsCaptureException] {
         ordersCapture.receive(DataDeleted("table", 1))
       }
     }

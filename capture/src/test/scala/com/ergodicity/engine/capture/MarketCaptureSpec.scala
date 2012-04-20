@@ -21,6 +21,8 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
   val Port = 4001
   val AppName = "MarketCaptureSpec"
 
+  val scheme = CaptureScheme("capture/scheme/OrdLog.ini", "capture/scheme/FutTradeDeal.ini", "capture/scheme/OptTradeDeal.ini")
+
   val ReleaseNothing = new SafeRelease {
     def apply() {}
   }
@@ -33,7 +35,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
 
     "be initialized in Idle state" in {
       val p2 = mock(classOf[P2Connection])
-      val marketCapture = TestFSMRef(new MarketCapture(p2), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme), "MarketCapture")
       log.info("State: " + marketCapture.stateName)
       assert(marketCapture.stateName == Idle)
     }
@@ -41,7 +43,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
     "got to Capturing state after connection established" in {
       val p2 = mock(classOf[P2Connection])
 
-      val marketCapture = TestFSMRef(new MarketCapture(p2), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme), "MarketCapture")
       val connection = marketCapture.underlyingActor.asInstanceOf[MarketCapture].connection
 
       marketCapture ! Connect(ConnectionProperties(Host, Port, AppName))
@@ -60,7 +62,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
       when(p2.connect()).thenThrow(err)
       captureEventDispatcher(p2)
 
-      val marketCapture = TestFSMRef(new MarketCapture(p2), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme), "MarketCapture")
       watch(marketCapture)
 
       marketCapture ! Connect(ConnectionProperties(Host, Port, AppName))
@@ -70,7 +72,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
     "terminate after Connection terminated" in {
       val p2 = mock(classOf[P2Connection])
 
-      val marketCapture = TestFSMRef(new MarketCapture(p2), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme), "MarketCapture")
       val connection = marketCapture.underlyingActor.asInstanceOf[MarketCapture].connection
       captureEventDispatcher(p2)
 

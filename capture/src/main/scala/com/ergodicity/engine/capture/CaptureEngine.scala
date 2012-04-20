@@ -7,6 +7,8 @@ import com.twitter.ostrich.admin.{RuntimeEnvironment, Service}
 import plaza2.{Connection => P2Connection}
 import com.typesafe.config.ConfigFactory
 
+case class CaptureScheme(ordLog: String, futTrade: String, optTrade: String)
+
 case class ConnectionProperties(host: String, port: Int, appName: String)
 
 object CaptureEngine {
@@ -28,7 +30,7 @@ object CaptureEngine {
   }
 }
 
-class CaptureEngine(connectionProperties: ConnectionProperties) extends Service {
+class CaptureEngine(connectionProperties: ConnectionProperties, scheme: CaptureScheme) extends Service {
   val log = LoggerFactory.getLogger(classOf[CaptureEngine])
 
   val ConfigWithDetailedLogging = ConfigFactory.parseString("""
@@ -47,7 +49,7 @@ class CaptureEngine(connectionProperties: ConnectionProperties) extends Service 
     log.info("Start CaptureEngine")
 
     val connection = P2Connection()
-    marketCapture = system.actorOf(Props(new MarketCapture(connection)), "MarketCapture")
+    marketCapture = system.actorOf(Props(new MarketCapture(connection, scheme)), "MarketCapture")
 
     val watcher = system.actorOf(Props(new Actor {
       context.watch(marketCapture)
@@ -59,11 +61,9 @@ class CaptureEngine(connectionProperties: ConnectionProperties) extends Service 
     
     marketCapture ! Connect(connectionProperties)
 
-/*
     system.scheduler.schedule(120.seconds, 10.seconds) {
       watcher ! Terminated(marketCapture)
     }
-*/
   }
 
   def shutdown() {

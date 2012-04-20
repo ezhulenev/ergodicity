@@ -7,14 +7,14 @@ import com.ergodicity.engine.plaza2.scheme.OrdLog
 import scalax.io.{Seekable, Resource}
 import com.twitter.ostrich.stats.Stats
 
-case class OrdersCaptureException(msg: String) extends IllegalArgumentException(msg)
+case class OrdersCaptureException(msg: String) extends RuntimeException(msg)
 
 class OrdersCapture extends Actor {
   val log = Logging(context.system, this)
 
   var count = 0;
 
-  val someFile: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\log.txt")
+  val someFile: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\orders.txt")
 
   protected def receive = {
     case DataBegin => log.debug("Begin Orders data")
