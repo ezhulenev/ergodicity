@@ -22,22 +22,29 @@ object DataStreamState {
 
 object DataStream {
   case class Open(connection: P2Connection)
-  case class SetLifeNumToIni(ini: File)
+
   case class JoinTable[R <: Record](table: String, ref: ActorRef, deserializer: Deserializer[R])
 
-  def apply(underlying: P2DataStream) = new DataStream(underlying)
+  // Life Number updates
+  case class SetLifeNumToIni(ini: File)
+  case class SubscribeLifeNumChanges(ref: ActorRef)
+  case class LifeNumChanged(dataStream: ActorRef, lifeNum: Long)
 
-  sealed trait DataStreamEvent
-  case object DataBegin extends DataStreamEvent
-  case object DataEnd extends DataStreamEvent
-  case class DatumDeleted(table: String, repLRev: Long) extends DataStreamEvent
-  case class DataInserted[R <: Record](table: String, record: R) extends DataStreamEvent
-  case class DataDeleted(table: String, replId: Long) extends DataStreamEvent
+  // Data Events
+  sealed trait DataEvent
+  case object DataBegin extends DataEvent
+  case object DataEnd extends DataEvent
+  case class DatumDeleted(table: String, repLRev: Long) extends DataEvent
+  case class DataInserted[R <: Record](table: String, record: R) extends DataEvent
+  case class DataDeleted(table: String, replId: Long) extends DataEvent
+
+  def apply(underlying: P2DataStream) = new DataStream(underlying)
 }
 
 class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor with FSM[DataStreamState, Option[SafeRelease]] {
   import DataStreamState._
 
+  private var lifeNumSubscribers = Seq[ActorRef]()
   private var setLifeNumToIni: Option[File] = None
 
   @volatile
@@ -49,6 +56,8 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
     case Event(Open(connection), None) => goto(Opening) using Some(open(connection))
 
     case Event(SetLifeNumToIni(file), _) => setLifeNumToIni = Some(file); stay()
+
+    case Event(SubscribeLifeNumChanges(ref), _) => lifeNumSubscribers = ref +: lifeNumSubscribers; stay()
 
     case Event(JoinTable(table, ref, deserializer), _) if (!tableJoiners.contains(table)) =>
       tableJoiners += (table -> (ref, deserializer)); stay()
@@ -131,6 +140,8 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   }
 
   private def updateStreamLifeNumber(lifeNum: Long) = {
+    lifeNumSubscribers.foreach(_ ! LifeNumChanged(self, lifeNum))
+
     setLifeNumToIni.map {file =>
         log.debug("Update stream life number up to " + lifeNum)
         underlying.tableSet.lifeNum = lifeNum

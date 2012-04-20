@@ -45,6 +45,8 @@ object EngineBuild extends Build {
   override lazy val settings = super.settings ++ buildSettings
 
   lazy val repositoriesSetting = Seq(
+    resolvers += "Scala tools releases" at "http://scala-tools.org/repo-releases/",
+    resolvers += "Scala tools snapshots" at "http://scala-tools.org/repo-snapshots",
     resolvers += "Sonatype Repository" at "http://oss.sonatype.org/content/groups/public/",
     resolvers += "JBoss repository" at "http://repository.jboss.org/nexus/content/repositories/",
     resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
@@ -58,7 +60,7 @@ object EngineBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val capture = Seq(ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val capture = Seq(casbahCommons, casbahCore, casbahQuery, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
   val core = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
@@ -89,6 +91,7 @@ object Dependency {
     val Ostrich      = "4.10.6"
     val Akka         = "2.0"
     val ScalaIO      = "0.3.0"
+    val Casbah       = "2.1.5-1"
   }
 
   // Compile
@@ -106,6 +109,9 @@ object Dependency {
   val scalaTime              = "org.scala-tools.time"             %% "time"                   % V.ScalaTime
   val akka                   = "com.typesafe.akka"                 % "akka-actor"             % V.Akka
   val scalaIO                = "com.github.scala-incubator.io"    %% "scala-io-core"          % V.ScalaIO
+  val casbahCommons          = "com.mongodb.casbah"               %% "casbah-commons"         % V.Casbah
+  val casbahCore             = "com.mongodb.casbah"               %% "casbah-core"            % V.Casbah
+  val casbahQuery            = "com.mongodb.casbah"               %% "casbah-query"           % V.Casbah
 
   // Provided
 
