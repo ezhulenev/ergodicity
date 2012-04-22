@@ -6,6 +6,15 @@ import akka.util.duration._
 import com.twitter.ostrich.admin.{RuntimeEnvironment, Service}
 import plaza2.{Connection => P2Connection}
 import com.typesafe.config.ConfigFactory
+import com.mongodb.casbah.Imports._
+
+sealed trait CaptureDatabase {
+  def db: MongoDB
+}
+case class MongoDefault(database: String) extends CaptureDatabase {
+  lazy val db = MongoConnection()(database)
+}
+
 
 case class CaptureScheme(ordLog: String, futTrade: String, optTrade: String)
 
@@ -30,7 +39,7 @@ object CaptureEngine {
   }
 }
 
-class CaptureEngine(connectionProperties: ConnectionProperties, scheme: CaptureScheme) extends Service {
+class CaptureEngine(connectionProperties: ConnectionProperties, scheme: CaptureScheme, database: CaptureDatabase) extends Service {
   val log = LoggerFactory.getLogger(classOf[CaptureEngine])
 
   val ConfigWithDetailedLogging = ConfigFactory.parseString("""
@@ -49,7 +58,8 @@ class CaptureEngine(connectionProperties: ConnectionProperties, scheme: CaptureS
     log.info("Start CaptureEngine")
 
     val connection = P2Connection()
-    marketCapture = system.actorOf(Props(new MarketCapture(connection, scheme)), "MarketCapture")
+    val repo = new MarketCaptureRepository(database) with RevisionTracker
+    marketCapture = system.actorOf(Props(new MarketCapture(connection, scheme, repo)), "MarketCapture")
 
     val watcher = system.actorOf(Props(new Actor {
       context.watch(marketCapture)

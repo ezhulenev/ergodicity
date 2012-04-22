@@ -60,7 +60,7 @@ object EngineBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val capture = Seq(casbahCommons, casbahCore, casbahQuery, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val capture = Seq(casbah, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
   val core = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
@@ -109,9 +109,7 @@ object Dependency {
   val scalaTime              = "org.scala-tools.time"             %% "time"                   % V.ScalaTime
   val akka                   = "com.typesafe.akka"                 % "akka-actor"             % V.Akka
   val scalaIO                = "com.github.scala-incubator.io"    %% "scala-io-core"          % V.ScalaIO
-  val casbahCommons          = "com.mongodb.casbah"               %% "casbah-commons"         % V.Casbah
-  val casbahCore             = "com.mongodb.casbah"               %% "casbah-core"            % V.Casbah
-  val casbahQuery            = "com.mongodb.casbah"               %% "casbah-query"           % V.Casbah
+  val casbah                 = "com.mongodb.casbah"               %% "casbah"                 % V.Casbah
 
   // Provided
 

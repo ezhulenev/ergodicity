@@ -9,9 +9,10 @@ import com.ergodicity.engine.plaza2.{DataStream, ConnectionState, Connection}
 import java.io.File
 import plaza2.RequestType.CombinedDynamic
 import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
-import com.ergodicity.engine.plaza2.DataStream.{Open, JoinTable, SetLifeNumToIni}
 import com.ergodicity.engine.plaza2.Connection.ProcessMessages
 import com.ergodicity.engine.plaza2.scheme.{OptTrade, FutTrade, OrdLog, Deserializer}
+import scalax.io.{Resource, Seekable}
+import com.ergodicity.engine.plaza2.DataStream._
 
 case class Connect(props: ConnectionProperties)
 
@@ -25,28 +26,45 @@ case object Starting extends CaptureState
 case object Capturing extends CaptureState
 
 
-class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme) extends Actor with FSM[CaptureState, Unit] {
+class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, repository: RevisionTracker) extends Actor with FSM[CaptureState, Unit] {
+  
+  val FORTS_ORDLOG_REPL = "FORTS_ORDLOG_REPL"
+  val FORTS_FUTTRADE_REPL = "FORTS_FUTTRADE_REPL"
+  val FORTS_OPTTRADE_REPL = "FORTS_OPTTRADE_REPL"
 
   val connection = context.actorOf(Props(Connection(underlyingConnection)), "Connection")
   context.watch(connection)
 
+  // Initial revisions
+  val orderLogRevision = repository.revision(FORTS_ORDLOG_REPL, "orders_log")
+  val futDealRevision = repository.revision(FORTS_FUTTRADE_REPL, "deal")
+  val optDealRevision = repository.revision(FORTS_OPTTRADE_REPL, "deal")
+
   // Capture Full Orders Log
   lazy val ordersDataStream = {
     val ini = new File(scheme.ordLog)
+
     val tableSet = TableSet(ini)
-    val underlyingStream = P2DataStream("FORTS_ORDLOG_REPL", CombinedDynamic, tableSet)
-    val ordersDataStream = context.actorOf(Props(DataStream(underlyingStream)), "FORTS_ORDLOG_REPL")
+    orderLogRevision.foreach {rev =>
+      tableSet.setRevision("orders_log", rev+1)
+    }
+
+    val underlyingStream = P2DataStream(FORTS_ORDLOG_REPL, CombinedDynamic, tableSet)
+    val ordersDataStream = context.actorOf(Props(DataStream(underlyingStream)), FORTS_ORDLOG_REPL)
     ordersDataStream ! SetLifeNumToIni(ini)
     ordersDataStream
   }
 
-  val orderCapture = context.actorOf(Props(new OrdersCapture), "OrdersCapture")
 
   lazy val futTradeDataStream = {
     val ini = new File(scheme.futTrade)
     val tableSet = TableSet(ini)
-    val underlyingStream = P2DataStream("FORTS_FUTTRADE_REPL", CombinedDynamic, tableSet)
-    val futTradeDataStream = context.actorOf(Props(DataStream(underlyingStream)), "FORTS_FUTTRADE_REPL")
+    futDealRevision.foreach {rev =>
+      tableSet.setRevision("deal", rev+1)
+    }
+
+    val underlyingStream = P2DataStream(FORTS_FUTTRADE_REPL, CombinedDynamic, tableSet)
+    val futTradeDataStream = context.actorOf(Props(DataStream(underlyingStream)), FORTS_FUTTRADE_REPL)
     futTradeDataStream ! SetLifeNumToIni(ini)
     futTradeDataStream
   }
@@ -54,19 +72,26 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme) e
   lazy val optTradeDataStream = {
     val ini = new File(scheme.optTrade)
     val tableSet = TableSet(ini)
-    val underlyingStream = P2DataStream("FORTS_OPTTRADE_REPL", CombinedDynamic, tableSet)
-    val optTradeDataStream = context.actorOf(Props(DataStream(underlyingStream)), "FORTS_OPTTRADE_REPL")
+    optDealRevision.foreach {rev =>
+      tableSet.setRevision("deal", rev+1)
+    }
+
+    val underlyingStream = P2DataStream(FORTS_OPTTRADE_REPL, CombinedDynamic, tableSet)
+    val optTradeDataStream = context.actorOf(Props(DataStream(underlyingStream)), FORTS_OPTTRADE_REPL)
     optTradeDataStream ! SetLifeNumToIni(ini)
     optTradeDataStream
   }
 
-  val dealCapture = context.actorOf(Props(new DealsCapture), "DealsCapture")
+  // Create captures
+  val orderCapture = context.actorOf(Props(new DataStreamCapture[OrdLog.OrdersLogRecord](orderLogRevision)(captureOrders)), "OrdersCapture")
+  val futuresCapture = context.actorOf(Props(new DataStreamCapture[FutTrade.DealRecord](futDealRevision)(captureFutures)), "FuturesCapture")
+  val optionsCapture = context.actorOf(Props(new DataStreamCapture[OptTrade.DealRecord](optDealRevision)(captureOptions)), "OptionsCapture")
 
 
   // Supervisor
   override val supervisorStrategy = AllForOneStrategy() {
     case _: ComFailException => Stop
-    case _: OrdersCaptureException => Stop
+    case _: DataStreamCaptureException => Stop
   }
 
 
@@ -94,12 +119,15 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme) e
       log.info("Begin capturing Market data")
 
       ordersDataStream ! JoinTable("orders_log", orderCapture, implicitly[Deserializer[OrdLog.OrdersLogRecord]])
+      ordersDataStream ! SubscribeLifeNumChanges(self)
       ordersDataStream ! Open(underlyingConnection)
 
-      futTradeDataStream ! JoinTable("deal", dealCapture, implicitly[Deserializer[FutTrade.DealRecord]])
+      futTradeDataStream ! JoinTable("deal", futuresCapture, implicitly[Deserializer[FutTrade.DealRecord]])
+      futTradeDataStream ! SubscribeLifeNumChanges(self)
       futTradeDataStream ! Open(underlyingConnection)
 
-      optTradeDataStream ! JoinTable("deal", dealCapture, implicitly[Deserializer[OptTrade.DealRecord]])
+      optTradeDataStream ! JoinTable("deal", optionsCapture, implicitly[Deserializer[OptTrade.DealRecord]])
+      optTradeDataStream ! SubscribeLifeNumChanges(self)
       optTradeDataStream ! Open(underlyingConnection)
 
       // Be sure DataStream's opened
@@ -112,8 +140,27 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme) e
     case Event(Transition(fsm, _, _), _) if (fsm == connection) => stay()
     case Event(CurrentState(fsm, _), _) if (fsm == connection) => stay()
     case Event(Terminated(actor), _) if (actor == connection) => stop(Failure("Connection terminated"))
+
+    case Event(LifeNumChanged(ds, _), _) if (ds == ordersDataStream) => repository.reset(FORTS_ORDLOG_REPL); stay()
+    case Event(LifeNumChanged(ds, _), _) if (ds == futTradeDataStream) => repository.reset(FORTS_FUTTRADE_REPL); stay()
+    case Event(LifeNumChanged(ds, _), _) if (ds == optTradeDataStream) => repository.reset(FORTS_OPTTRADE_REPL); stay()
   }
 
   initialize
+
+  val captureOrders = (record: OrdLog.OrdersLogRecord) => {
+    val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\orders.txt")
+    file.append(record.toString+"\r\n")
+  }
+
+  val captureFutures = (record: FutTrade.DealRecord) => {
+    val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\futures.txt")
+    file.append(record.toString+"\r\n")
+  }
+
+  val captureOptions = (record: OptTrade.DealRecord) => {
+    val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\options.txt")
+    file.append(record.toString+"\r\n")
+  }
 
 }
