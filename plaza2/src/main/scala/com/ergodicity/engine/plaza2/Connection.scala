@@ -59,7 +59,7 @@ class Connection(protected[plaza2] val underlying: P2Connection) extends Actor w
 
   onTermination { case StopEvent(reason, s, d) =>
     log.error("Connection failed, reason = " + reason)
-    d foreach {_()}
+    d foreach {release => if (release != null) release()}
   }
 
   initialize
@@ -78,7 +78,7 @@ class Connection(protected[plaza2] val underlying: P2Connection) extends Actor w
 
     new SafeRelease {
       def apply() {
-        releaseEventListener()
+        if (releaseEventListener != null) releaseEventListener()
         underlying.disconnect()
       }
     }

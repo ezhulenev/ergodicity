@@ -27,7 +27,7 @@ class RevisionBuncherSpec extends TestKit(ActorSystem("RevisionBuncherSpec")) wi
       val buncher = TestFSMRef(new RevisionBuncher(repository, Stream))
 
       buncher ! PushRevision("table1", 101)
-      assert(buncher.stateName == RevisionBuncherState.Accumulating)
+      assert(buncher.stateName == RevisionBuncherState.Bunching)
 
       buncher ! PushRevision("table1", 102)
       buncher ! PushRevision("table2", 201)
@@ -36,19 +36,19 @@ class RevisionBuncherSpec extends TestKit(ActorSystem("RevisionBuncherSpec")) wi
       assert(buncher.stateData.get("table2") == 201)
     }
 
-    "flush table revision on timeout" in {
+    "flush table revisions on request" in {
       val repository = mock(classOf[RevisionTracker])
       val buncher = TestFSMRef(new RevisionBuncher(repository, Stream))
 
       buncher ! PushRevision("table1", 101)
       buncher ! PushRevision("table2", 201)
 
-      buncher ! FSM.StateTimeout
+      buncher ! FlushRevisions
 
       verify(repository).setRevision(Stream, "table1", 101)
       verify(repository).setRevision(Stream, "table2", 201)
 
-      assert(buncher.stateName == RevisionBuncherState.Idle)
+      assert(buncher.stateName == RevisionBuncherState.Bunching)
     }
 
     "recover after flush" in {
@@ -56,9 +56,9 @@ class RevisionBuncherSpec extends TestKit(ActorSystem("RevisionBuncherSpec")) wi
       val buncher = TestFSMRef(new RevisionBuncher(repository, Stream))
 
       buncher ! PushRevision("table1", 101)
-      buncher ! FSM.StateTimeout
+      buncher ! FlushRevisions
       buncher ! PushRevision("table1", 102)
-      buncher ! FSM.StateTimeout
+      buncher ! FlushRevisions
       verify(repository).setRevision(Stream, "table1", 102)
     }
   }

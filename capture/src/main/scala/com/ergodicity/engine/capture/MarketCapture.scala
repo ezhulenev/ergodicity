@@ -27,6 +27,10 @@ case object Capturing extends CaptureState
 
 
 class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, repository: RevisionTracker) extends Actor with FSM[CaptureState, Unit] {
+
+  assert(new File(scheme.ordLog).exists(), "Orders log scheme doesn't exists")
+  assert(new File(scheme.futTrade).exists(), "Futures deals scheme doesn't exists")
+  assert(new File(scheme.optTrade).exists(), "Options deals scheme doesn't exists")
   
   val FORTS_ORDLOG_REPL = "FORTS_ORDLOG_REPL"
   val FORTS_FUTTRADE_REPL = "FORTS_FUTTRADE_REPL"
@@ -39,6 +43,8 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
   val orderLogRevision = repository.revision(FORTS_ORDLOG_REPL, "orders_log")
   val futDealRevision = repository.revision(FORTS_FUTTRADE_REPL, "deal")
   val optDealRevision = repository.revision(FORTS_OPTTRADE_REPL, "deal")
+
+  log.info("Initial stream revisions; OrderLog = " + orderLogRevision + "; FutDeal = " + futDealRevision + "; OptDeal = " + optDealRevision)
 
   // Capture Full Orders Log
   lazy val ordersDataStream = {
@@ -83,17 +89,20 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
   }
 
   // Create captures
-  val orderCapture = context.actorOf(Props(new DataStreamCapture[OrdLog.OrdersLogRecord](orderLogRevision)(captureOrders)), "OrdersCapture")
-  val futuresCapture = context.actorOf(Props(new DataStreamCapture[FutTrade.DealRecord](futDealRevision)(captureFutures)), "FuturesCapture")
-  val optionsCapture = context.actorOf(Props(new DataStreamCapture[OptTrade.DealRecord](optDealRevision)(captureOptions)), "OptionsCapture")
+  val orderCapture = context.actorOf(Props(new DataStreamCapture[OrdLog.OrdersLogRecord](orderLogRevision)((rec:OrdLog.OrdersLogRecord) => captureOrders(rec))), "OrdersCapture")
+  val futuresCapture = context.actorOf(Props(new DataStreamCapture[FutTrade.DealRecord](futDealRevision)((rec:FutTrade.DealRecord) => captureFutures(rec))), "FuturesCapture")
+  val optionsCapture = context.actorOf(Props(new DataStreamCapture[OptTrade.DealRecord](optDealRevision)((rec:OptTrade.DealRecord) => captureOptions(rec))), "OptionsCapture")
 
+  // Track table revisions
+  orderCapture ! TrackRevisions(repository, FORTS_ORDLOG_REPL)
+  futuresCapture ! TrackRevisions(repository, FORTS_FUTTRADE_REPL)
+  optionsCapture ! TrackRevisions(repository, FORTS_OPTTRADE_REPL)
 
   // Supervisor
   override val supervisorStrategy = AllForOneStrategy() {
     case _: ComFailException => Stop
     case _: DataStreamCaptureException => Stop
   }
-
 
   startWith(Idle, ())
 
@@ -148,17 +157,17 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
 
   initialize
 
-  val captureOrders = (record: OrdLog.OrdersLogRecord) => {
-    val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\orders.txt")
-    file.append(record.toString+"\r\n")
+  def captureOrders(record: OrdLog.OrdersLogRecord) {
+/*    val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\orders.txt")
+    file.append(record.toString+"\r\n")*/
   }
 
-  val captureFutures = (record: FutTrade.DealRecord) => {
+  def captureFutures(record: FutTrade.DealRecord) {
     val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\futures.txt")
     file.append(record.toString+"\r\n")
   }
 
-  val captureOptions = (record: OptTrade.DealRecord) => {
+  def captureOptions(record: OptTrade.DealRecord) {
     val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\options.txt")
     file.append(record.toString+"\r\n")
   }

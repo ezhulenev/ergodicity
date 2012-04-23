@@ -6,8 +6,6 @@ import org.hamcrest.{BaseMatcher, Description}
 import org.scalatest.{WordSpec, BeforeAndAfterAll}
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 import plaza2.{SafeRelease, ConnectionStatusChanged, Connection => P2Connection}
-import akka.actor.FSM.Transition
-import com.ergodicity.engine.plaza2.ConnectionState
 import org.slf4j.LoggerFactory
 import akka.actor.{Terminated, ActorSystem}
 import com.jacob.com.ComFailException
@@ -42,22 +40,6 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
       val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository), "MarketCapture")
       log.info("State: " + marketCapture.stateName)
       assert(marketCapture.stateName == Idle)
-    }
-
-    "got to Capturing state after connection established" in {
-      val p2 = mock(classOf[P2Connection])
-
-      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository), "MarketCapture")
-      val connection = marketCapture.underlyingActor.asInstanceOf[MarketCapture].connection
-
-      marketCapture ! Connect(ConnectionProperties(Host, Port, AppName))
-
-      log.info("State: " + marketCapture.stateName)
-      assert(marketCapture.stateName == Starting)
-
-      marketCapture ! Transition(connection, ConnectionState.Connecting, ConnectionState.Connected)
-      log.info("State: " + marketCapture.stateName)
-      assert(marketCapture.stateName == Capturing)
     }
 
     "terminate in case of underlying ComFailedException" in {

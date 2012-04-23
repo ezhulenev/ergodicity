@@ -97,7 +97,7 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
 
   onTermination { case StopEvent(reason, s, d) =>
     log.error("DataStream replication failed, reason = " + reason)
-    d foreach {_()}
+    d foreach {release => if (release != null) release()}
   }
 
   initialize
@@ -124,7 +124,7 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
         case (ref, _) => ref ! DatumDeleted(table, replRev)
       }
       case StreamDataInserted(table, record) =>
-        Stats.incr(self.path.name+"@StreamDataInserted")
+        Stats.incr(self.path+"/StreamDataInserted")
         tableJoiners.get(table).foreach {
         case (ref, ds) => ref ! DataInserted(table, ds(record))
       }
