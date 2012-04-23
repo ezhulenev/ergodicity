@@ -4,7 +4,7 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import org.slf4j.LoggerFactory
 import org.mockito.Mockito._
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
-import akka.actor.{FSM, ActorSystem}
+import akka.actor.ActorSystem
 
 class RevisionBuncherSpec extends TestKit(ActorSystem("RevisionBuncherSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketCaptureSpec])
