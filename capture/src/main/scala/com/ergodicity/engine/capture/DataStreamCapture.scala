@@ -4,8 +4,16 @@ import akka.event.Logging
 import com.ergodicity.engine.plaza2.DataStream._
 import com.ergodicity.engine.plaza2.scheme.Record
 import com.twitter.ostrich.stats.Stats
-import akka.util.duration._
 import akka.actor.{Props, ActorRef, FSM, Actor}
+import com.twitter.finagle.kestrel.Client
+import com.twitter.concurrent.Offer
+import java.util.concurrent.atomic.AtomicReference
+import sbinary._
+import Operations._
+import com.ergodicity.marketdb.model.TradeProtocol._
+import com.ergodicity.marketdb.model.OrderProtocol._
+import org.jboss.netty.buffer.ChannelBuffers
+import com.ergodicity.marketdb.model.{OrderPayload, TradePayload}
 
 case class DataStreamCaptureException(msg: String) extends RuntimeException(msg)
 
@@ -32,7 +40,7 @@ class DataStreamCapture[T <: Record](revision: Option[Long])(capture: T => Any) 
 
     case DataInserted(table, record: T) =>
       Stats.incr(self.path + "/DataInserted")
-      revisionBuncher.foreach(_ ! PushRevision(table, record.replRev))
+      revisionBuncher.foreach(_ ! BunchRevision(table, record.replRev))
       count += 1
       if (count % 1000 == 0) {
         log.info("Inserted record#" + count + ": " + record)
@@ -42,39 +50,30 @@ class DataStreamCapture[T <: Record](revision: Option[Long])(capture: T => Any) 
 }
 
 
-sealed trait RevisionBuncherState
+case object FlushBunch
 
-object RevisionBuncherState {
+sealed trait BuncherState
 
-  case object Idle extends RevisionBuncherState
-
-  case object Bunching extends RevisionBuncherState
-
+object BuncherState {
+  case object Idle extends BuncherState
+  case object Accumulating extends BuncherState
 }
 
+case class BunchRevision(table: String, revision: Long)
 
-case object FlushRevisions
-case class PushRevision(table: String, revision: Long)
+class RevisionBuncher(revisionTracker: RevisionTracker, stream: String) extends Actor with FSM[BuncherState, Option[Map[String, Long]]] {
 
-class RevisionBuncher(revisionTracker: RevisionTracker, stream: String) extends Actor with FSM[RevisionBuncherState, Option[Map[String, Long]]] {
+  startWith(BuncherState.Idle, None)
 
-  startWith(RevisionBuncherState.Idle, None)
-
-  when(RevisionBuncherState.Idle) {
-    case Event(PushRevision(table, revision), None) =>
-      setTimer("flush", FlushRevisions, 1.second, true)
-      goto(RevisionBuncherState.Bunching) using Some(Map(table -> revision))
+  when(BuncherState.Idle) {
+    case Event(BunchRevision(table, revision), None) => goto(BuncherState.Accumulating) using Some(Map(table -> revision))
   }
 
-  when(RevisionBuncherState.Bunching) {
-    case Event(PushRevision(table, revision), None) => stay() using Some(Map(table -> revision))
-    case Event(PushRevision(table, revision), Some(revisions)) => stay() using Some(revisions + (table -> revision))
+  when(BuncherState.Accumulating) {
+    case Event(BunchRevision(table, revision), None) => stay() using Some(Map(table -> revision))
+    case Event(BunchRevision(table, revision), Some(revisions)) => stay() using Some(revisions + (table -> revision))
 
-    case Event(FlushRevisions, Some(revisions)) =>
-      Stats.time("flush_revision") {
-        flushRevision(revisions)
-      };
-      stay() using None
+    case Event(FlushBunch, Some(revisions)) => flushRevision(revisions); goto(BuncherState.Idle) using None
   }
 
   initialize
@@ -85,4 +84,62 @@ class RevisionBuncher(revisionTracker: RevisionTracker, stream: String) extends 
       case (table, revision) => revisionTracker.setRevision(stream, table, revision)
     }
   }
+}
+
+case class BunchMarketEvent[T](payload: T)
+
+sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List[T]]] {
+  def client: Client
+  def queue: String
+  def size: Int
+
+  implicit def writes: Writes[List[T]]
+
+  startWith(BuncherState.Idle, None)
+
+  when(BuncherState.Idle) {
+    case Event(BunchMarketEvent(payload: T), None) => goto(BuncherState.Accumulating) using Some(List(payload))
+  }
+
+  when(BuncherState.Accumulating) {
+    case Event(BunchMarketEvent(payload: T), None) => stay() using Some(List(payload))
+    case Event(BunchMarketEvent(payload: T), Some(payloads)) =>
+      if (payloads.size == size - 1) self ! FlushBunch;
+      stay() using Some(payload :: payloads)
+
+    case Event(FlushBunch, Some(payloads)) => flushPayloads(payloads); goto(BuncherState.Idle) using None
+  }
+
+  initialize
+
+  def flushPayloads(payload: List[T]) {
+    log.info("Flush market payloads: " + payload)
+    val bytes = toByteArray(payload)
+    client.write(queue, OfferOnce(ChannelBuffers.wrappedBuffer(bytes)))
+  }
+
+  object OfferOnce {
+    def apply[A](value: A): Offer[A] = new Offer[A] {
+      val ref = new AtomicReference[Option[A]](Some(value))
+
+      def objects = Seq()
+
+      def poll() = ref.getAndSet(None).map(() => _)
+
+      def enqueue(setter: this.type#Setter) = null
+    }
+
+  }
+}
+
+class TradesBuncher(val client: Client, val queue: String) extends MarketDbBuncher[TradePayload] {
+  val size = 100
+  import com.ergodicity.marketdb.model.TradeProtocol._
+  val writes = implicitly[Writes[List[TradePayload]]]
+}
+
+class OrdersBuncher(val client: Client, val queue: String) extends MarketDbBuncher[OrderPayload] {
+  val size = 100
+  import com.ergodicity.marketdb.model.OrderProtocol._
+  val writes = implicitly[Writes[List[OrderPayload]]]
 }

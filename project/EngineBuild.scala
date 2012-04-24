@@ -60,7 +60,7 @@ object EngineBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val capture = Seq(casbah, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val capture = Seq(finagleKestrel, marketDb, casbah, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
   val core = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
@@ -74,6 +74,7 @@ object Dependency {
   // Versions
 
   object V {
+    val MarketDb     = "0.1-SNAPSHOT"
     val Plaza2       = "0.1-SNAPSHOT"
 
     val Scalatest    = "1.6.1"
@@ -96,6 +97,7 @@ object Dependency {
 
   // Compile
   val plaza2Connectivity     = "com.ergodicity.connectivity"      %% "plaza2"                 % V.Plaza2
+  val marketDb               = "com.ergodicity.marketdb"          %% "marketdb-api"           % V.MarketDb
 
   val slf4jApi               = "org.slf4j"                         % "slf4j-api"              % V.Slf4j
   val logback                = "ch.qos.logback"                    % "logback-classic"        % V.Logback
@@ -104,6 +106,7 @@ object Dependency {
   val jodaTime               = "joda-time"                         % "joda-time"              % V.JodaTime
   val jodaConvert            = "org.joda"                          % "joda-convert"           % V.JodaConvert
   val finagleCore            = "com.twitter"                      %% "finagle-core"           % V.Finagle
+  val finagleKestrel         = "com.twitter"                      %% "finagle-kestrel"        % V.Finagle
   val ostrich                = "com.twitter"                      %% "ostrich"                % V.Ostrich
   val sbinary                = "org.scala-tools.sbinary"          %% "sbinary"                % V.SBinary
   val scalaTime              = "org.scala-tools.time"             %% "time"                   % V.ScalaTime

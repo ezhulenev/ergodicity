@@ -10,19 +10,19 @@ object OptInfo {
       record.getLong("replID"), record.getLong("replRev"), record.getLong("replAct"),
 
       record.getLong("sess_id"),
-      record.getLong("isin_id"),
+      record.getInt("isin_id"),
       record.getString("short_isin"),
       record.getString("isin"),
       record.getString("name"),
-      record.getLong("signs")
+      record.getInt("signs")
     )
   }
   case class SessContentsRecord(replID: Long, replRev: Long, replAct: Long,
                                 sessId: Long,
-                                isinId: Long,
+                                isinId: Int,
                                 shortIsin: String,
                                 isin: String,
                                 name: String,
-                                signs: Long) extends Record
+                                signs: Int) extends Record
 }
 

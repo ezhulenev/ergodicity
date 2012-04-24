@@ -19,18 +19,18 @@ class RevisionBuncherSpec extends TestKit(ActorSystem("RevisionBuncherSpec")) wi
     "be initialized in Idle state" in {
       val repository = mock(classOf[RevisionTracker])
       val buncher = TestFSMRef(new RevisionBuncher(repository, Stream))
-      assert(buncher.stateName == RevisionBuncherState.Idle)
+      assert(buncher.stateName == BuncherState.Idle)
     }
 
     "accumulate table revisions" in {
       val repository = mock(classOf[RevisionTracker])
       val buncher = TestFSMRef(new RevisionBuncher(repository, Stream))
 
-      buncher ! PushRevision("table1", 101)
-      assert(buncher.stateName == RevisionBuncherState.Bunching)
+      buncher ! BunchRevision("table1", 101)
+      assert(buncher.stateName == BuncherState.Accumulating)
 
-      buncher ! PushRevision("table1", 102)
-      buncher ! PushRevision("table2", 201)
+      buncher ! BunchRevision("table1", 102)
+      buncher ! BunchRevision("table2", 201)
 
       assert(buncher.stateData.get("table1") == 102)
       assert(buncher.stateData.get("table2") == 201)
@@ -40,25 +40,25 @@ class RevisionBuncherSpec extends TestKit(ActorSystem("RevisionBuncherSpec")) wi
       val repository = mock(classOf[RevisionTracker])
       val buncher = TestFSMRef(new RevisionBuncher(repository, Stream))
 
-      buncher ! PushRevision("table1", 101)
-      buncher ! PushRevision("table2", 201)
+      buncher ! BunchRevision("table1", 101)
+      buncher ! BunchRevision("table2", 201)
 
-      buncher ! FlushRevisions
+      buncher ! FlushBunch
 
       verify(repository).setRevision(Stream, "table1", 101)
       verify(repository).setRevision(Stream, "table2", 201)
 
-      assert(buncher.stateName == RevisionBuncherState.Bunching)
+      assert(buncher.stateName == BuncherState.Idle)
     }
 
     "recover after flush" in {
       val repository = mock(classOf[RevisionTracker])
       val buncher = TestFSMRef(new RevisionBuncher(repository, Stream))
 
-      buncher ! PushRevision("table1", 101)
-      buncher ! FlushRevisions
-      buncher ! PushRevision("table1", 102)
-      buncher ! FlushRevisions
+      buncher ! BunchRevision("table1", 101)
+      buncher ! FlushBunch
+      buncher ! BunchRevision("table1", 102)
+      buncher ! FlushBunch
       verify(repository).setRevision(Stream, "table1", 102)
     }
   }
