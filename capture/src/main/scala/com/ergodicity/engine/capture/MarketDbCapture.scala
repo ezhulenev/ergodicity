@@ -141,7 +141,7 @@ sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List
   initialize
 
   def flushPayloads(payload: List[T]) {
-    log.info("Flush market payloads: " + payload.size + "; " + payload)
+    log.info("Flush market payloads: " + payload.size)
     val bytes = toByteArray(payload)
     client.write(queue, OfferOnce(ChannelBuffers.wrappedBuffer(bytes)))
   }
