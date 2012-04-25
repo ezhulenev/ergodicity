@@ -89,14 +89,14 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
   }
 
   // Create captures
-  val orderCapture = context.actorOf(Props(new DataStreamCapture[OrdLog.OrdersLogRecord](orderLogRevision)((rec:OrdLog.OrdersLogRecord) => captureOrders(rec))), "OrdersCapture")
-  val futuresCapture = context.actorOf(Props(new DataStreamCapture[FutTrade.DealRecord](futDealRevision)((rec:FutTrade.DealRecord) => captureFutures(rec))), "FuturesCapture")
-  val optionsCapture = context.actorOf(Props(new DataStreamCapture[OptTrade.DealRecord](optDealRevision)((rec:OptTrade.DealRecord) => captureOptions(rec))), "OptionsCapture")
+/*  val orderCapture = context.actorOf(Props(new MarketDbCapture[OrdLog.OrdersLogRecord](orderLogRevision)((rec:OrdLog.OrdersLogRecord) => captureOrders(rec))), "OrdersCapture")
+  val futuresCapture = context.actorOf(Props(new MarketDbCapture[FutTrade.DealRecord](futDealRevision)((rec:FutTrade.DealRecord) => captureFutures(rec))), "FuturesCapture")
+  val optionsCapture = context.actorOf(Props(new MarketDbCapture[OptTrade.DealRecord](optDealRevision)((rec:OptTrade.DealRecord) => captureOptions(rec))), "OptionsCapture")
 
   // Track table revisions
-  orderCapture ! TrackRevisions(repository, FORTS_ORDLOG_REPL)
-  futuresCapture ! TrackRevisions(repository, FORTS_FUTTRADE_REPL)
-  optionsCapture ! TrackRevisions(repository, FORTS_OPTTRADE_REPL)
+  orderCapture ! TrackRevision(repository, FORTS_ORDLOG_REPL)
+  futuresCapture ! TrackRevision(repository, FORTS_FUTTRADE_REPL)
+  optionsCapture ! TrackRevision(repository, FORTS_OPTTRADE_REPL)*/
 
   // Supervisor
   override val supervisorStrategy = AllForOneStrategy() {
@@ -127,6 +127,7 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
     case Starting -> Capturing =>
       log.info("Begin capturing Market data")
 
+/*
       ordersDataStream ! JoinTable("orders_log", orderCapture, implicitly[Deserializer[OrdLog.OrdersLogRecord]])
       ordersDataStream ! SubscribeLifeNumChanges(self)
       ordersDataStream ! Open(underlyingConnection)
@@ -138,6 +139,7 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
       optTradeDataStream ! JoinTable("deal", optionsCapture, implicitly[Deserializer[OptTrade.DealRecord]])
       optTradeDataStream ! SubscribeLifeNumChanges(self)
       optTradeDataStream ! Open(underlyingConnection)
+*/
 
       // Be sure DataStream's opened
       context.system.scheduler.scheduleOnce(1 seconds) {
@@ -157,19 +159,19 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
 
   initialize
 
-  def captureOrders(record: OrdLog.OrdersLogRecord) {
+  def convertOrdersLog(record: OrdLog.OrdersLogRecord) {
 /*    val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\orders.txt")
     file.append(record.toString+"\r\n")*/
   }
 
-  def captureFutures(record: FutTrade.DealRecord) {
-    val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\futures.txt")
-    file.append(record.toString+"\r\n")
+  def convertFuturesDeal(record: FutTrade.DealRecord) {
+    /*val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\futures.txt")
+    file.append(record.toString+"\r\n")*/
   }
 
-  def captureOptions(record: OptTrade.DealRecord) {
-    val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\options.txt")
-    file.append(record.toString+"\r\n")
+  def convertOptionsDeal(record: OptTrade.DealRecord) {
+    /*val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\options.txt")
+    file.append(record.toString+"\r\n")*/
   }
 
 }

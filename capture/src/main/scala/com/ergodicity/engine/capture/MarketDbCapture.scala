@@ -1,67 +1,96 @@
 package com.ergodicity.engine.capture
 
-import akka.event.Logging
 import com.ergodicity.engine.plaza2.DataStream._
 import com.ergodicity.engine.plaza2.scheme.Record
 import com.twitter.ostrich.stats.Stats
-import akka.actor.{Props, ActorRef, FSM, Actor}
+import akka.actor.{Props, FSM, Actor}
 import com.twitter.finagle.kestrel.Client
 import com.twitter.concurrent.Offer
 import java.util.concurrent.atomic.AtomicReference
 import sbinary._
 import Operations._
-import com.ergodicity.marketdb.model.TradeProtocol._
-import com.ergodicity.marketdb.model.OrderProtocol._
 import org.jboss.netty.buffer.ChannelBuffers
 import com.ergodicity.marketdb.model.{OrderPayload, TradePayload}
+import akka.actor.FSM.{CurrentState, Transition, SubscribeTransitionCallBack}
 
 case class DataStreamCaptureException(msg: String) extends RuntimeException(msg)
 
-case class TrackRevisions(revisionTracker: RevisionTracker, stream: String)
+sealed trait MarketDbCaptureState
 
-class DataStreamCapture[T <: Record](revision: Option[Long])(capture: T => Any) extends Actor {
-  val log = Logging(context.system, this)
+object MarketDbCaptureState {
 
-  var revisionBuncher: Option[ActorRef] = None
+  case object Idle extends MarketDbCaptureState
 
-  var count = 0;
+  case object InTransaction extends MarketDbCaptureState
 
-  protected def receive = {
-    case DataBegin => log.debug("Begin data")
-    case e@DatumDeleted(_, rev) => revision.map {
+}
+
+class MarketDbCapture[T <: Record, M](revisionTracker: StreamRevisionTracker, marketDbBuncher: => MarketDbBuncher[M], initialRevision: Option[Long] = None)
+                                     (implicit toMarketDbPayload: T => M) extends Actor with FSM[MarketDbCaptureState, Unit] {
+
+  val revisionBuncher = context.actorOf(Props(new RevisionBuncher(revisionTracker)), "RevisionBuncher")
+  val marketBuncher = context.actorOf(Props(marketDbBuncher), "MarketDbBuncher")
+
+  // Handle when data flushed to MarketDb
+  marketBuncher ! SubscribeTransitionCallBack(self)
+
+  startWith(MarketDbCaptureState.Idle, ())
+
+  when(MarketDbCaptureState.Idle) {
+    case Event(DataBegin, _) => goto(MarketDbCaptureState.InTransaction)
+  }
+
+  when(MarketDbCaptureState.InTransaction) {
+    case Event(DataEnd, _) =>
+      log.debug("End data");
+      marketBuncher ! FlushBunch
+      goto(MarketDbCaptureState.Idle)
+
+    case Event(DataInserted(table, record: T), _) =>
+      Stats.incr(self.path + "/DataInserted")
+      revisionBuncher ! BunchRevision(table, record.replRev)
+      marketBuncher ! BunchMarketEvent(toMarketDbPayload(record))
+
+      stay()
+  }
+
+  whenUnhandled {
+    case Event(e@DatumDeleted(_, rev), _) => initialRevision.map {
       initialRevision =>
         if (initialRevision < rev)
           log.error("Missed some data! Initial revision = " + initialRevision + "; Got datum deleted rev = " + rev);
     }
-    case DataEnd => log.debug("End data")
-    case e@DataDeleted(_, replId) => throw DataStreamCaptureException("Unexpected DataDeleted event: " + e)
+    stay()
 
-    case TrackRevisions(tracker, stream) => revisionBuncher = Some(context.actorOf(Props(new RevisionBuncher(tracker, stream)), "RevisionBuncher"))
+    case Event(e@DataDeleted(_, replId), _) => throw DataStreamCaptureException("Unexpected DataDeleted event: " + e);
 
-    case DataInserted(table, record: T) =>
-      Stats.incr(self.path + "/DataInserted")
-      revisionBuncher.foreach(_ ! BunchRevision(table, record.replRev))
-      count += 1
-      if (count % 1000 == 0) {
-        log.info("Inserted record#" + count + ": " + record)
-      }
-      capture(record)
+    case Event(Transition(ref, BuncherState.Accumulating, BuncherState.Idle), _) if (ref == marketBuncher) =>
+      revisionBuncher ! FlushBunch;
+      stay()
+
+    // Ignored market buncher state events
+    case Event(CurrentState(ref, _), _) if (ref == marketBuncher) => stay()
+    case Event(Transition(ref, BuncherState.Idle, BuncherState.Accumulating), _) if (ref == marketBuncher) => stay()
   }
-}
 
+  initialize
+}
 
 case object FlushBunch
 
 sealed trait BuncherState
 
 object BuncherState {
+
   case object Idle extends BuncherState
+
   case object Accumulating extends BuncherState
+
 }
 
 case class BunchRevision(table: String, revision: Long)
 
-class RevisionBuncher(revisionTracker: RevisionTracker, stream: String) extends Actor with FSM[BuncherState, Option[Map[String, Long]]] {
+class RevisionBuncher(revisionTracker: StreamRevisionTracker) extends Actor with FSM[BuncherState, Option[Map[String, Long]]] {
 
   startWith(BuncherState.Idle, None)
 
@@ -79,9 +108,9 @@ class RevisionBuncher(revisionTracker: RevisionTracker, stream: String) extends 
   initialize
 
   def flushRevision(revisions: Map[String, Long]) {
-    log.info("Flush revisions for stream: " + stream + "; " + revisions)
+    log.info("Flush revisions: " + revisions)
     revisions.foreach {
-      case (table, revision) => revisionTracker.setRevision(stream, table, revision)
+      case (table, revision) => revisionTracker.setRevision(table, revision)
     }
   }
 }
@@ -90,7 +119,9 @@ case class BunchMarketEvent[T](payload: T)
 
 sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List[T]]] {
   def client: Client
+
   def queue: String
+
   def size: Int
 
   implicit def writes: Writes[List[T]]
@@ -130,16 +161,21 @@ sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List
     }
 
   }
+
 }
 
 class TradesBuncher(val client: Client, val queue: String) extends MarketDbBuncher[TradePayload] {
   val size = 100
+
   import com.ergodicity.marketdb.model.TradeProtocol._
+
   val writes = implicitly[Writes[List[TradePayload]]]
 }
 
 class OrdersBuncher(val client: Client, val queue: String) extends MarketDbBuncher[OrderPayload] {
   val size = 100
+
   import com.ergodicity.marketdb.model.OrderProtocol._
+
   val writes = implicitly[Writes[List[OrderPayload]]]
 }

@@ -36,3 +36,13 @@ trait RevisionTracker {
   }
 
 }
+
+object StreamRevisionTracker {
+  def apply(stream: String)(implicit revisionTracker: RevisionTracker) = new StreamRevisionTracker(revisionTracker, stream)
+}
+
+class StreamRevisionTracker(revisionTracker: RevisionTracker, stream: String) {
+  def setRevision(table: String, rev: Long) {
+    revisionTracker.setRevision(stream, table, rev)
+  }
+}
