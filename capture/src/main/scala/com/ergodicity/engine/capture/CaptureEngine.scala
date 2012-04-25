@@ -16,7 +16,7 @@ case class MongoDefault(database: String) extends CaptureDatabase {
 }
 
 
-case class CaptureScheme(ordLog: String, futTrade: String, optTrade: String)
+case class CaptureScheme(futInfo:String, optInfo: String, ordLog: String, futTrade: String, optTrade: String)
 
 case class ConnectionProperties(host: String, port: Int, appName: String)
 

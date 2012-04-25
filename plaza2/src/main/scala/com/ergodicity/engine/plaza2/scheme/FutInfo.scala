@@ -39,7 +39,7 @@ object FutInfo {
       record.getLong("replID"), record.getLong("replRev"), record.getLong("replAct"),
 
       record.getLong("sess_id"),
-      record.getLong("isin_id"),
+      record.getInt("isin_id"),
       record.getString("short_isin"),
       record.getString("isin"),
       record.getString("name"),
@@ -69,7 +69,7 @@ object FutInfo {
 
   case class SessContentsRecord(replID: Long, replRev: Long, replAct: Long,
                                 sessId: Long,
-                                isinId: Long,
+                                isinId: Int,
                                 shortIsin: String,
                                 isin: String,
                                 name: String,
