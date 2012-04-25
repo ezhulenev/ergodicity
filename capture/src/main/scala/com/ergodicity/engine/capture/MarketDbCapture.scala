@@ -3,7 +3,6 @@ package com.ergodicity.engine.capture
 import com.ergodicity.engine.plaza2.DataStream._
 import com.ergodicity.engine.plaza2.scheme.Record
 import com.twitter.ostrich.stats.Stats
-import akka.actor.{Props, FSM, Actor}
 import com.twitter.finagle.kestrel.Client
 import com.twitter.concurrent.Offer
 import java.util.concurrent.atomic.AtomicReference
@@ -11,7 +10,8 @@ import sbinary._
 import Operations._
 import org.jboss.netty.buffer.ChannelBuffers
 import com.ergodicity.marketdb.model.{OrderPayload, TradePayload}
-import akka.actor.FSM.{CurrentState, Transition, SubscribeTransitionCallBack}
+import akka.actor.{Terminated, Props, FSM, Actor}
+import akka.actor.FSM.{Failure, CurrentState, Transition, SubscribeTransitionCallBack}
 
 case class MarketDbCaptureException(msg: String) extends RuntimeException(msg)
 
@@ -31,19 +31,20 @@ class MarketDbCapture[T <: Record, M](revisionTracker: StreamRevisionTracker, ma
   val revisionBuncher = context.actorOf(Props(new RevisionBuncher(revisionTracker)), "RevisionBuncher")
   val marketBuncher = context.actorOf(Props(marketDbBuncher), "KestrelBuncher")
 
-  // Handle when data flushed to MarketDb
-  marketBuncher ! SubscribeTransitionCallBack(self)
+  // Watch child bunchers
+  context.watch(marketBuncher)
 
   startWith(MarketDbCaptureState.Idle, ())
 
   when(MarketDbCaptureState.Idle) {
-    case Event(DataBegin, _) => goto(MarketDbCaptureState.InTransaction)
+    case Event(DataBegin, _) => log.debug("Begin data"); goto(MarketDbCaptureState.InTransaction)
   }
 
   when(MarketDbCaptureState.InTransaction) {
     case Event(DataEnd, _) =>
       log.debug("End data");
       marketBuncher ! FlushBunch
+      revisionBuncher ! FlushBunch
       goto(MarketDbCaptureState.Idle)
 
     case Event(DataInserted(table, record: T), _) =>
@@ -55,6 +56,8 @@ class MarketDbCapture[T <: Record, M](revisionTracker: StreamRevisionTracker, ma
   }
 
   whenUnhandled {
+    case Event(Terminated(child), _) => throw new MarketDbCaptureException("Terminated child buncher = "+child)
+
     case Event(e@DatumDeleted(_, rev), _) => initialRevision.map {
       initialRevision =>
         if (initialRevision < rev)
@@ -63,14 +66,6 @@ class MarketDbCapture[T <: Record, M](revisionTracker: StreamRevisionTracker, ma
     stay()
 
     case Event(e@DataDeleted(_, replId), _) => throw MarketDbCaptureException("Unexpected DataDeleted event: " + e);
-
-    case Event(Transition(ref, BuncherState.Accumulating, BuncherState.Idle), _) if (ref == marketBuncher) =>
-      revisionBuncher ! FlushBunch;
-      stay()
-
-    // Ignored market buncher state events
-    case Event(CurrentState(ref, _), _) if (ref == marketBuncher) => stay()
-    case Event(Transition(ref, BuncherState.Idle, BuncherState.Accumulating), _) if (ref == marketBuncher) => stay()
   }
 
   initialize
@@ -143,7 +138,10 @@ sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List
   def flushPayloads(payload: List[T]) {
     log.info("Flush market payloads: " + payload.size)
     val bytes = toByteArray(payload)
-    client.write(queue, OfferOnce(ChannelBuffers.wrappedBuffer(bytes)))
+    client.write(queue, OfferOnce(ChannelBuffers.wrappedBuffer(bytes))) onSuccess {err =>
+      // Stop market buncher on Kestrel client failed
+      context.stop(self)
+    }
   }
 
   object OfferOnce {

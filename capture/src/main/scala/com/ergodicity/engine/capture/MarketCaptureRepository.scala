@@ -46,3 +46,9 @@ class StreamRevisionTracker(revisionTracker: RevisionTracker, stream: String) {
     revisionTracker.setRevision(stream, table, rev)
   }
 }
+
+class TableRevisionTracker(revisionTracker: RevisionTracker, stream: String, table: String) {
+  def setRevision(rev: Long) {
+    revisionTracker.setRevision(stream, table, rev)
+  }
+}

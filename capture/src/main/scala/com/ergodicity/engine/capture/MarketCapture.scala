@@ -139,7 +139,7 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
   }
 
   when(CaptureState.Capturing) {
-    case _ => throw new RuntimeException("SHIT!")
+    case Event("I'm not going to see any event here", _) => stay()
   }
 
   onTransition {

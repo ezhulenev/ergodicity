@@ -53,15 +53,6 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
       assert(marketCapture.stateName == CaptureState.Idle)
     }
 
-    "terminate on exception" in {
-      val p2 = mock(classOf[P2Connection])
-      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
-      marketCapture.setState(CaptureState.Capturing)
-      watch(marketCapture)
-      marketCapture ! "Heraks!"
-      expectMsg(Terminated(marketCapture))
-    }
-
     "terminate in case of underlying ComFailedException" in {
       val p2 = mock(classOf[P2Connection])
       val err = mock(classOf[ComFailException])
@@ -143,18 +134,6 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
       marketCapture ! FSM.StateTimeout
       expectMsg(Terminated(marketCapture))
     }
-
-    "isin test" in {
-      import scalaz._
-      import Scalaz._
-
-      val isin1: Option[Int] = Some(100)
-      val isin2: Option[Int] = Some(200)
-
-      val isin = isin1 <+> isin2
-      log.info("Isin: "+isin)
-    }
-
   }
 
   private def captureEventDispatcher(conn: P2Connection) = {
