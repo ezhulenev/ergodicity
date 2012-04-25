@@ -13,7 +13,7 @@ import org.jboss.netty.buffer.ChannelBuffers
 import com.ergodicity.marketdb.model.{OrderPayload, TradePayload}
 import akka.actor.FSM.{CurrentState, Transition, SubscribeTransitionCallBack}
 
-case class DataStreamCaptureException(msg: String) extends RuntimeException(msg)
+case class MarketDbCaptureException(msg: String) extends RuntimeException(msg)
 
 sealed trait MarketDbCaptureState
 
@@ -29,7 +29,7 @@ class MarketDbCapture[T <: Record, M](revisionTracker: StreamRevisionTracker, ma
                                      (implicit toMarketDbPayload: T => M) extends Actor with FSM[MarketDbCaptureState, Unit] {
 
   val revisionBuncher = context.actorOf(Props(new RevisionBuncher(revisionTracker)), "RevisionBuncher")
-  val marketBuncher = context.actorOf(Props(marketDbBuncher), "MarketDbBuncher")
+  val marketBuncher = context.actorOf(Props(marketDbBuncher), "KestrelBuncher")
 
   // Handle when data flushed to MarketDb
   marketBuncher ! SubscribeTransitionCallBack(self)
@@ -62,7 +62,7 @@ class MarketDbCapture[T <: Record, M](revisionTracker: StreamRevisionTracker, ma
     }
     stay()
 
-    case Event(e@DataDeleted(_, replId), _) => throw DataStreamCaptureException("Unexpected DataDeleted event: " + e);
+    case Event(e@DataDeleted(_, replId), _) => throw MarketDbCaptureException("Unexpected DataDeleted event: " + e);
 
     case Event(Transition(ref, BuncherState.Accumulating, BuncherState.Idle), _) if (ref == marketBuncher) =>
       revisionBuncher ! FlushBunch;
@@ -122,8 +122,6 @@ sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List
 
   def queue: String
 
-  def size: Int
-
   implicit def writes: Writes[List[T]]
 
   startWith(BuncherState.Idle, None)
@@ -135,7 +133,6 @@ sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List
   when(BuncherState.Accumulating) {
     case Event(BunchMarketEvent(payload: T), None) => stay() using Some(List(payload))
     case Event(BunchMarketEvent(payload: T), Some(payloads)) =>
-      if (payloads.size == size - 1) self ! FlushBunch;
       stay() using Some(payload :: payloads)
 
     case Event(FlushBunch, Some(payloads)) => flushPayloads(payloads); goto(BuncherState.Idle) using None
@@ -144,7 +141,7 @@ sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List
   initialize
 
   def flushPayloads(payload: List[T]) {
-    log.info("Flush market payloads: " + payload)
+    log.info("Flush market payloads: " + payload.size + "; " + payload)
     val bytes = toByteArray(payload)
     client.write(queue, OfferOnce(ChannelBuffers.wrappedBuffer(bytes)))
   }
@@ -165,17 +162,11 @@ sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List
 }
 
 class TradesBuncher(val client: Client, val queue: String) extends MarketDbBuncher[TradePayload] {
-  val size = 100
-
   import com.ergodicity.marketdb.model.TradeProtocol._
-
   val writes = implicitly[Writes[List[TradePayload]]]
 }
 
 class OrdersBuncher(val client: Client, val queue: String) extends MarketDbBuncher[OrderPayload] {
-  val size = 100
-
   import com.ergodicity.marketdb.model.OrderProtocol._
-
   val writes = implicitly[Writes[List[OrderPayload]]]
 }

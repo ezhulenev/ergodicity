@@ -14,7 +14,7 @@ import org.jboss.netty.buffer.ChannelBuffer
 import com.twitter.concurrent.Offer
 
 class MarketDbBuncherSpec extends TestKit(ActorSystem("MarketDbBuncherSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
-  val log = LoggerFactory.getLogger(classOf[MarketCaptureSpec])
+  val log = LoggerFactory.getLogger(classOf[MarketDbBuncherSpec])
 
   val Queue = "trades"
 

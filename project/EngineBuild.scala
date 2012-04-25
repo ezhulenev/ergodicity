@@ -60,7 +60,7 @@ object EngineBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val capture = Seq(finagleKestrel, marketDb, casbah, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val capture = Seq(scalaz, finagleKestrel, marketDb, casbah, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
   val core = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 

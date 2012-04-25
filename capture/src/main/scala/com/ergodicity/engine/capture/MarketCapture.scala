@@ -14,6 +14,14 @@ import com.ergodicity.engine.plaza2.Repository._
 import com.ergodicity.engine.plaza2.scheme._
 import com.ergodicity.engine.core.model.{OptionContract, FutureContract}
 import com.ergodicity.engine.plaza2._
+import org.joda.time.format.DateTimeFormat
+import scalaz._
+import Scalaz._
+import com.ergodicity.marketdb.model.{OrderPayload, Security, Market, TradePayload}
+import java.net.{ConnectException, Socket}
+import com.twitter.finagle.kestrel.protocol.Kestrel
+import com.twitter.finagle.builder.ClientBuilder
+import com.twitter.finagle.kestrel.Client
 
 
 case class Connect(props: ConnectionProperties)
@@ -30,14 +38,21 @@ object CaptureState {
   case object Capturing extends CaptureState
 }
 
-class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, repository: RevisionTracker) extends Actor with FSM[CaptureState, MarketContents] {
+class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
+                    repository: RevisionTracker, kestrel: KestrelConfig) extends Actor with FSM[CaptureState, MarketContents] {
+  
+  val Forts = Market("FORTS");
+  val TimeFormat = DateTimeFormat.forPattern("yyyy/MM/dd HH:mm:ss.SSS")
 
+  implicit val revisionTracker = repository;
+
+  assertKestrelRunning()
   assert(new File(scheme.futInfo).exists(), "Futures info scheme doesn't exists")
   assert(new File(scheme.optInfo).exists(), "Options info scheme doesn't exists")
   assert(new File(scheme.ordLog).exists(), "Orders log scheme doesn't exists")
   assert(new File(scheme.futTrade).exists(), "Futures deals scheme doesn't exists")
   assert(new File(scheme.optTrade).exists(), "Options deals scheme doesn't exists")
-  
+
   val FORTS_ORDLOG_REPL = "FORTS_ORDLOG_REPL"
   val FORTS_FUTTRADE_REPL = "FORTS_FUTTRADE_REPL"
   val FORTS_OPTTRADE_REPL = "FORTS_OPTTRADE_REPL"
@@ -63,20 +78,38 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
   val optSessContentsRepository = context.actorOf(Props(Repository[OptInfo.SessContentsRecord]), "OptSessContentsRepository")
   optSessContentsRepository ! SubscribeSnapshots(self)
 
-  // Create captures
-/*  val orderCapture = context.actorOf(Props(new MarketDbCapture[OrdLog.OrdersLogRecord](orderLogRevision)((rec:OrdLog.OrdersLogRecord) => captureOrders(rec))), "OrdersCapture")
-  val futuresCapture = context.actorOf(Props(new MarketDbCapture[FutTrade.DealRecord](futDealRevision)((rec:FutTrade.DealRecord) => captureFutures(rec))), "FuturesCapture")
-  val optionsCapture = context.actorOf(Props(new MarketDbCapture[OptTrade.DealRecord](optDealRevision)((rec:OptTrade.DealRecord) => captureOptions(rec))), "OptionsCapture")
+  // Kestrel client
+  lazy val client = Client(ClientBuilder()
+    .codec(Kestrel())
+    .hosts(kestrel.host + ":" + kestrel.port)
+    .hostConnectionLimit(kestrel.hostConnectionLimit)
+    .buildFactory())
 
-  // Track table revisions
-  orderCapture ! TrackRevision(repository, FORTS_ORDLOG_REPL)
-  futuresCapture ! TrackRevision(repository, FORTS_FUTTRADE_REPL)
-  optionsCapture ! TrackRevision(repository, FORTS_OPTTRADE_REPL)*/
+  // Create captures
+  lazy val ordersBuncher = new OrdersBuncher(client, kestrel.ordersQueue)
+  lazy val futuresBuncher = new TradesBuncher(client, kestrel.tradesQueue)
+  lazy val optionsBuncher = new TradesBuncher(client, kestrel.tradesQueue)
+
+  val ordersRevisionTracker = StreamRevisionTracker(FORTS_ORDLOG_REPL)
+  val futuresRevisionTracker = StreamRevisionTracker(FORTS_FUTTRADE_REPL)
+  val optionsRevisionTracker = StreamRevisionTracker(FORTS_OPTTRADE_REPL)
+
+  val orderCapture = context.actorOf(Props(new MarketDbCapture(ordersRevisionTracker, ordersBuncher, orderLogRevision)((record: OrdLog.OrdersLogRecord) => {
+    convertOrdersLog(record).getOrElse({throw new MarketDbCaptureException("Can't find isin for "+record)})
+  })), "OrdersCapture")
+
+  val futuresCapture = context.actorOf(Props(new MarketDbCapture(futuresRevisionTracker, futuresBuncher, futDealRevision)((record: FutTrade.DealRecord) => {
+    convertFuturesDeal(record).getOrElse({throw new MarketDbCaptureException("Can't find isin for "+record)})
+  })), "FuturesCapture")
+
+  val optionsCapture = context.actorOf(Props(new MarketDbCapture(optionsRevisionTracker, optionsBuncher, optDealRevision)((record: OptTrade.DealRecord) => {
+    convertOptionsDeal(record).getOrElse({throw new MarketDbCaptureException("Can't find isin for "+record)})
+  })), "OptionsCapture")
 
   // Supervisor
   override val supervisorStrategy = AllForOneStrategy() {
     case _: ComFailException => Stop
-    case _: DataStreamCaptureException => Stop
+    case _: MarketDbCaptureException => Stop
   }
 
   startWith(CaptureState.Idle, (None, None))
@@ -106,7 +139,7 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
   }
 
   when(CaptureState.Capturing) {
-    case _ => stay()
+    case _ => throw new RuntimeException("SHIT!")
   }
 
   onTransition {
@@ -126,9 +159,9 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
 
     case CaptureState.InitializingMarketContents -> CaptureState.Capturing =>
       log.info("Begin capturing Market data; Futures nbr = " + stateData._1.get.size + "; Options nbr = " + stateData._2.get.size)
-      log.debug("Futures contents = "+stateData._1.get)
-      log.debug("Options contents = "+stateData._2.get)
-/*
+      log.debug("Future contracts = "+stateData._1.get)
+      log.debug("Option contracts = "+stateData._2.get)
+
       ordersDataStream ! JoinTable("orders_log", orderCapture, implicitly[Deserializer[OrdLog.OrdersLogRecord]])
       ordersDataStream ! SubscribeLifeNumChanges(self)
       ordersDataStream ! Open(underlyingConnection)
@@ -140,7 +173,6 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
       optTradeDataStream ! JoinTable("deal", optionsCapture, implicitly[Deserializer[OptTrade.DealRecord]])
       optTradeDataStream ! SubscribeLifeNumChanges(self)
       optTradeDataStream ! Open(underlyingConnection)
-*/
 
   }
 
@@ -175,19 +207,35 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
 
   initialize
 
-  def convertOrdersLog(record: OrdLog.OrdersLogRecord) {
-/*    val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\orders.txt")
-    file.append(record.toString+"\r\n")*/
+  def convertOrdersLog(record: OrdLog.OrdersLogRecord) = {
+    val futureIsin = stateData._1.flatMap {m => m.get(record.isin_id).map(_.isin)}
+    val optionIsin = stateData._2.flatMap {m => m.get(record.isin_id).map(_.isin)}
+    val isin = futureIsin <+> optionIsin
+    isin.map {
+      isin =>
+        val deal = if (record.id_deal > 0) Some(record.deal_price) else None
+        OrderPayload(Forts, Security(isin),
+          record.id_ord, TimeFormat.parseDateTime(record.moment),
+          record.status, record.action, record.dir, record.price, record.amount, record.amount_rest, deal)
+    }
   }
 
-  def convertFuturesDeal(record: FutTrade.DealRecord) {
-    /*val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\futures.txt")
-    file.append(record.toString+"\r\n")*/
+  def convertFuturesDeal(record: FutTrade.DealRecord) = {
+    val isin = stateData._1.flatMap {m => m.get(record.isin_id).map(_.isin)}
+    isin.map {
+      isin =>
+        val nosystem = record.nosystem == 1 // Nosystem	0 - Рыночная сделка, 1 - Адресная сделка
+        TradePayload(Forts, Security(isin), record.id_deal, record.price, record.amount, TimeFormat.parseDateTime(record.moment), nosystem)
+    }
   }
 
-  def convertOptionsDeal(record: OptTrade.DealRecord) {
-    /*val file: Seekable = Resource.fromFile("C:\\Temp\\OrdersLog\\options.txt")
-    file.append(record.toString+"\r\n")*/
+  def convertOptionsDeal(record: OptTrade.DealRecord) = {
+    val isin = stateData._2.flatMap {m => m.get(record.isin_id).map(_.isin)}
+    isin.map {
+      isin =>
+        val nosystem = record.nosystem == 1 // Nosystem	0 - Рыночная сделка, 1 - Адресная сделка
+        TradePayload(Forts, Security(isin), record.id_deal, record.price, record.amount, TimeFormat.parseDateTime(record.moment), nosystem)
+    }
   }
 
   // Market Events data streams
@@ -248,5 +296,16 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: CaptureScheme, r
     val optInfoStream = context.actorOf(Props(new DataStream(underlyingStream)), FORTS_OPTINFO_REPL)
     optInfoStream ! SetLifeNumToIni(optInfoIni)
     optInfoStream
+  }
+
+  private def assertKestrelRunning() {
+    try {
+      new Socket(kestrel.host, kestrel.port)
+      kestrel
+    } catch {
+      case e: ConnectException =>
+        println("Error: Kestrel must be running on host " + kestrel.host + "; port " + kestrel.port)
+        System.exit(1)
+    }
   }
 }

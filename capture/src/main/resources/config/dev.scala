@@ -1,11 +1,11 @@
-import com.ergodicity.engine.capture.{MongoDefault, CaptureScheme, ConnectionProperties, CaptureEngineConfig}
+import com.ergodicity.engine.capture._
 
 new CaptureEngineConfig {
   admin.httpPort = 19000
 
   val connectionProperties = ConnectionProperties("localhost", 4001, "CaptureEngineDev")
 
-  val scheme = CaptureScheme(
+  val scheme = Plaza2Scheme(
     "capture/scheme/FutInfoSessionContents.ini",
     "capture/scheme/OptInfoSessionContents.ini",
     "capture/scheme/OrdLog.ini",
@@ -14,4 +14,6 @@ new CaptureEngineConfig {
   )
 
   val database = MongoDefault("MarketCaptureDev")
+  
+  val kestrel = KestrelConfig("localhost", 22133, "trades", "orders", 30)
 }

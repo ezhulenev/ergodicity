@@ -29,7 +29,7 @@ class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) wi
       lazy val marketDbBuncher = new TradesBuncher(mock(classOf[Client]), "Trades")
 
       val capture = TestActorRef(new MarketDbCapture(revisionTracker, marketDbBuncher)(mock(classOf[(FutTrade.DealRecord) => TradePayload])))
-      intercept[DataStreamCaptureException] {
+      intercept[MarketDbCaptureException] {
         capture.receive(DataDeleted("table", 1))
       }
     }

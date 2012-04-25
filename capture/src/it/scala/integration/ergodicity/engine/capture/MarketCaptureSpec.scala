@@ -1,4 +1,4 @@
-package com.ergodicity.engine.capture
+package integration.ergodicity.engine.capture
 
 import org.mockito.Mockito._
 import org.mockito.Matchers._
@@ -12,6 +12,7 @@ import com.ergodicity.engine.plaza2.DataStream.LifeNumChanged
 import com.ergodicity.engine.plaza2.Repository.Snapshot
 import com.ergodicity.engine.plaza2.scheme.{OptInfo, FutInfo}
 import akka.actor.{FSM, Terminated, ActorSystem}
+import com.ergodicity.engine.capture._
 
 class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
     val log = LoggerFactory.getLogger(classOf[MarketCaptureSpec])
@@ -22,7 +23,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
   val Port = 4001
   val AppName = "MarketCaptureSpec"
 
-  val scheme = CaptureScheme(
+  val scheme = Plaza2Scheme(
     "capture/scheme/FutInfoSessionContents.ini",
     "capture/scheme/OptInfoSessionContents.ini",
     "capture/scheme/OrdLog.ini",
@@ -32,6 +33,8 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
   
   val repository = mock(classOf[RevisionTracker])
   when(repository.revision(any(), any())).thenReturn(None)
+
+  val kestrel = KestrelConfig("localhost", 22133, "trades", "orders", 30)
 
   val ReleaseNothing = new SafeRelease {
     def apply() {}
@@ -45,9 +48,18 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
 
     "be initialized in Idle state" in {
       val p2 = mock(classOf[P2Connection])
-      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
       log.info("State: " + marketCapture.stateName)
       assert(marketCapture.stateName == CaptureState.Idle)
+    }
+
+    "terminate on exception" in {
+      val p2 = mock(classOf[P2Connection])
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
+      marketCapture.setState(CaptureState.Capturing)
+      watch(marketCapture)
+      marketCapture ! "Heraks!"
+      expectMsg(Terminated(marketCapture))
     }
 
     "terminate in case of underlying ComFailedException" in {
@@ -56,7 +68,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
       when(p2.connect()).thenThrow(err)
       captureEventDispatcher(p2)
 
-      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
       watch(marketCapture)
 
       marketCapture ! Connect(ConnectionProperties(Host, Port, AppName))
@@ -66,7 +78,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
     "terminate after Connection terminated" in {
       val p2 = mock(classOf[P2Connection])
 
-      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
       val connection = marketCapture.underlyingActor.asInstanceOf[MarketCapture].connection
       captureEventDispatcher(p2)
 
@@ -80,7 +92,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
       val repository = mock(classOf[RevisionTracker])
       when(repository.revision(any(), any())).thenReturn(None)
 
-      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
       val underlying = marketCapture.underlyingActor.asInstanceOf[MarketCapture]
 
       marketCapture ! LifeNumChanged(underlying.ordersDataStream, 100)
@@ -97,7 +109,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
       val gmkFuture = FutInfo.SessContentsRecord(7477, 47740, 0, 4023, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
 
       val p2 = mock(classOf[P2Connection])
-      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
       val underlying = marketCapture.underlyingActor.asInstanceOf[MarketCapture]
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
@@ -111,7 +123,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
       val rtsOption = OptInfo.SessContentsRecord(10881, 20023, 0, 3550, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
 
       val p2 = mock(classOf[P2Connection])
-      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
       val underlying = marketCapture.underlyingActor.asInstanceOf[MarketCapture]
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
@@ -123,13 +135,24 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
 
     "terminate after Initializing timed out" in {
       val p2 = mock(classOf[P2Connection])
-      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
 
       watch(marketCapture)
       marketCapture ! FSM.StateTimeout
       expectMsg(Terminated(marketCapture))
+    }
+
+    "isin test" in {
+      import scalaz._
+      import Scalaz._
+
+      val isin1: Option[Int] = Some(100)
+      val isin2: Option[Int] = Some(200)
+
+      val isin = isin1 <+> isin2
+      log.info("Isin: "+isin)
     }
 
   }

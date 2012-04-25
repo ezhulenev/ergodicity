@@ -7,7 +7,7 @@ import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.actor.ActorSystem
 
 class RevisionBuncherSpec extends TestKit(ActorSystem("RevisionBuncherSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
-  val log = LoggerFactory.getLogger(classOf[MarketCaptureSpec])
+  val log = LoggerFactory.getLogger(classOf[RevisionBuncherSpec])
 
   val Stream = "Stream"
 
