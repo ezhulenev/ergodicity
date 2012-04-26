@@ -12,6 +12,7 @@ import org.joda.time.DateTime
 import com.ergodicity.marketdb.model.{TradePayload, Market, Security}
 import org.jboss.netty.buffer.ChannelBuffer
 import com.twitter.concurrent.Offer
+import com.twitter.util.{Promise, Future}
 
 class MarketDbBuncherSpec extends TestKit(ActorSystem("MarketDbBuncherSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketDbBuncherSpec])
@@ -49,6 +50,8 @@ class MarketDbBuncherSpec extends TestKit(ActorSystem("MarketDbBuncherSpec")) wi
 
     "flush table revisions on request" in {
       val client = mock(classOf[Client])
+      when(client.write(argThat(is(Queue)), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]])))
+        .thenReturn(new Promise[Throwable]())
       val buncher = TestFSMRef(new TradesBuncher(client, Queue))
 
       buncher ! BunchMarketEvent(payload(100))

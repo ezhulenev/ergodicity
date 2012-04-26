@@ -13,6 +13,10 @@ package object model {
     !signs.spot && !signs.moneyMarket && signs.anonymous
   }
 
+  implicit val BasicFutInfoConverter = (record: FutInfo.SessContentsRecord) => new BasicSecurity(record.isinId, record.isin.trim)
+
+  implicit val BasicOptInfoConverter = (record: OptInfo.SessContentsRecord) => new BasicSecurity(record.isinId, record.isin.trim)
+
   implicit val FutureConverter = (record: FutInfo.SessContentsRecord) => new FutureContract(record.isin.trim, record.shortIsin.trim, record.isinId, record.name.trim)
 
   implicit val OptionConverter = (record: OptInfo.SessContentsRecord) => new OptionContract(record.isin.trim, record.shortIsin.trim, record.isinId, record.name.trim)

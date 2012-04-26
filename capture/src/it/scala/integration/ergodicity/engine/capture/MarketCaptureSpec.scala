@@ -9,7 +9,6 @@ import plaza2.{SafeRelease, ConnectionStatusChanged, Connection => P2Connection}
 import org.slf4j.LoggerFactory
 import com.jacob.com.ComFailException
 import com.ergodicity.engine.plaza2.DataStream.LifeNumChanged
-import com.ergodicity.engine.plaza2.Repository.Snapshot
 import com.ergodicity.engine.plaza2.scheme.{OptInfo, FutInfo}
 import akka.actor.{FSM, Terminated, ActorSystem}
 import com.ergodicity.engine.capture._
@@ -101,13 +100,12 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
 
       val p2 = mock(classOf[P2Connection])
       val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
-      val underlying = marketCapture.underlyingActor.asInstanceOf[MarketCapture]
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
-      marketCapture ! Snapshot(underlying.futSessContentsRepository, gmkFuture :: Nil)
+      marketCapture ! FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.engine.core.model.BasicFutInfoConverter(gmkFuture)))
 
       assert(marketCapture.stateName == CaptureState.InitializingMarketContents)
-      assert(marketCapture.stateData._1.get(166911).isin == "GMKR-6.12")
+      assert(marketCapture.stateData(166911).isin == "GMKR-6.12")
     }
 
     "initialize with Option session content" in {
@@ -115,13 +113,32 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
 
       val p2 = mock(classOf[P2Connection])
       val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
-      val underlying = marketCapture.underlyingActor.asInstanceOf[MarketCapture]
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
-      marketCapture ! Snapshot(underlying.optSessContentsRepository, rtsOption :: Nil)
+      marketCapture ! OptionsContents(Map(rtsOption.isinId -> com.ergodicity.engine.core.model.BasicOptInfoConverter(rtsOption)))
 
       assert(marketCapture.stateName == CaptureState.InitializingMarketContents)
-      assert(marketCapture.stateData._2.get(160734).isin == "RTS-6.12M150612PA 175000")
+      assert(marketCapture.stateData(160734).isin == "RTS-6.12M150612PA 175000")
+    }
+
+    "handle multiple contents updates" in {
+      val gmkFuture = FutInfo.SessContentsRecord(7477, 47740, 0, 4023, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
+      val lukFuture = FutInfo.SessContentsRecord(7477, 47740, 0, 4023, 166912, "LUK2", "LUKH-6.12", "Фьючерсный контракт LUKH-06.12", 115, 2, 0)
+
+      val p2 = mock(classOf[P2Connection])
+      val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
+
+      marketCapture.setState(CaptureState.InitializingMarketContents)
+      marketCapture ! FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.engine.core.model.BasicFutInfoConverter(gmkFuture)))
+      marketCapture ! FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.engine.core.model.BasicFutInfoConverter(gmkFuture)))
+      marketCapture ! FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.engine.core.model.BasicFutInfoConverter(gmkFuture)))
+      marketCapture ! FuturesContents(Map(lukFuture.isinId -> com.ergodicity.engine.core.model.BasicFutInfoConverter(lukFuture)))
+      marketCapture ! FuturesContents(Map(lukFuture.isinId -> com.ergodicity.engine.core.model.BasicFutInfoConverter(lukFuture)))
+
+      assert(marketCapture.stateName == CaptureState.InitializingMarketContents)
+      assert(marketCapture.stateData.size == 2)
+      assert(marketCapture.stateData(166911).isin == "GMKR-6.12")
+      assert(marketCapture.stateData(166912).isin == "LUKH-6.12")
     }
 
     "terminate after Initializing timed out" in {

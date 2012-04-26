@@ -10,19 +10,19 @@ import plaza2.RequestType.CombinedDynamic
 import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
 import com.ergodicity.engine.plaza2.Connection.ProcessMessages
 import com.ergodicity.engine.plaza2.DataStream._
-import com.ergodicity.engine.plaza2.Repository._
 import com.ergodicity.engine.plaza2.scheme._
-import com.ergodicity.engine.core.model.{OptionContract, FutureContract}
 import com.ergodicity.engine.plaza2._
 import org.joda.time.format.DateTimeFormat
 import scalaz._
 import Scalaz._
-import com.ergodicity.marketdb.model.{OrderPayload, Security, Market, TradePayload}
 import java.net.{ConnectException, Socket}
 import com.twitter.finagle.kestrel.protocol.Kestrel
 import com.twitter.finagle.builder.ClientBuilder
 import com.twitter.finagle.kestrel.Client
+import com.ergodicity.marketdb.model.{OrderPayload, Security => MarketDbSecurity, Market, TradePayload}
+import com.ergodicity.engine.core.model.Security
 
+case class MarketCaptureException(msg: String) extends RuntimeException(msg)
 
 case class Connect(props: ConnectionProperties)
 
@@ -39,8 +39,12 @@ object CaptureState {
 }
 
 class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
-                    repository: RevisionTracker, kestrel: KestrelConfig) extends Actor with FSM[CaptureState, MarketContents] {
-  
+                    repository: RevisionTracker, kestrel: KestrelConfig) extends Actor with FSM[CaptureState, Map[Int, Security]] {
+
+  implicit def SecuritySemigroup: Semigroup[Security] = semigroup {
+    case (s1, s2) => s2
+  }
+
   val Forts = Market("FORTS");
   val TimeFormat = DateTimeFormat.forPattern("yyyy/MM/dd HH:mm:ss.SSS")
 
@@ -56,8 +60,6 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
   val FORTS_ORDLOG_REPL = "FORTS_ORDLOG_REPL"
   val FORTS_FUTTRADE_REPL = "FORTS_FUTTRADE_REPL"
   val FORTS_OPTTRADE_REPL = "FORTS_OPTTRADE_REPL"
-  val FORTS_FUTINFO_REPL = "FORTS_FUTINFO_REPL"
-  val FORTS_OPTINFO_REPL = "FORTS_OPTINFO_REPL"
 
   val connection = context.actorOf(Props(Connection(underlyingConnection)), "Connection")
   context.watch(connection)
@@ -68,15 +70,6 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
   val optDealRevision = repository.revision(FORTS_OPTTRADE_REPL, "deal")
 
   log.info("Initial stream revisions; OrderLog = " + orderLogRevision + "; FutDeal = " + futDealRevision + "; OptDeal = " + optDealRevision)
-
-  // Track market contents
-  var futSessContentsOnline = false
-  val futSessContentsRepository = context.actorOf(Props(Repository[FutInfo.SessContentsRecord]), "FutSessContentsRepository")
-  futSessContentsRepository ! SubscribeSnapshots(self)
-
-  var optSessContentsOnline = false
-  val optSessContentsRepository = context.actorOf(Props(Repository[OptInfo.SessContentsRecord]), "OptSessContentsRepository")
-  optSessContentsRepository ! SubscribeSnapshots(self)
 
   // Kestrel client
   lazy val client = Client(ClientBuilder()
@@ -95,24 +88,28 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
   val optionsRevisionTracker = StreamRevisionTracker(FORTS_OPTTRADE_REPL)
 
   val orderCapture = context.actorOf(Props(new MarketDbCapture(ordersRevisionTracker, ordersBuncher, orderLogRevision)((record: OrdLog.OrdersLogRecord) => {
-    convertOrdersLog(record).getOrElse({throw new MarketDbCaptureException("Can't find isin for "+record)})
+    convertOrdersLog(record).getOrElse({throw new MarketCaptureException("Can't find isin for "+record)})
   })), "OrdersCapture")
 
   val futuresCapture = context.actorOf(Props(new MarketDbCapture(futuresRevisionTracker, futuresBuncher, futDealRevision)((record: FutTrade.DealRecord) => {
-    convertFuturesDeal(record).getOrElse({throw new MarketDbCaptureException("Can't find isin for "+record)})
+    convertFuturesDeal(record).getOrElse({throw new MarketCaptureException("Can't find isin for "+record)})
   })), "FuturesCapture")
 
   val optionsCapture = context.actorOf(Props(new MarketDbCapture(optionsRevisionTracker, optionsBuncher, optDealRevision)((record: OptTrade.DealRecord) => {
-    convertOptionsDeal(record).getOrElse({throw new MarketDbCaptureException("Can't find isin for "+record)})
+    convertOptionsDeal(record).getOrElse({throw new MarketCaptureException("Can't find isin for "+record)})
   })), "OptionsCapture")
+
+  // Market Contents capture
+  val marketContentsCapture = context.actorOf(Props(new MarketContentsCapture(underlyingConnection, scheme)), "MarketContentsCapture")
+  marketContentsCapture ! SubscribeMarketContents(self)
 
   // Supervisor
   override val supervisorStrategy = AllForOneStrategy() {
     case _: ComFailException => Stop
-    case _: MarketDbCaptureException => Stop
+    case _: MarketCaptureException => Stop
   }
 
-  startWith(CaptureState.Idle, (None, None))
+  startWith(CaptureState.Idle, Map())
 
   when(CaptureState.Idle) {
     case Event(Connect(ConnectionProperties(host, port, appName)), _) =>
@@ -127,13 +124,7 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
   }
   
   when(CaptureState.InitializingMarketContents, stateTimeout = 15.second) {
-    case Event(Transition(ref, _, DataStreamState.Online), _) if (ref == futInfoStream) =>
-      futSessContentsOnline = true;
-      if (futSessContentsOnline && optSessContentsOnline) goto(CaptureState.Capturing) else stay()
-
-    case Event(Transition(ref, _, DataStreamState.Online), _) if (ref == optInfoStream) =>
-      optSessContentsOnline = true;
-      if (futSessContentsOnline && optSessContentsOnline) goto(CaptureState.Capturing) else stay()
+    case Event(MarketContentsInitialized, _) => goto(CaptureState.Capturing)
 
     case Event(FSM.StateTimeout, _) => stop(Failure("Initializing MarketCapture timed out"))
   }
@@ -146,21 +137,12 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
     case CaptureState.Idle -> CaptureState.Connecting => log.info("Connecting Market capture, waiting for connection established")
     case CaptureState.Connecting -> CaptureState.InitializingMarketContents =>
       log.info("Initialize Market contents")
-
-      futInfoStream ! JoinTable("fut_sess_contents", futSessContentsRepository, implicitly[Deserializer[FutInfo.SessContentsRecord]])
-      futInfoStream ! SubscribeTransitionCallBack(self)
-      futInfoStream ! Open(underlyingConnection)
-
-      optInfoStream ! JoinTable("opt_sess_contents", optSessContentsRepository, implicitly[Deserializer[OptInfo.SessContentsRecord]])
-      optInfoStream ! SubscribeTransitionCallBack(self)
-      optInfoStream ! Open(underlyingConnection)
-
+      marketContentsCapture ! InitializeMarketContents
       connection ! ProcessMessages(100)
 
     case CaptureState.InitializingMarketContents -> CaptureState.Capturing =>
-      log.info("Begin capturing Market data; Futures nbr = " + stateData._1.get.size + "; Options nbr = " + stateData._2.get.size)
-      log.debug("Future contracts = "+stateData._1.get)
-      log.debug("Option contracts = "+stateData._2.get)
+      log.info("Begin capturing Market data")
+      log.debug("Market contentes = "+stateData)
 
       ordersDataStream ! JoinTable("orders_log", orderCapture, implicitly[Deserializer[OrdLog.OrdersLogRecord]])
       ordersDataStream ! SubscribeLifeNumChanges(self)
@@ -173,7 +155,6 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
       optTradeDataStream ! JoinTable("deal", optionsCapture, implicitly[Deserializer[OptTrade.DealRecord]])
       optTradeDataStream ! SubscribeLifeNumChanges(self)
       optTradeDataStream ! Open(underlyingConnection)
-
   }
 
   whenUnhandled {
@@ -181,60 +162,43 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
     case Event(CurrentState(fsm, _), _) if (fsm == connection) => stay()
     case Event(Terminated(actor), _) if (actor == connection) => stop(Failure("Connection terminated"))
 
-    case Event(Transition(fsm, _, _), _) if (fsm == futInfoStream) => stay()
-    case Event(CurrentState(fsm, _), _) if (fsm == futInfoStream) => stay()
-
-    case Event(Transition(fsm, _, _), _) if (fsm == optInfoStream) => stay()
-    case Event(CurrentState(fsm, _), _) if (fsm == optInfoStream) => stay()
-
     case Event(LifeNumChanged(ds, _), _) if (ds == ordersDataStream) => repository.reset(FORTS_ORDLOG_REPL); stay()
     case Event(LifeNumChanged(ds, _), _) if (ds == futTradeDataStream) => repository.reset(FORTS_FUTTRADE_REPL); stay()
     case Event(LifeNumChanged(ds, _), _) if (ds == optTradeDataStream) => repository.reset(FORTS_OPTTRADE_REPL); stay()
 
-    // Handle session contents snapshots
-    case Event(Snapshot(repo, data), (_, options)) if (repo == futSessContentsRepository) =>
-      val futures = data.asInstanceOf[Iterable[FutInfo.SessContentsRecord]].foldLeft(Map[Int, FutureContract]()) {
-        case (m, r) => m + (r.isinId -> com.ergodicity.engine.core.model.FutureConverter(r))
-      }
-      stay() using(Some(futures), options)
-
-    case Event(Snapshot(repo, data), (futures, _)) if (repo == optSessContentsRepository) =>
-      val options = data.asInstanceOf[Iterable[OptInfo.SessContentsRecord]].foldLeft(Map[Int, OptionContract]()) {
-        case (m, r) => m + (r.isinId -> com.ergodicity.engine.core.model.OptionConverter(r))
-      }
-      stay() using(futures, Some(options))
+    // Handle Market contents updates
+    case Event(FuturesContents(futures), contents) => stay() using(contents <+> futures)
+    case Event(OptionsContents(options), contents) => stay() using(contents <+> options)
   }
 
   initialize
 
   def convertOrdersLog(record: OrdLog.OrdersLogRecord) = {
-    val futureIsin = stateData._1.flatMap {m => m.get(record.isin_id).map(_.isin)}
-    val optionIsin = stateData._2.flatMap {m => m.get(record.isin_id).map(_.isin)}
-    val isin = futureIsin <+> optionIsin
+    val isin = stateData.get(record.isin_id).map(_.isin)
     isin.map {
       isin =>
         val deal = if (record.id_deal > 0) Some(record.deal_price) else None
-        OrderPayload(Forts, Security(isin),
+        OrderPayload(Forts, MarketDbSecurity(isin),
           record.id_ord, TimeFormat.parseDateTime(record.moment),
           record.status, record.action, record.dir, record.price, record.amount, record.amount_rest, deal)
     }
   }
 
   def convertFuturesDeal(record: FutTrade.DealRecord) = {
-    val isin = stateData._1.flatMap {m => m.get(record.isin_id).map(_.isin)}
+    val isin = stateData.get(record.isin_id).map(_.isin)
     isin.map {
       isin =>
         val nosystem = record.nosystem == 1 // Nosystem	0 - Рыночная сделка, 1 - Адресная сделка
-        TradePayload(Forts, Security(isin), record.id_deal, record.price, record.amount, TimeFormat.parseDateTime(record.moment), nosystem)
+        TradePayload(Forts, MarketDbSecurity(isin), record.id_deal, record.price, record.amount, TimeFormat.parseDateTime(record.moment), nosystem)
     }
   }
 
   def convertOptionsDeal(record: OptTrade.DealRecord) = {
-    val isin = stateData._2.flatMap {m => m.get(record.isin_id).map(_.isin)}
+    val isin = stateData.get(record.isin_id).map(_.isin)
     isin.map {
       isin =>
         val nosystem = record.nosystem == 1 // Nosystem	0 - Рыночная сделка, 1 - Адресная сделка
-        TradePayload(Forts, Security(isin), record.id_deal, record.price, record.amount, TimeFormat.parseDateTime(record.moment), nosystem)
+        TradePayload(Forts, MarketDbSecurity(isin), record.id_deal, record.price, record.amount, TimeFormat.parseDateTime(record.moment), nosystem)
     }
   }
 
@@ -277,25 +241,6 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
     val optTradeDataStream = context.actorOf(Props(DataStream(underlyingStream)), FORTS_OPTTRADE_REPL)
     optTradeDataStream ! SetLifeNumToIni(ini)
     optTradeDataStream
-  }
-
-  // Market Contents data streams
-  lazy val futInfoStream = {
-    val futInfoIni = new File(scheme.futInfo)
-    val futInfoTableSet = TableSet(futInfoIni)
-    val underlyingStream = P2DataStream(FORTS_FUTINFO_REPL, CombinedDynamic, futInfoTableSet)
-    val futInfoStream = context.actorOf(Props(new DataStream(underlyingStream)), FORTS_FUTINFO_REPL)
-    futInfoStream ! SetLifeNumToIni(futInfoIni)
-    futInfoStream
-  }
-
-  lazy val optInfoStream = {
-    val optInfoIni = new File(scheme.optInfo)
-    val optInfoTableSet = TableSet(optInfoIni)
-    val underlyingStream = P2DataStream(FORTS_OPTINFO_REPL, CombinedDynamic, optInfoTableSet)
-    val optInfoStream = context.actorOf(Props(new DataStream(underlyingStream)), FORTS_OPTINFO_REPL)
-    optInfoStream ! SetLifeNumToIni(optInfoIni)
-    optInfoStream
   }
 
   private def assertKestrelRunning() {

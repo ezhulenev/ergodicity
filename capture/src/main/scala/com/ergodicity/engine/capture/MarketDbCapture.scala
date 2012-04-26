@@ -11,9 +11,6 @@ import Operations._
 import org.jboss.netty.buffer.ChannelBuffers
 import com.ergodicity.marketdb.model.{OrderPayload, TradePayload}
 import akka.actor.{Terminated, Props, FSM, Actor}
-import akka.actor.FSM.{Failure, CurrentState, Transition, SubscribeTransitionCallBack}
-
-case class MarketDbCaptureException(msg: String) extends RuntimeException(msg)
 
 sealed trait MarketDbCaptureState
 
@@ -56,7 +53,7 @@ class MarketDbCapture[T <: Record, M](revisionTracker: StreamRevisionTracker, ma
   }
 
   whenUnhandled {
-    case Event(Terminated(child), _) => throw new MarketDbCaptureException("Terminated child buncher = "+child)
+    case Event(Terminated(child), _) => throw new MarketCaptureException("Terminated child buncher = "+child)
 
     case Event(e@DatumDeleted(_, rev), _) => initialRevision.map {
       initialRevision =>
@@ -65,7 +62,7 @@ class MarketDbCapture[T <: Record, M](revisionTracker: StreamRevisionTracker, ma
     }
     stay()
 
-    case Event(e@DataDeleted(_, replId), _) => throw MarketDbCaptureException("Unexpected DataDeleted event: " + e);
+    case Event(e@DataDeleted(_, replId), _) => throw MarketCaptureException("Unexpected DataDeleted event: " + e);
   }
 
   initialize
