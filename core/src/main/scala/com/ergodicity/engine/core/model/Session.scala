@@ -9,7 +9,7 @@ import com.ergodicity.engine.plaza2.Repository.Snapshot
 import com.ergodicity.engine.plaza2.scheme.{OptInfo, FutInfo}
 import com.ergodicity.engine.core.model.Session.{OptInfoSessionContents, FutInfoSessionContents}
 
-case class SessionContent(id: Long, optionsSessionId: Long, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval) {
+case class SessionContent(id: Int, optionsSessionId: Int, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval) {
   def this(rec: SessionRecord) = this(
     rec.sessionId,
     rec.optionsSessionId,

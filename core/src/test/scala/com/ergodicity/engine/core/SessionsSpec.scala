@@ -118,7 +118,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
     }
   }
 
-  def sessionRecord(replID: Long, revId: Long, sessionId: Long, sessionState: SessionState) = {
+  def sessionRecord(replID: Long, revId: Long, sessionId: Int, sessionState: SessionState) = {
     import SessionState._
 
     val begin = "2012/04/12 07:15:00.000"

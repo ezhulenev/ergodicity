@@ -5,12 +5,12 @@ import org.slf4j.LoggerFactory
 import com.ergodicity.engine.capture.{RevisionTracker, MongoDefault, MarketCaptureRepository}
 
 
-class MarketCaptureRepositorySpec extends WordSpec {
-  val log = LoggerFactory.getLogger(classOf[MarketCaptureRepositorySpec])
+class RevisionTrackerSpec extends WordSpec {
+  val log = LoggerFactory.getLogger(classOf[RevisionTrackerSpec])
 
-  val repository = new MarketCaptureRepository(MongoDefault("MarketCaptureRepositorySpec")) with RevisionTracker
+  val repository = new MarketCaptureRepository(MongoDefault("RevisionTrackerSpec")) with RevisionTracker
 
-  "MarketCaptureRepository" must {
+  "MarketCaptureRepository with RevisionTracker" must {
     "set, get and reset revision" in {
       repository.setRevision("Stream", "Table", 100)
       assert(repository.revision("Stream", "Table") == Some(100))

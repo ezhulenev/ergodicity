@@ -72,8 +72,8 @@ class RepositorySpec  extends TestKit(ActorSystem()) with ImplicitSender with Wo
     }
   }
 
-  private def mockRecord(replID: Long, replRev: Long, replAct: Long, sessionId: Long) = {
-    SessionRecord(replID, replRev, replAct, sessionId, null, null, 0l, 0l, null, null, 0l, 0l, null, null, 0l, null, null, null, null)
+  private def mockRecord(replID: Long, replRev: Long, replAct: Long, sessionId: Int) = {
+    SessionRecord(replID, replRev, replAct, sessionId, null, null, 0l, 0, null, null, 0l, 0l, null, null, 0l, null, null, null, null)
   }
 
 }

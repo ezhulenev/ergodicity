@@ -15,11 +15,11 @@ object FutInfo {
     def apply(record: P2Record) = SessionRecord(
       record.getLong("replID"), record.getLong("replRev"), record.getLong("replAct"),
 
-      record.getLong("sess_id"),
+      record.getInt("sess_id"),
       record.getString("begin"),
       record.getString("end"),
       record.getLong("state"),
-      record.getLong("opt_sess_id"),
+      record.getInt("opt_sess_id"),
       record.getString("inter_cl_begin"),
       record.getString("inter_cl_end"),
       record.getLong("inter_cl_state"),
@@ -50,11 +50,11 @@ object FutInfo {
   }
 
   case class SessionRecord(replID: Long, replRev: Long, replAct: Long,
-                           sessionId: Long,
+                           sessionId: Int,
                            begin: String,
                            end: String,
                            state: Long,
-                           optionsSessionId: Long,
+                           optionsSessionId: Int,
                            interClBegin: String,
                            interClEnd: String,
                            interClState: Long,
