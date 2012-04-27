@@ -18,7 +18,7 @@ object OptInfo {
     )
   }
   case class SessContentsRecord(replID: Long, replRev: Long, replAct: Long,
-                                sessId: Long,
+                                sessionId: Long,
                                 isinId: Int,
                                 shortIsin: String,
                                 isin: String,

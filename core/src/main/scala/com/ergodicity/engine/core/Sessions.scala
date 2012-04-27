@@ -63,13 +63,13 @@ class Sessions extends Actor {
 
   protected def handleOptSessContents(snapshot: Snapshot[OptInfo.SessContentsRecord]) {
     trackingSessions.foreach {case (SessionId(_, id), session)=>
-      session ! OptInfoSessionContents(snapshot.filter(_.sessId == id))
+      session ! OptInfoSessionContents(snapshot.filter(_.sessionId == id))
     }
   }
 
   protected def handleFutSessContents(snapshot: Snapshot[FutInfo.SessContentsRecord]) {
     trackingSessions.foreach {case (SessionId(id, _), session)=>
-      session ! FutInfoSessionContents(snapshot.filter(_.sessId == id))
+      session ! FutInfoSessionContents(snapshot.filter(_.sessionId == id))
     }
   }
 

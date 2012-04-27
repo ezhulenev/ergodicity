@@ -30,7 +30,10 @@ object MarketContentsState {
   case object Online extends MarketContentsState
 }
 
-class MarketContentsCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme) extends Actor with FSM[MarketContentsState, Unit] {
+class MarketContentsCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
+                            sessionTracker: SessionTracker,
+                            futSessionTracker: FutSessionContentsTracker,
+                            optSessionTracker: OptSessionContentsTracker) extends Actor with FSM[MarketContentsState, Unit] {
   import MarketContentsState._
   
   var subscribers: Seq[ActorRef] = Seq()
@@ -39,6 +42,9 @@ class MarketContentsCapture(underlyingConnection: P2Connection, scheme: Plaza2Sc
   val FORTS_OPTINFO_REPL = "FORTS_OPTINFO_REPL"
 
   // Track market contents
+  val sessionsRepository = context.actorOf(Props(Repository[FutInfo.SessionRecord]), "SessionsRepository")
+  sessionsRepository ! SubscribeSnapshots(self)
+
   var futSessContentsOnline = false;
   val futSessContentsRepository = context.actorOf(Props(Repository[FutInfo.SessContentsRecord]), "FutSessContentsRepository")
   futSessContentsRepository ! SubscribeSnapshots(self)
@@ -94,16 +100,24 @@ class MarketContentsCapture(underlyingConnection: P2Connection, scheme: Plaza2Sc
     case Event(CurrentState(fsm, _), _) if (fsm == optInfoStream) => stay()
 
     // Handle session contents snapshots
+    case Event(Snapshot(repo, sessions), _) if (repo == sessionsRepository) =>
+      sessions.asInstanceOf[Iterable[FutInfo.SessionRecord]].foreach(sessionTracker.saveSession(_))
+      stay()
+
     case Event(Snapshot(repo, data), _) if (repo == futSessContentsRepository) =>
       val futures = data.asInstanceOf[Iterable[FutInfo.SessContentsRecord]].foldLeft(Map[Int, Security]()) {
-        case (m, r) => m + (r.isinId -> com.ergodicity.engine.core.model.BasicFutInfoConverter(r))
+        case (m, r) =>
+          futSessionTracker.saveSessionContents(r)
+          m + (r.isinId -> com.ergodicity.engine.core.model.BasicFutInfoConverter(r))
       }
       subscribers.foreach(_ ! FuturesContents(futures))
       stay()
 
     case Event(Snapshot(repo, data), _) if (repo == optSessContentsRepository) =>
       val options = data.asInstanceOf[Iterable[OptInfo.SessContentsRecord]].foldLeft(Map[Int, Security]()) {
-        case (m, r) => m + (r.isinId -> com.ergodicity.engine.core.model.BasicOptInfoConverter(r))
+        case (m, r) =>
+          optSessionTracker.saveSessionContents(r)
+          m + (r.isinId -> com.ergodicity.engine.core.model.BasicOptInfoConverter(r))
       }
       subscribers.foreach(_ ! OptionsContents(options))
       stay()

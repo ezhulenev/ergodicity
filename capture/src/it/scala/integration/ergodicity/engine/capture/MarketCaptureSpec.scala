@@ -23,14 +23,14 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
   val AppName = "MarketCaptureSpec"
 
   val scheme = Plaza2Scheme(
-    "capture/scheme/FutInfoSessionContents.ini",
+    "capture/scheme/FutInfoSessionsAndContents.ini",
     "capture/scheme/OptInfoSessionContents.ini",
     "capture/scheme/OrdLog.ini",
     "capture/scheme/FutTradeDeal.ini",
     "capture/scheme/OptTradeDeal.ini"
   )
   
-  val repository = mock(classOf[RevisionTracker])
+  val repository = mock(classOf[MarketDbRepository])
   when(repository.revision(any(), any())).thenReturn(None)
 
   val kestrel = KestrelConfig("localhost", 22133, "trades", "orders", 30)
@@ -79,7 +79,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
 
     "reset stream revision on LifeNum changed" in {
       val p2 = mock(classOf[P2Connection])
-      val repository = mock(classOf[RevisionTracker])
+      val repository = mock(classOf[MarketDbRepository])
       when(repository.revision(any(), any())).thenReturn(None)
 
       val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")

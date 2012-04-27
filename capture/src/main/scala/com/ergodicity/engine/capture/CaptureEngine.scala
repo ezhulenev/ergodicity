@@ -45,7 +45,7 @@ class CaptureEngine(connectionProperties: ConnectionProperties, scheme: Plaza2Sc
     log.info("Start CaptureEngine")
 
     val connection = P2Connection()
-    val repo = new MarketCaptureRepository(database) with RevisionTracker
+    val repo = new MarketCaptureRepository(database) with RevisionTracker with SessionTracker with FutSessionContentsTracker with OptSessionContentsTracker
     marketCapture = system.actorOf(Props(new MarketCapture(connection, scheme, repo, kestrel)), "MarketCapture")
 
     val watcher = system.actorOf(Props(new Actor {

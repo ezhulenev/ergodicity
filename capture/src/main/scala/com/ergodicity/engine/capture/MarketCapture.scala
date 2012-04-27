@@ -39,7 +39,8 @@ object CaptureState {
 }
 
 class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
-                    repository: RevisionTracker, kestrel: KestrelConfig) extends Actor with FSM[CaptureState, Map[Int, Security]] {
+                    repository: MarketCaptureRepository with RevisionTracker with SessionTracker with FutSessionContentsTracker with OptSessionContentsTracker,
+                    kestrel: KestrelConfig) extends Actor with FSM[CaptureState, Map[Int, Security]] {
 
   implicit def SecuritySemigroup: Semigroup[Security] = semigroup {
     case (s1, s2) => s2
@@ -100,7 +101,7 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
   })), "OptionsCapture")
 
   // Market Contents capture
-  val marketContentsCapture = context.actorOf(Props(new MarketContentsCapture(underlyingConnection, scheme)), "MarketContentsCapture")
+  val marketContentsCapture = context.actorOf(Props(new MarketContentsCapture(underlyingConnection, scheme, repository, repository, repository)), "MarketContentsCapture")
   marketContentsCapture ! SubscribeMarketContents(self)
 
   // Supervisor

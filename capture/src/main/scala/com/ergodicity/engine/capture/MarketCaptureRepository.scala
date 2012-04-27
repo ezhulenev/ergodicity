@@ -2,7 +2,7 @@ package com.ergodicity.engine.capture
 
 import org.slf4j.{Logger, LoggerFactory}
 import com.mongodb.casbah.Imports._
-import com.ergodicity.engine.plaza2.scheme.FutInfo
+import com.ergodicity.engine.plaza2.scheme.{OptInfo, FutInfo}
 
 
 class MarketCaptureRepository(database: CaptureDatabase) {
@@ -10,6 +10,8 @@ class MarketCaptureRepository(database: CaptureDatabase) {
 
   val mongo = database.db
 }
+
+class MarketDbRepository(database: CaptureDatabase) extends MarketCaptureRepository(database) with RevisionTracker with SessionTracker with FutSessionContentsTracker with OptSessionContentsTracker
 
 trait SessionTracker {
   this: {def log: Logger; def mongo: MongoDB} =>
@@ -44,6 +46,64 @@ trait SessionTracker {
     "posTransferEnd" -> record.posTransferEnd
   )
 }
+
+trait FutSessionContentsTracker {
+  this: {def log: Logger; def mongo: MongoDB} =>
+
+  val FutContents = mongo("FutSessionContents")
+  FutContents.ensureIndex(MongoDBObject("sessionId" -> 1, "isinId" -> 1, "isin" -> 1), "futSessionContentsIdx", false)
+
+  def saveSessionContents(record: FutInfo.SessContentsRecord) {
+    log.trace("Save fut session content = " + record)
+
+    FutContents.findOne(MongoDBObject("sessionId" -> record.sessionId, "isinId" -> record.isinId)) map {
+      _ => () /* do nothing */
+    } getOrElse {
+      /* create new one */
+      val contents = convert(record)
+      FutContents += contents
+    }
+  }
+
+  def convert(record: FutInfo.SessContentsRecord) = MongoDBObject(
+    "sessionId" -> record.sessionId,
+    "isinId" -> record.isinId,
+    "shortIsin" -> record.shortIsin,
+    "isin" -> record.isin,
+    "name" -> record.name,
+    "signs" -> record.signs,
+    "multileg_type" -> record.multileg_type
+  )
+}
+
+trait OptSessionContentsTracker {
+  this: {def log: Logger; def mongo: MongoDB} =>
+
+  val OptContents = mongo("OptSessionContents")
+  OptContents.ensureIndex(MongoDBObject("sessionId" -> 1, "isinId" -> 1, "isin" -> 1), "optSessionContentsIdx", false)
+
+  def saveSessionContents(record: OptInfo.SessContentsRecord) {
+    log.trace("Save opt session content = " + record)
+
+    OptContents.findOne(MongoDBObject("sessionId" -> record.sessionId, "isinId" -> record.isinId)) map {
+      _ => () /* do nothing */
+    } getOrElse {
+      /* create new one */
+      val contents = convert(record)
+      OptContents += contents
+    }
+  }
+
+  def convert(record: OptInfo.SessContentsRecord) = MongoDBObject(
+    "sessionId" -> record.sessionId,
+    "isinId" -> record.isinId,
+    "shortIsin" -> record.shortIsin,
+    "isin" -> record.isin,
+    "name" -> record.name,
+    "signs" -> record.signs
+  )
+}
+
 
 trait RevisionTracker {
   this: {def log: Logger; def mongo: MongoDB} =>

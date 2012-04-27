@@ -6,7 +6,7 @@ new CaptureEngineConfig {
   val connectionProperties = ConnectionProperties("localhost", 4001, "CaptureEngineDev")
 
   val scheme = Plaza2Scheme(
-    "capture/scheme/FutInfoSessionContents.ini",
+    "capture/scheme/FutInfoSessionsAndContents.ini",
     "capture/scheme/OptInfoSessionContents.ini",
     "capture/scheme/OrdLog.ini",
     "capture/scheme/FutTradeDeal.ini",
