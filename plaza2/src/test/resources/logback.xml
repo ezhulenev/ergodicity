@@ -5,7 +5,7 @@
         </layout>
     </appender>
 
-    <logger name="com.ergodicity.engine.plaza2" level="TRACE"/>
+    <logger name="com.ergodicity.plaza2" level="TRACE"/>
 
     <root level="trace">
         <appender-ref ref="STDOUT"/>

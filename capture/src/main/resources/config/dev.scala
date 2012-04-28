@@ -1,4 +1,5 @@
-import com.ergodicity.engine.capture._
+import com.ergodicity.capture.CaptureEngineConfig
+import com.ergodicity.capture._
 
 new CaptureEngineConfig {
   admin.httpPort = 19000
