@@ -1,6 +1,5 @@
 package com.ergodicity.core.model
 
-import com.ergodicity.plaza2.Repository
 import com.ergodicity.plaza2.Repository.Snapshot
 import akka.actor.{FSM, Props, ActorRef, Actor}
 import akka.actor.FSM.{SubscribeTransitionCallBack, CurrentState, Transition}

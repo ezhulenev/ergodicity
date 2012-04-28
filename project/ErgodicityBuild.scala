@@ -24,6 +24,13 @@ object ErgodicityBuild extends Build {
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
+  lazy val cep = Project(
+    id = "cep",
+    base = file("cep"),
+    dependencies = Seq(core),
+    settings = Project.defaultSettings ++ repositoriesSetting ++ Seq(libraryDependencies ++= Dependencies.cep)
+  ).configs( IntegrationTest )
+    .settings( Defaults.itSettings : _*)
 
   lazy val core = Project(
     id = "core",
@@ -61,6 +68,8 @@ object Dependencies {
   import Dependency._
 
   val capture = Seq(scalaz, finagleKestrel, marketDb, casbah, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+
+  val cep = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
   val core = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
