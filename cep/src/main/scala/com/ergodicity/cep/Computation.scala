@@ -1,12 +1,7 @@
 package com.ergodicity.cep
 
-sealed trait ComputationState
-object ComputationState {
-  case object Idle extends ComputationState
-  case object
-}
+trait Computation
 
+trait SlidingComputation
 
-class Computation[E] extends  {
-
-}
+trait FramedComputation
