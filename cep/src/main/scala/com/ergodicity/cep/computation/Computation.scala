@@ -1,16 +1,30 @@
 package com.ergodicity.cep.computation
 
-trait Computation[A, B] {
-  def apply(): B
-  def apply(el: A): Computation[A, B]
+import org.joda.time.{Interval, Duration}
+
+protected sealed trait Computation[A, B] {
+  type Self <: Computation[A, B]
   
-  def reset(): Computation[A, B]
+  def apply(): Option[B]
+
+  def apply(el: A): Self
 }
 
-case class Counter[T](cnt: Int) extends Computation[T, Int] {
-  def apply() = cnt
-
-  def apply(el: T) = Counter(cnt + 1)
-
-  def reset() = Counter(0)
+trait ContinuousComputation[A, B] extends Computation[A, B] {
+  type Self = ContinuousComputation[A, B]
 }
+
+trait SlidingComputation[A, B] extends Computation[A, B] {
+  type Self = SlidingComputation[A, B]
+
+  def duration: Duration
+}
+
+trait FramedComputation[A, B] extends Computation[A, B] {
+  type Self = FramedComputation[A, B]
+
+  def frame: Interval
+
+  def sequent(): FramedComputation[A, B]
+}
+
