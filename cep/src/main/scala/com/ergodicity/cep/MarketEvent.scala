@@ -2,6 +2,6 @@ package com.ergodicity.cep
 
 import org.joda.time.DateTime
 
-trait Payload {
+trait MarketEvent {
   def time: DateTime
 }
