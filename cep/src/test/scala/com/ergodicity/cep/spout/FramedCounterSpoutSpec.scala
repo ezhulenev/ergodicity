@@ -1,4 +1,4 @@
-package com.ergodicity.cep.computation
+package com.ergodicity.cep.spout
 
 import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
 import akka.actor.ActorSystem
@@ -7,6 +7,7 @@ import org.joda.time.DateTime
 import org.scala_tools.time.Implicits._
 import com.ergodicity.cep.{TestMarketEvent, AkkaConfigurations}
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
+import com.ergodicity.cep.computation.FramedCounter
 
 class FramedCounterSpoutSpec extends TestKit(ActorSystem("FramedCounterSpoutSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -26,13 +27,13 @@ class FramedCounterSpoutSpec extends TestKit(ActorSystem("FramedCounterSpoutSpec
       computation ! SubscribeIntermediateComputations(self)
 
       computation ! Compute(TestMarketEvent(now))
-      expectMsg(IntermediateComputation(computation, Some(1)))
+      expectMsg(IntermediateComputation(computation, 1))
 
       computation ! Compute(TestMarketEvent(now + 1.second))
-      expectMsg(IntermediateComputation(computation, Some(2)))
+      expectMsg(IntermediateComputation(computation, 2))
     }
 
-    "calculate completed results with Some" in {
+    "calculate completed results" in {
       val now = new DateTime
       val initialInterval = now to now + 5.minutes
 
@@ -48,7 +49,7 @@ class FramedCounterSpoutSpec extends TestKit(ActorSystem("FramedCounterSpoutSpec
 
       computation ! Compute(TestMarketEvent(now + 6.minutes))
 
-      expectMsg(ComputationOutput(computation, Some(5)))
+      expectMsg(ComputationOutput(computation, 5))
     }
 
     "calculate completed results with None" in {
@@ -61,7 +62,7 @@ class FramedCounterSpoutSpec extends TestKit(ActorSystem("FramedCounterSpoutSpec
 
       computation ! Compute(TestMarketEvent(now + 6.minutes))
 
-      expectMsg(ComputationOutput(computation, None))
+      expectMsg(ComputationOutput(computation, 0))
     }
 
     "calculate completed results for gaps" in {
@@ -75,11 +76,11 @@ class FramedCounterSpoutSpec extends TestKit(ActorSystem("FramedCounterSpoutSpec
 
       computation ! Compute(TestMarketEvent(now + 11.minutes))
 
-      expectMsg(ComputationOutput(computation, None))
-      expectMsg(ComputationOutput(computation, None))
-      expectMsg(IntermediateComputation(computation, Some(1)))
+      expectMsg(ComputationOutput(computation, 0))
+      expectMsg(ComputationOutput(computation, 0))
+      expectMsg(IntermediateComputation(computation, 1))
     }
-    
+
     "test multiple completed computations" in {
       val now = new DateTime
       val initialInterval = now to now + 5.minutes
@@ -88,12 +89,12 @@ class FramedCounterSpoutSpec extends TestKit(ActorSystem("FramedCounterSpoutSpec
 
       computation ! SubscribeComputation(self)
 
-      (0 to  3601).foreach(i => {
+      (0 to 3601).foreach(i => {
         computation ! Compute(TestMarketEvent(now + i.seconds))
       })
 
-      (0 to  11).foreach(i => {
-        expectMsg(ComputationOutput(computation, Some(300)))
+      (0 to 11).foreach(i => {
+        expectMsg(ComputationOutput(computation, 300))
       })
     }
   }

@@ -4,7 +4,7 @@ import org.joda.time.{Interval, Duration}
 import scalaz.NonEmptyList
 
 protected sealed trait Computation[E, C] {
-  def apply(): Option[C]
+  def apply(): C
 }
 
 trait ContinuousComputation[E, C] extends Computation[E, C] {

@@ -1,12 +1,13 @@
-package com.ergodicity.cep.computation
+package com.ergodicity.cep.spout
 
 import akka.actor.{ActorRef, Actor}
 import com.ergodicity.cep.MarketEvent
 import com.ergodicity.cep.computation.FramedReaction.{Jump, Stay}
+import com.ergodicity.cep.computation.FramedComputation
 
 case class SubscribeIntermediateComputations(ref: ActorRef)
 
-case class IntermediateComputation[C](computation: ActorRef, value: Option[C])
+case class IntermediateComputation[C](computation: ActorRef, value: C)
 
 class FramedSpout[E <: MarketEvent, C](initialComputation: FramedComputation[E, C]) extends Actor {
 
