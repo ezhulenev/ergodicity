@@ -103,7 +103,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
       val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
-      marketCapture ! FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.core.model.BasicFutInfoConverter(gmkFuture)))
+      marketCapture ! FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.core.session.BasicFutInfoConverter(gmkFuture)))
 
       assert(marketCapture.stateName == CaptureState.InitializingMarketContents)
       assert(marketCapture.stateData(166911).isin == "GMKR-6.12")
@@ -116,7 +116,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
       val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
-      marketCapture ! OptionsContents(Map(rtsOption.isinId -> com.ergodicity.core.model.BasicOptInfoConverter(rtsOption)))
+      marketCapture ! OptionsContents(Map(rtsOption.isinId -> com.ergodicity.core.session.BasicOptInfoConverter(rtsOption)))
 
       assert(marketCapture.stateName == CaptureState.InitializingMarketContents)
       assert(marketCapture.stateData(160734).isin == "RTS-6.12M150612PA 175000")
@@ -130,11 +130,11 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
       val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
-      marketCapture ! FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.core.model.BasicFutInfoConverter(gmkFuture)))
-      marketCapture ! FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.core.model.BasicFutInfoConverter(gmkFuture)))
-      marketCapture ! FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.core.model.BasicFutInfoConverter(gmkFuture)))
-      marketCapture ! FuturesContents(Map(lukFuture.isinId -> com.ergodicity.core.model.BasicFutInfoConverter(lukFuture)))
-      marketCapture ! FuturesContents(Map(lukFuture.isinId -> com.ergodicity.core.model.BasicFutInfoConverter(lukFuture)))
+      marketCapture ! FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.core.session.BasicFutInfoConverter(gmkFuture)))
+      marketCapture ! FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.core.session.BasicFutInfoConverter(gmkFuture)))
+      marketCapture ! FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.core.session.BasicFutInfoConverter(gmkFuture)))
+      marketCapture ! FuturesContents(Map(lukFuture.isinId -> com.ergodicity.core.session.BasicFutInfoConverter(lukFuture)))
+      marketCapture ! FuturesContents(Map(lukFuture.isinId -> com.ergodicity.core.session.BasicFutInfoConverter(lukFuture)))
 
       assert(marketCapture.stateName == CaptureState.InitializingMarketContents)
       assert(marketCapture.stateData.size == 2)

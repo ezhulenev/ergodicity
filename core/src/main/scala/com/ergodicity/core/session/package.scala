@@ -3,7 +3,7 @@ package com.ergodicity.core
 import com.ergodicity.plaza2.scheme.FutInfo.{Signs, SessContentsRecord}
 import com.ergodicity.plaza2.scheme.{OptInfo, Record, FutInfo}
 
-package object model {
+package object session {
   type SessContents = Record {def isin: String}
   type StatefulSessContents = SessContents {def state: Long}
   type StatelessSessContents = SessContents

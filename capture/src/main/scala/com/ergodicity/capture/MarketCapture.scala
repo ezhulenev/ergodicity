@@ -20,8 +20,8 @@ import com.twitter.finagle.kestrel.protocol.Kestrel
 import com.twitter.finagle.builder.ClientBuilder
 import com.twitter.finagle.kestrel.Client
 import com.ergodicity.marketdb.model.{OrderPayload, Security => MarketDbSecurity, Market, TradePayload}
-import com.ergodicity.core.model.Security
-import com.ergodicity.core.model.Security
+import com.ergodicity.core.session.Security
+import com.ergodicity.core.session.Security
 import com.ergodicity.plaza2.{ConnectionState, Connection, DataStream}
 
 case class MarketCaptureException(msg: String) extends RuntimeException(msg)

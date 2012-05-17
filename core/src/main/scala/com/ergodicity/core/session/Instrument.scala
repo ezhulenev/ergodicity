@@ -1,4 +1,4 @@
-package com.ergodicity.core.model
+package com.ergodicity.core.session
 
 import akka.actor.{Actor, FSM}
 import akka.actor.FSM.Failure

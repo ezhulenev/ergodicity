@@ -10,8 +10,8 @@ import com.ergodicity.plaza2.scheme.{Deserializer, OptInfo, FutInfo}
 import com.ergodicity.plaza2.{DataStream, Repository, DataStreamState}
 import com.ergodicity.plaza2.DataStream.{Open, JoinTable, SetLifeNumToIni}
 import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack, Transition}
-import com.ergodicity.core.model.Security
-import com.ergodicity.core.model.Security
+import com.ergodicity.core.session.Security
+import com.ergodicity.core.session.Security
 
 
 case class SubscribeMarketContents(ref: ActorRef)
@@ -115,7 +115,7 @@ class MarketContentsCapture(underlyingConnection: P2Connection, scheme: Plaza2Sc
       val futures = data.asInstanceOf[Iterable[FutInfo.SessContentsRecord]].foldLeft(Map[Int, Security]()) {
         case (m, r) =>
           futSessionTracker.saveSessionContents(r)
-          m + (r.isinId -> com.ergodicity.core.model.BasicFutInfoConverter(r))
+          m + (r.isinId -> com.ergodicity.core.session.BasicFutInfoConverter(r))
       }
       subscribers.foreach(_ ! FuturesContents(futures))
       stay()
@@ -124,7 +124,7 @@ class MarketContentsCapture(underlyingConnection: P2Connection, scheme: Plaza2Sc
       val options = data.asInstanceOf[Iterable[OptInfo.SessContentsRecord]].foldLeft(Map[Int, Security]()) {
         case (m, r) =>
           optSessionTracker.saveSessionContents(r)
-          m + (r.isinId -> com.ergodicity.core.model.BasicOptInfoConverter(r))
+          m + (r.isinId -> com.ergodicity.core.session.BasicOptInfoConverter(r))
       }
       subscribers.foreach(_ ! OptionsContents(options))
       stay()

@@ -1,4 +1,4 @@
-package com.ergodicity.core.model
+package com.ergodicity.core.session
 
 sealed trait SessionState
 

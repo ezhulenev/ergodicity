@@ -6,8 +6,8 @@ import com.ergodicity.plaza2.Repository
 import com.ergodicity.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import akka.event.Logging
 import akka.actor.{PoisonPill, Props, Actor, ActorRef}
-import model.Session.{OptInfoSessionContents, FutInfoSessionContents}
-import model.{Session, SessionState, IntClearingState, SessionContent}
+import session.Session.{OptInfoSessionContents, FutInfoSessionContents}
+import session.{Session, SessionState, IntClearingState, SessionContent}
 import com.ergodicity.plaza2.scheme.{OptInfo, Deserializer, FutInfo}
 import com.ergodicity.core.Sessions.{JoinOptInfoRepl, JoinFutInfoRepl, OngoingSession, GetOngoingSession}
 

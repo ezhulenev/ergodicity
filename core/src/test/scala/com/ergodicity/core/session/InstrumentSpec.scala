@@ -1,4 +1,4 @@
-package com.ergodicity.core.model
+package com.ergodicity.core.session
 
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging

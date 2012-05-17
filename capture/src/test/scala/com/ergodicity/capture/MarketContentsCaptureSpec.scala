@@ -8,8 +8,8 @@ import org.slf4j.LoggerFactory
 import com.ergodicity.plaza2.Repository.Snapshot
 import com.ergodicity.plaza2.scheme.{OptInfo, FutInfo}
 import akka.actor.ActorSystem
-import com.ergodicity.core.model.SessionState
-import com.ergodicity.core.model.SessionState._
+import com.ergodicity.core.session.SessionState
+import com.ergodicity.core.session.SessionState._
 import com.ergodicity.plaza2.scheme.FutInfo.SessionRecord
 
 class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
@@ -54,7 +54,7 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
       capture ! SubscribeMarketContents(self)
       capture ! Snapshot(underlying.futSessContentsRepository, gmkFuture :: Nil)
 
-      expectMsg(FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.core.model.BasicFutInfoConverter(gmkFuture))))
+      expectMsg(FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.core.session.BasicFutInfoConverter(gmkFuture))))
 
       verify(futSessionTracker).saveSessionContents(gmkFuture)
     }
@@ -69,7 +69,7 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
       capture ! SubscribeMarketContents(self)
       capture ! Snapshot(underlying.optSessContentsRepository, rtsOption :: Nil)
 
-      expectMsg(OptionsContents(Map(rtsOption.isinId -> com.ergodicity.core.model.BasicOptInfoConverter(rtsOption))))
+      expectMsg(OptionsContents(Map(rtsOption.isinId -> com.ergodicity.core.session.BasicOptInfoConverter(rtsOption))))
       verify(optSessionTracker).saveSessionContents(rtsOption)
     }
   }

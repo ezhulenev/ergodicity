@@ -7,8 +7,8 @@ import akka.actor.{Terminated, ActorSystem}
 import com.ergodicity.plaza2.scheme.FutInfo.SessionRecord
 import com.ergodicity.core.Sessions._
 import akka.event.Logging
-import model.Session.{OptInfoSessionContents, FutInfoSessionContents}
-import model.SessionState
+import session.Session.{OptInfoSessionContents, FutInfoSessionContents}
+import session.SessionState
 import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
 import com.ergodicity.plaza2.scheme.{OptInfo, FutInfo}
 

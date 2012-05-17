@@ -3,8 +3,8 @@ package integration.ergodicity.capture
 import org.scalatest.WordSpec
 import org.slf4j.LoggerFactory
 import com.ergodicity.capture.{SessionTracker, MongoDefault, MarketCaptureRepository}
-import com.ergodicity.core.model.SessionState
-import com.ergodicity.core.model.SessionState._
+import com.ergodicity.core.session.SessionState
+import com.ergodicity.core.session.SessionState._
 import com.ergodicity.plaza2.scheme.FutInfo.SessionRecord
 import com.mongodb.casbah.commons.MongoDBObject
 

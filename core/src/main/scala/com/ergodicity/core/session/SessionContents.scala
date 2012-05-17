@@ -1,4 +1,4 @@
-package com.ergodicity.core.model
+package com.ergodicity.core.session
 
 import com.ergodicity.plaza2.Repository.Snapshot
 import akka.actor.{FSM, Props, ActorRef, Actor}

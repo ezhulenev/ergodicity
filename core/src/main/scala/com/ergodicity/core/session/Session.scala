@@ -1,4 +1,4 @@
-package com.ergodicity.core.model
+package com.ergodicity.core.session
 
 import org.joda.time.Interval
 import org.scala_tools.time.Implicits._
@@ -7,7 +7,7 @@ import com.ergodicity.plaza2.scheme.FutInfo._
 import akka.actor.FSM._
 import com.ergodicity.plaza2.Repository.Snapshot
 import com.ergodicity.plaza2.scheme.{OptInfo, FutInfo}
-import com.ergodicity.core.model.Session.{OptInfoSessionContents, FutInfoSessionContents}
+import com.ergodicity.core.session.Session.{OptInfoSessionContents, FutInfoSessionContents}
 
 case class SessionContent(id: Int, optionsSessionId: Int, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval) {
   def this(rec: SessionRecord) = this(

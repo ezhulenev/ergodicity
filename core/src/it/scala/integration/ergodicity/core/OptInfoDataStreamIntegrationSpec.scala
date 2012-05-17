@@ -15,10 +15,10 @@ import com.ergodicity.plaza2.scheme.OptInfo.SessContentsRecord
 import com.ergodicity.plaza2._
 import AkkaIntegrationConfigurations._
 import scheme.{Deserializer, OptInfo}
-import com.ergodicity.core.model._
+import com.ergodicity.core.session._
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
 import com.ergodicity.plaza2.{ConnectionState, Connection, DataStream, Repository}
-import com.ergodicity.core.model.{StatelessSessionContents, SessionState, OptionContract}
+import com.ergodicity.core.session.{StatelessSessionContents, SessionState, OptionContract}
 
 class OptInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
   val log = LoggerFactory.getLogger(classOf[OptInfoDataStreamIntegrationSpec])
