@@ -11,8 +11,6 @@ import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.plaza2.Connection.{ProcessMessages, Connect}
 import integration.ergodicity.core.AkkaIntegrationConfigurations._
-import com.ergodicity.plaza2._
-import com.ergodicity.core.Sessions
 import com.ergodicity.core.Sessions
 import com.ergodicity.plaza2.DataStream.{Open, SetLifeNumToIni}
 import com.ergodicity.core.Sessions.{JoinOptInfoRepl, JoinFutInfoRepl}

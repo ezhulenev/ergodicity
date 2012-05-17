@@ -7,11 +7,8 @@ import SessionState._
 import akka.event.Logging
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import com.ergodicity.plaza2.scheme.FutInfo.SessContentsRecord
-import com.ergodicity.plaza2.Repository
 import com.ergodicity.plaza2.Repository.Snapshot
-import com.ergodicity.core.AkkaConfigurations
 import com.ergodicity.core.AkkaConfigurations._
-import com.ergodicity.core.model._
 import com.ergodicity.core.model.Session.FutInfoSessionContents
 import akka.testkit.{TestActorRef, ImplicitSender, TestFSMRef, TestKit}
 import akka.actor.{Terminated, ActorSystem}

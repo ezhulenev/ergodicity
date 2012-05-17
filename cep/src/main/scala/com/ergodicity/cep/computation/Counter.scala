@@ -48,7 +48,7 @@ class SlidingCounter[E <: MarketEvent](val duration: Duration)(events: Seq[E] = 
 
   def apply(event: E) = {
 
-    val outdatedEvents = events.takeWhile(_.time < event.time)
+    val outdatedEvents = events.takeWhile(_.time <= event.time - duration)
     
     if (outdatedEvents.size == 0) {
       SlidingReaction.Stay(new SlidingCounter[E](duration)(events :+ event))

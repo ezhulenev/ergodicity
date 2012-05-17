@@ -8,14 +8,12 @@ import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
 import akka.actor.{Actor, Props, ActorSystem}
 import com.ergodicity.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
 import com.ergodicity.plaza2.Repository.{Snapshot, SubscribeSnapshots}
-import com.ergodicity.plaza2._
 import com.ergodicity.plaza2.Connection.{ProcessMessages, Connect}
 import com.ergodicity.plaza2._
 import AkkaIntegrationConfigurations._
 import scheme.FutInfo.{Signs, SessContentsRecord}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
-import com.ergodicity.core.model.FutureContract
 import com.ergodicity.core.model.FutureContract
 import scheme.{FutTrade, Deserializer}
 import java.util.concurrent.{CountDownLatch, TimeUnit}

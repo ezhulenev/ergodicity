@@ -9,7 +9,6 @@ import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
 import com.ergodicity.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
 import com.ergodicity.plaza2.Repository.{Snapshot, SubscribeSnapshots}
-import com.ergodicity.plaza2._
 import com.ergodicity.plaza2.Connection.{ProcessMessages, Connect}
 import com.ergodicity.plaza2._
 import AkkaIntegrationConfigurations._
@@ -17,7 +16,6 @@ import scheme.FutInfo.{Signs, SessContentsRecord}
 import scheme.{Deserializer, FutInfo}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
-import com.ergodicity.core.model.{JoinSession, StatefulSessionContents, SessionState, FutureContract}
 import com.ergodicity.core.model.{JoinSession, SessionState, StatefulSessionContents, FutureContract}
 
 class FutInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
