@@ -14,15 +14,15 @@ import com.ergodicity.plaza2.Connection.{ProcessMessages, Connect}
 import com.ergodicity.plaza2._
 import AkkaIntegrationConfigurations._
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
-import scheme.{Part, Deserializer}
 import com.ergodicity.plaza2.{ConnectionState, Connection, DataStream, Repository}
+import scheme.{Pos, Part, Deserializer}
 
-class PartDataStreamIntegrationTest extends TestKit(ActorSystem("PartDataStreamIntegrationTest", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
+class PosDataStreamIntegrationTest extends TestKit(ActorSystem("PosDataStreamIntegrationTest", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
   val log = LoggerFactory.getLogger(classOf[PartDataStreamIntegrationTest])
 
   val Host = "localhost"
   val Port = 4001
-  val AppName = "PartDataStreamIntegrationTest"
+  val AppName = "PosDataStreamIntegrationTest"
 
   "DataStream" must {
     "do some stuff" in {
@@ -36,25 +36,25 @@ class PartDataStreamIntegrationTest extends TestKit(ActorSystem("PartDataStreamI
         }
       })))
 
-      val ini = new File("core/scheme/Part.ini")
+      val ini = new File("core/scheme/Pos.ini")
       val tableSet = TableSet(ini)
-      val underlyingStream = P2DataStream("FORTS_PART_REPL", CombinedDynamic, tableSet)
+      val underlyingStream = P2DataStream("FORTS_POS_REPL", CombinedDynamic, tableSet)
 
-      val dataStream = TestFSMRef(new DataStream(underlyingStream), "FORTS_PART_REPL")
+      val dataStream = TestFSMRef(new DataStream(underlyingStream), "FORTS_POS_REPL")
       dataStream ! SetLifeNumToIni(ini)
 
       // Handle options data
-      val repository = TestFSMRef(new Repository[Part.PartRecord](), "PartRepo")
+      val repository = TestFSMRef(new Repository[Pos.PositionRecord](), "PosRepo")
 
-      dataStream ! JoinTable("part", repository, implicitly[Deserializer[Part.PartRecord]])
+      dataStream ! JoinTable("position", repository, implicitly[Deserializer[Pos.PositionRecord]])
       dataStream ! Open(underlyingConnection)
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
-          case snapshot@Snapshot(_, data: Iterable[Part.PartRecord]) =>
+          case snapshot@Snapshot(_, data: Iterable[Pos.PositionRecord]) =>
             log.info("Got snapshot; Size = " + snapshot.data.size)
-            data.foreach(part =>
-              log.info("Part: " + part)
+            data.foreach(position =>
+              log.info("Position: " + position)
             )
         }
       }))

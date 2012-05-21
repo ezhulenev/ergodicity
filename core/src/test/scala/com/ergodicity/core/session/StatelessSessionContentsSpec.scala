@@ -9,6 +9,7 @@ import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import com.ergodicity.plaza2.scheme.OptInfo
 import akka.actor.ActorSystem
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
+import com.ergodicity.core.common.OptionContract
 
 class StatelessSessionContentsSpec extends TestKit(ActorSystem("StatelessSessionContentsSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
 

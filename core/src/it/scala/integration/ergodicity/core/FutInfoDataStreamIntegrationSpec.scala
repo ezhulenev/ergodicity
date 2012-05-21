@@ -16,7 +16,8 @@ import scheme.FutInfo.{Signs, SessContentsRecord}
 import scheme.{Deserializer, FutInfo}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
-import com.ergodicity.core.session.{JoinSession, SessionState, StatefulSessionContents, FutureContract}
+import com.ergodicity.core.common.FutureContract
+import com.ergodicity.core.session.{JoinSession, SessionState, StatefulSessionContents}
 
 class FutInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
   val log = LoggerFactory.getLogger(classOf[FutInfoDataStreamIntegrationSpec])
@@ -26,7 +27,7 @@ class FutInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataS
   val Port = 4001
   val AppName = "FutInfoDataStreamIntegrationSpec"
 
-  val SessionContentToFuture = (record: SessContentsRecord) => new FutureContract(record.isin, record.shortIsin, record.isinId, record.name)
+  implicit val SessionContentToFuture = (record: SessContentsRecord) => new FutureContract(record.isin, record.shortIsin, record.isinId, record.name)
 
   def IsFuture(record: SessContentsRecord) = {
     val signs = Signs(record.signs)

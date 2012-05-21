@@ -10,8 +10,7 @@ import com.ergodicity.plaza2.scheme.{Deserializer, OptInfo, FutInfo}
 import com.ergodicity.plaza2.{DataStream, Repository, DataStreamState}
 import com.ergodicity.plaza2.DataStream.{Open, JoinTable, SetLifeNumToIni}
 import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack, Transition}
-import com.ergodicity.core.session.Security
-import com.ergodicity.core.session.Security
+import com.ergodicity.core.common.Security
 
 
 case class SubscribeMarketContents(ref: ActorRef)

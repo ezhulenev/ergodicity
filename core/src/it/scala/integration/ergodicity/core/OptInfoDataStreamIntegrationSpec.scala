@@ -18,7 +18,8 @@ import scheme.{Deserializer, OptInfo}
 import com.ergodicity.core.session._
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
 import com.ergodicity.plaza2.{ConnectionState, Connection, DataStream, Repository}
-import com.ergodicity.core.session.{StatelessSessionContents, SessionState, OptionContract}
+import com.ergodicity.core.common.OptionContract
+import com.ergodicity.core.session.{StatelessSessionContents, SessionState}
 
 class OptInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
   val log = LoggerFactory.getLogger(classOf[OptInfoDataStreamIntegrationSpec])

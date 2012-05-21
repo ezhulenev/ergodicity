@@ -2,6 +2,7 @@ package com.ergodicity.core
 
 import com.ergodicity.plaza2.scheme.FutInfo.{Signs, SessContentsRecord}
 import com.ergodicity.plaza2.scheme.{OptInfo, Record, FutInfo}
+import common.{BasicSecurity, FutureContract, OptionContract}
 
 package object session {
   type SessContents = Record {def isin: String}

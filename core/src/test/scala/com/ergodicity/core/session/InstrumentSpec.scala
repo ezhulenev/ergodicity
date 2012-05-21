@@ -7,6 +7,7 @@ import InstrumentState._
 import com.ergodicity.core.AkkaConfigurations
 import AkkaConfigurations._
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
+import com.ergodicity.core.common.FutureContract
 
 class InstrumentSpec extends TestKit(ActorSystem("InstrumentSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)

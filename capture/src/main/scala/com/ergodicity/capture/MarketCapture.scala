@@ -11,7 +11,6 @@ import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
 import com.ergodicity.plaza2.Connection.ProcessMessages
 import com.ergodicity.plaza2.DataStream._
 import com.ergodicity.plaza2.scheme._
-import com.ergodicity.plaza2._
 import org.joda.time.format.DateTimeFormat
 import scalaz._
 import Scalaz._
@@ -20,8 +19,7 @@ import com.twitter.finagle.kestrel.protocol.Kestrel
 import com.twitter.finagle.builder.ClientBuilder
 import com.twitter.finagle.kestrel.Client
 import com.ergodicity.marketdb.model.{OrderPayload, Security => MarketDbSecurity, Market, TradePayload}
-import com.ergodicity.core.session.Security
-import com.ergodicity.core.session.Security
+import com.ergodicity.core.common.Security
 import com.ergodicity.plaza2.{ConnectionState, Connection, DataStream}
 
 case class MarketCaptureException(msg: String) extends RuntimeException(msg)

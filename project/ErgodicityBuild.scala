@@ -1,5 +1,7 @@
 import sbt._
 import sbt.Keys._
+import sbtassembly.Plugin._
+import AssemblyKeys._
 
 object ErgodicityBuild extends Build {
 
@@ -20,7 +22,7 @@ object ErgodicityBuild extends Build {
     id = "capture",
     base = file("capture"),
     dependencies = Seq(core),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ Seq(libraryDependencies ++= Dependencies.capture)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ Seq(libraryDependencies ++= Dependencies.capture) ++ assemblySettings
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 

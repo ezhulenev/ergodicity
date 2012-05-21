@@ -1,4 +1,4 @@
-package com.ergodicity.core.session
+package com.ergodicity.core.common
 
 sealed trait Security {
   def isinId: Int

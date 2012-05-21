@@ -1,4 +1,3 @@
-import com.ergodicity.capture.CaptureEngineConfig
 import com.ergodicity.capture._
 
 new CaptureEngineConfig {

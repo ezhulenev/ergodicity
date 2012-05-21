@@ -2,6 +2,7 @@ package com.ergodicity.core.session
 
 import akka.actor.{Actor, FSM}
 import akka.actor.FSM.Failure
+import com.ergodicity.core.common.Security
 
 sealed trait InstrumentState
 

@@ -8,6 +8,7 @@ import akka.actor.FSM._
 import com.ergodicity.plaza2.Repository.Snapshot
 import com.ergodicity.plaza2.scheme.{OptInfo, FutInfo}
 import com.ergodicity.core.session.Session.{OptInfoSessionContents, FutInfoSessionContents}
+import com.ergodicity.core.common.{FutureContract, OptionContract}
 
 case class SessionContent(id: Int, optionsSessionId: Int, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval) {
   def this(rec: SessionRecord) = this(
