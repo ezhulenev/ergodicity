@@ -54,7 +54,7 @@ class OptInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataS
       dataStream ! JoinTable("opt_sess_contents", repository, implicitly[Deserializer[OptInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
 
-      val options = TestActorRef(new StatelessSessionContents[OptionContract, OptInfo.SessContentsRecord](SessionState.Online), "Options")
+      val options = TestActorRef(new StatelessSessionContents[OptionContract, OptInfo.SessContentsRecord](SessionState.Online)(com.ergodicity.core.session.OptionConverter), "Options")
       options ! JoinSession(self)
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {

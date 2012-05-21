@@ -1,38 +1,57 @@
 package com.ergodicity.core.broker
 
-import org.joda.time.DateTime
-import org.scala_tools.time.Implicits._
-import akka.event.Logging
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
-import com.ergodicity.core.AkkaConfigurations._
-import akka.actor.ActorSystem
-import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
+import org.scalatest.WordSpec
 import org.mockito.Mockito._
+import org.mockito.Matchers._
 import com.ergodicity.core.common.FutureContract
-import plaza2.{Message, MessageFactory, Connection => P2Connection}
+import org.slf4j.LoggerFactory
+import java.util.concurrent.Executor
+import com.jacob.com.Variant
+import akka.dispatch.{Await, ExecutionContext}
+import akka.util.duration._
+import plaza2.{ServiceRef, Message, MessageFactory, Connection => P2Connection}
 
-class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
-  val log = Logging(system, self)
+class BrokerSpec extends WordSpec {
+  val log = LoggerFactory.getLogger(classOf[BrokerSpec])
 
-  val primaryInterval = new DateTime to new DateTime
-  val positionTransferInterval = new DateTime to new DateTime
-
-  override def afterAll() {
-    system.shutdown()
-  }
+  implicit val ec = ExecutionContext.fromExecutor(new Executor {
+    def execute(command: Runnable) {
+      command.run()
+    }
+  })
 
   "Broker" must {
-    "support FutAddOrder" in {
-      val connection = mock(classOf[P2Connection])
+    "support buy security" in {
+
       implicit val messageFactory = mock(classOf[MessageFactory])
+      val connection = mock(classOf[P2Connection])
       val message = mock(classOf[Message])
+
+      // -- Init mocks
+      when(connection.resolveService(any())).thenReturn(ServiceRef("ebaka"))
+
       when(messageFactory.createMessage("FutAddOrder")).thenReturn(message)
 
-      val broker = TestActorRef(new Broker("000", connection), "Broker")
+      val response = mock(classOf[Message])
+      when(response.field("code")).thenReturn(new Variant(100))
+      when(response.field("message")).thenReturn(new Variant("error"))
 
+      when(message.send(any(), any())).thenReturn(response)
+
+      val broker = new Broker("000", connection)
+
+      // -- Execute
       val future = FutureContract("isin", "shortIsin", 111, "name")
-      broker ! AddOrder(future, GoodTillCancelled, Buy, BigDecimal(100), 1)
 
+      val r = broker.buy(future, GoodTillCancelled, BigDecimal(100), 1)
+      log.info("Res = " + r)
+
+      assert(r match {
+        case Left(_) => true
+        case _ => false
+      })
+
+      // -- Verify
       verify(messageFactory).createMessage("FutAddOrder")
     }
   }

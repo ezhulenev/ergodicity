@@ -7,7 +7,7 @@ object Pos {
   implicit val PositionDeserializer = new Deserializer[PositionRecord] {
     def apply(record: P2Record) = Stats.timeNanos("PositionDeserializer") {
       PositionRecord(
-        record.getLong("replID"), record.getLong("replRev"), record.getLong("replAct"),
+        record.getLong("replID"), record.getVariant("replRev").getLong, record.getLong("replAct"),
 
         record.getInt("isin_id"),
         record.getString("client_code"),
