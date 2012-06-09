@@ -27,7 +27,7 @@ class FutTradeDataStreamIntegrationSpec extends TestKit(ActorSystem("FutTradeDat
   val Port = 4001
   val AppName = "FutTradeDataStreamIntegrationSpec"
 
-  val SessionContentToFuture = (record: SessContentsRecord) => new FutureContract(record.isin, record.shortIsin, record.isinId, record.name)
+  val SessionContentToFuture = (record: SessContentsRecord) => new FutureContract(com.ergodicity.core.session.record2isin(record), record.name)
 
   def IsFuture(record: SessContentsRecord) = {
     val signs = Signs(record.signs)

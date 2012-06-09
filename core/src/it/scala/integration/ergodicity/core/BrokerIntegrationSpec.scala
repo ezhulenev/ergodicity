@@ -4,10 +4,9 @@ import org.scalatest.WordSpec
 import org.slf4j.LoggerFactory
 import java.io.File
 import plaza2.RouterStatus.RouterConnected
-import com.jacob.com.Variant
 import plaza2.{MessageFactory, Connection}
-import com.ergodicity.core.common.FutureContract
 import com.ergodicity.core.broker.{FutOrder, GoodTillCancelled, Broker}
+import com.ergodicity.core.common.{Isin, FutureContract}
 
 
 class BrokerIntegrationSpec extends WordSpec {
@@ -37,9 +36,9 @@ class BrokerIntegrationSpec extends WordSpec {
       val broker = new Broker("533", conn)
 
       // RTS-6.12,RIM2,159336,Фьючерсный контракт RTS-6.12
-      val future = FutureContract("RTS-6.12", "", 0, "")
+      val future = FutureContract(Isin(0, "RTS-6.12", ""), "")
 
-      val order = broker.buy(future, GoodTillCancelled, BigDecimal(131000), 1)
+      val order = broker.buy(future, GoodTillCancelled, BigDecimal(121000), 1)
 
       log.info("Order = " + order)
 

@@ -26,7 +26,7 @@ class OrdLogDataStreamIntegrationTest extends TestKit(ActorSystem("OrdLogDataStr
   val Port = 4001
   val AppName = "OrdLogDataStreamIntegrationTest"
 
-  val SessionContentToFuture = (record: SessContentsRecord) => new FutureContract(record.isin, record.shortIsin, record.isinId, record.name)
+  val SessionContentToFuture = (record: SessContentsRecord) => new FutureContract(com.ergodicity.core.session.record2isin(record), record.name)
 
   def IsFuture(record: SessContentsRecord) = {
     val signs = Signs(record.signs)

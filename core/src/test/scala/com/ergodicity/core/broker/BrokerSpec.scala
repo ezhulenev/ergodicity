@@ -3,13 +3,13 @@ package com.ergodicity.core.broker
 import org.scalatest.WordSpec
 import org.mockito.Mockito._
 import org.mockito.Matchers._
-import com.ergodicity.core.common.FutureContract
 import org.slf4j.LoggerFactory
 import java.util.concurrent.Executor
 import com.jacob.com.Variant
 import akka.dispatch.{Await, ExecutionContext}
 import akka.util.duration._
 import plaza2.{ServiceRef, Message, MessageFactory, Connection => P2Connection}
+import com.ergodicity.core.common.{Isin, FutureContract}
 
 class BrokerSpec extends WordSpec {
   val log = LoggerFactory.getLogger(classOf[BrokerSpec])
@@ -41,7 +41,7 @@ class BrokerSpec extends WordSpec {
       val broker = new Broker("000", connection)
 
       // -- Execute
-      val future = FutureContract("isin", "shortIsin", 111, "name")
+      val future = FutureContract(Isin(111, "isin", "shortIsin"), "name")
 
       val r = broker.buy(future, GoodTillCancelled, BigDecimal(100), 1)
       log.info("Res = " + r)
