@@ -1,6 +1,6 @@
 package com.ergodicity.core.common
 
-case class Isin(id: Int, code: String, shortCode: String)
+
 
 sealed trait Security {
   def isin: Isin

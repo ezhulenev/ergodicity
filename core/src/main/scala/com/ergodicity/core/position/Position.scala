@@ -1,7 +1,7 @@
 package com.ergodicity.core.position
 
-import com.ergodicity.core.common.Isin
 import akka.actor.{ActorRef, FSM, Actor}
+import com.ergodicity.core.common.IsinId
 
 
 sealed trait PositionState
@@ -27,7 +27,7 @@ case class PositionUpdated(position: ActorRef, data: PositionData)
 
 case object PositionTerminated
 
-class Position(isin: Isin) extends Actor with FSM[PositionState, Option[PositionData]] {
+class Position(isin: IsinId) extends Actor with FSM[PositionState, Option[PositionData]] {
 
   private var subscribers = List[ActorRef]()
 
