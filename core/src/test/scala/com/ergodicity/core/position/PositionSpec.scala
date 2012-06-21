@@ -33,7 +33,7 @@ class PositionSpec extends TestKit(ActorSystem("PositionSpec", ConfigWithDetaile
     "termindate position" in {
       val position = TestFSMRef(new Position(isin))
       position ! UpdatePosition(PositionData(0, 0, 0, 0, BigDecimal(0), 0))
-      position ! TerminatedPosition
+      position ! TerminatePosition
       assert(position.stateName == UndefinedPosition)
     }
 
@@ -50,7 +50,7 @@ class PositionSpec extends TestKit(ActorSystem("PositionSpec", ConfigWithDetaile
       position ! UpdatePosition(data2)
       expectMsg(PositionUpdated(position, data2))
 
-      position ! TerminatedPosition
+      position ! TerminatePosition
       expectMsg(PositionTerminated)
       assert(position.stateName == UndefinedPosition)
     }

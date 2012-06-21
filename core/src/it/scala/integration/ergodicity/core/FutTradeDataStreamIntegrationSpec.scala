@@ -15,8 +15,8 @@ import scheme.FutInfo.{Signs, SessContentsRecord}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
 import com.ergodicity.core.common.FutureContract
-import scheme.{FutTrade, Deserializer}
 import java.util.concurrent.{CountDownLatch, TimeUnit}
+import scheme.{OptTrade, FutTrade, Deserializer}
 
 
 class FutTradeDataStreamIntegrationSpec extends TestKit(ActorSystem("FutTradeDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
@@ -65,8 +65,8 @@ class FutTradeDataStreamIntegrationSpec extends TestKit(ActorSystem("FutTradeDat
       ordersLogRepo ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
           case snapshot: Snapshot[FutTrade.OrdersLogRecord] =>
-            log.info("Got snapshot; size = " + snapshot.data.size)
-            snapshot.data.take(1) foreach {
+            log.info("Got ORDERS snapshot; size = " + snapshot.data.size)
+            snapshot.data foreach {
               rec =>
                 log.info("Record: " + rec)
             }
@@ -78,7 +78,7 @@ class FutTradeDataStreamIntegrationSpec extends TestKit(ActorSystem("FutTradeDat
       dealsRepo ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
           case snapshot: Snapshot[FutTrade.DealRecord] =>
-            log.info("Got snapshot; size = " + snapshot.data.size)
+            log.info("Got DEALS snapshot; size = " + snapshot.data.size)
             snapshot.data foreach {
               rec =>
                 log.info("Record: " + rec)

@@ -157,6 +157,7 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
       ordersDataStream ! SubscribeLifeNumChanges(self)
       ordersDataStream ! Open(underlyingConnection)
 
+      import FutTrade._
       futTradeDataStream ! JoinTable("deal", futuresCapture, implicitly[Deserializer[FutTrade.DealRecord]])
       futTradeDataStream ! SubscribeLifeNumChanges(self)
       futTradeDataStream ! Open(underlyingConnection)

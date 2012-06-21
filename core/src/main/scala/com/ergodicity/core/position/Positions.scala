@@ -14,6 +14,8 @@ object Positions {
 
 }
 
+case class TrackPosition(isin: IsinId)
+
 class Positions extends Actor with WhenUnhandled {
   val log = Logging(context.system, self)
 
@@ -25,7 +27,16 @@ class Positions extends Actor with WhenUnhandled {
   // Subscribe to repository updates
   positionsRepository ! SubscribeSnapshots(self)
 
-  protected def receive = handlePositionsSnapshot orElse whenUnhandled
+  protected def receive = handlePositionsSnapshot orElse trackPosition orElse whenUnhandled
+
+  private def trackPosition: Receive = {
+    case TrackPosition(isin) =>
+      sender ! (positions.get(isin) getOrElse {
+        val position = context.actorOf(Props(new Position(isin)))
+        positions = positions + (isin -> position)
+        position
+      })
+  }
 
   private def handlePositionsSnapshot: Receive = {
     case snapshot@Snapshot(repo, _) if (repo == positionsRepository) =>
@@ -36,8 +47,7 @@ class Positions extends Actor with WhenUnhandled {
         case key =>
           positionsSnapshot.data.find(_.isin_id == key._1.id).isDefined
       }
-
-      positions = positions -- terminated.keys;
+      terminated.values.foreach(_ ! TerminatePosition)
 
       // Update existing positions and open new one
       positionsSnapshot.data.foreach {

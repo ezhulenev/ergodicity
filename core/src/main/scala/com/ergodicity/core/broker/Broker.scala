@@ -1,40 +1,9 @@
 package com.ergodicity.core.broker
 
-import com.ergodicity.core.common.FutureContract
 import plaza2.{MessageFactory, Connection => P2Connection}
 import org.slf4j.LoggerFactory
 import com.jacob.com.Variant
-
-object OrderType {
-  def apply(orderType: OrderType) = orderType match {
-    case GoodTillCancelled => 1
-    case ImmediateOrCancel => 2
-    case FillOrKill => 3
-  }
-}
-
-sealed trait OrderType
-
-case object GoodTillCancelled extends OrderType
-
-case object ImmediateOrCancel extends OrderType
-
-case object FillOrKill extends OrderType
-
-
-object OrderDirection {
-  def apply(direction: OrderDirection) = direction match {
-    case Buy => 1
-    case Sell => 2
-  }
-}
-
-sealed trait OrderDirection
-
-case object Buy extends OrderDirection
-
-case object Sell extends OrderDirection
-
+import com.ergodicity.core.common._
 
 object Broker {
   def apply(clientCode: String, connection: P2Connection)(implicit messageFactory: MessageFactory) = new Broker(clientCode, connection)
@@ -55,6 +24,17 @@ class Broker(clientCode: String, connection: P2Connection)(implicit messageFacto
   private val FORTS_MSG = "FORTS_MSG"
   lazy val service = connection.resolveService("FORTS_SRV")
 
+  private def mapOrderType(orderType: OrderType) = orderType match {
+    case GoodTillCancelled => 1
+    case ImmediateOrCancel => 2
+    case FillOrKill => 3
+  }
+
+  private def mapOrderDirection(direction: OrderDirection) = direction match {
+    case Buy => 1
+    case Sell => 2
+  }
+
   private def addOrder(future: FutureContract, orderType: OrderType, direction: OrderDirection, price: BigDecimal, amount: Int): Either[String, FutOrder] = {
 
     val message = messageFactory.createMessage("FutAddOrder")
@@ -64,12 +44,12 @@ class Broker(clientCode: String, connection: P2Connection)(implicit messageFacto
     message.setField("P2_Category", FORTS_MSG)
     message.setField("P2_Type", 36)
 
-    message.setField("isin", future.isin)
+    message.setField("isin", future.isin.code)
     message.setField("price", price.toString())
     message.setField("amount", amount)
     message.setField("client_code", clientCode)
-    message.setField("type", OrderType(orderType))
-    message.setField("dir", OrderDirection(direction))
+    message.setField("type", mapOrderType(orderType))
+    message.setField("dir", mapOrderDirection(direction))
 
     val response = message.send(connection)
     val c = response.field("P2_Category").getString

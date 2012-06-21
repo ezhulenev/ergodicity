@@ -15,7 +15,7 @@ case class PositionData(open: Int, buys: Int, sells: Int, position: Int, volume:
 
 
 // Events
-case object TerminatedPosition
+case object TerminatePosition
 
 case class UpdatePosition(data: PositionData)
 
@@ -43,7 +43,7 @@ class Position(isin: IsinId) extends Actor with FSM[PositionState, Option[Positi
   }
 
   when(OpenedPosition) {
-    case Event(TerminatedPosition, _) =>
+    case Event(TerminatePosition, _) =>
       notifyTerminated();
       goto(UndefinedPosition) using None
 

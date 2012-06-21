@@ -6,10 +6,9 @@ import org.mockito.Matchers._
 import org.slf4j.LoggerFactory
 import java.util.concurrent.Executor
 import com.jacob.com.Variant
-import akka.dispatch.{Await, ExecutionContext}
-import akka.util.duration._
+import akka.dispatch.ExecutionContext
 import plaza2.{ServiceRef, Message, MessageFactory, Connection => P2Connection}
-import com.ergodicity.core.common.{Isin, FutureContract}
+import com.ergodicity.core.common.{GoodTillCancelled, Isin, FutureContract}
 
 class BrokerSpec extends WordSpec {
   val log = LoggerFactory.getLogger(classOf[BrokerSpec])
