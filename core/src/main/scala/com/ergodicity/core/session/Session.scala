@@ -44,10 +44,10 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
   val intClearing = context.actorOf(Props(new IntClearing(intClearingState)), "IntClearing")
 
   val futures = context.actorOf(Props(new StatefulSessionContents[FutureContract, FutInfo.SessContentsRecord](state)), "Futures")
-  futures ! JoinSession(self)
+  futures ! TrackSessionState(self)
 
   val options = context.actorOf(Props(new StatelessSessionContents[OptionContract, OptInfo.SessContentsRecord](state)), "Options")
-  options ! JoinSession(self)
+  options ! TrackSessionState(self)
 
 
   startWith(state, intClearing)

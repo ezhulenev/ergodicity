@@ -153,16 +153,16 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
       log.info("Begin capturing Market data")
       log.debug("Market contentes = " + stateData)
 
-      ordersDataStream ! JoinTable("orders_log", orderCapture, implicitly[Deserializer[OrdLog.OrdersLogRecord]])
+      ordersDataStream ! BindTable("orders_log", orderCapture, implicitly[Deserializer[OrdLog.OrdersLogRecord]])
       ordersDataStream ! SubscribeLifeNumChanges(self)
       ordersDataStream ! Open(underlyingConnection)
 
       import FutTrade._
-      futTradeDataStream ! JoinTable("deal", futuresCapture, implicitly[Deserializer[FutTrade.DealRecord]])
+      futTradeDataStream ! BindTable("deal", futuresCapture, implicitly[Deserializer[FutTrade.DealRecord]])
       futTradeDataStream ! SubscribeLifeNumChanges(self)
       futTradeDataStream ! Open(underlyingConnection)
 
-      optTradeDataStream ! JoinTable("deal", optionsCapture, implicitly[Deserializer[OptTrade.DealRecord]])
+      optTradeDataStream ! BindTable("deal", optionsCapture, implicitly[Deserializer[OptTrade.DealRecord]])
       optTradeDataStream ! SubscribeLifeNumChanges(self)
       optTradeDataStream ! Open(underlyingConnection)
   }

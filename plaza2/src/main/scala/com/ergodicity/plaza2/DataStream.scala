@@ -31,7 +31,7 @@ object DataStream {
 
   case class Open(connection: P2Connection)
 
-  case class JoinTable[R <: Record](table: String, ref: ActorRef, deserializer: Deserializer[R])
+  case class BindTable[R <: Record](table: String, ref: ActorRef, deserializer: Deserializer[R])
 
   // Life Number updates
   case class SetLifeNumToIni(ini: File)
@@ -75,7 +75,7 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
 
     case Event(SubscribeLifeNumChanges(ref), _) => lifeNumSubscribers = ref +: lifeNumSubscribers; stay()
 
-    case Event(JoinTable(table, ref, deserializer), _) if (!tableJoiners.contains(table)) =>
+    case Event(BindTable(table, ref, deserializer), _) if (!tableJoiners.contains(table)) =>
       tableJoiners += (table ->(ref, deserializer)); stay()
   }
 

@@ -8,7 +8,7 @@ import com.ergodicity.plaza2.Repository._
 import com.ergodicity.plaza2.{DataStreamState, Repository, DataStream}
 import com.ergodicity.plaza2.scheme.{Deserializer, OptInfo, FutInfo}
 import com.ergodicity.plaza2.{DataStream, Repository, DataStreamState}
-import com.ergodicity.plaza2.DataStream.{Open, JoinTable, SetLifeNumToIni}
+import com.ergodicity.plaza2.DataStream.{Open, BindTable, SetLifeNumToIni}
 import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack, Transition}
 import com.ergodicity.core.common.Security
 
@@ -85,11 +85,11 @@ class MarketContentsCapture(underlyingConnection: P2Connection, scheme: Plaza2Sc
   onTransition {
     case Idle -> Initializing =>
       log.info("Initialize Market Contents")
-      futInfoStream ! JoinTable("fut_sess_contents", futSessContentsRepository, implicitly[Deserializer[FutInfo.SessContentsRecord]])
+      futInfoStream ! BindTable("fut_sess_contents", futSessContentsRepository, implicitly[Deserializer[FutInfo.SessContentsRecord]])
       futInfoStream ! SubscribeTransitionCallBack(self)
       futInfoStream ! Open(underlyingConnection)
 
-      optInfoStream ! JoinTable("opt_sess_contents", optSessContentsRepository, implicitly[Deserializer[OptInfo.SessContentsRecord]])
+      optInfoStream ! BindTable("opt_sess_contents", optSessContentsRepository, implicitly[Deserializer[OptInfo.SessContentsRecord]])
       optInfoStream ! SubscribeTransitionCallBack(self)
       optInfoStream ! Open(underlyingConnection)
 

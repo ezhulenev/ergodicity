@@ -24,7 +24,7 @@ class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionCo
 
     "should track record updates merging with session state" in {
       val contents = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.SessContentsRecord](SessionState.Online), "Futures")
-      contents ! JoinSession(self)
+      contents ! TrackSessionState(self)
       expectMsgType[SubscribeTransitionCallBack]
 
       contents ! Snapshot(self, gmkFuture :: Nil)

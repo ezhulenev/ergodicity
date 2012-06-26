@@ -13,7 +13,7 @@ import com.ergodicity.plaza2.Connection.{ProcessMessages, Connect}
 import integration.ergodicity.core.AkkaIntegrationConfigurations._
 import com.ergodicity.core.Sessions
 import com.ergodicity.plaza2.DataStream.{Open, SetLifeNumToIni}
-import com.ergodicity.core.Sessions.{JoinOptInfoRepl, JoinFutInfoRepl}
+import com.ergodicity.core.Sessions.{BindOptInfoRepl, BindFutInfoRepl}
 import com.ergodicity.plaza2.{ConnectionState, Connection, DataStream}
 
 
@@ -47,8 +47,8 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
       val optInfoDataStream = TestFSMRef(new DataStream(OptInfoRepl), "FORTS_OPTINFO_REPL")
 
       val sessions = TestActorRef(new Sessions, "Sessions")
-      sessions ! JoinFutInfoRepl(futInfoDataStream)
-      sessions ! JoinOptInfoRepl(optInfoDataStream)
+      sessions ! BindFutInfoRepl(futInfoDataStream)
+      sessions ! BindOptInfoRepl(optInfoDataStream)
 
       Thread.sleep(1000)
       

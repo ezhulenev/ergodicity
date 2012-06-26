@@ -8,7 +8,7 @@ import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
-import com.ergodicity.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
+import com.ergodicity.plaza2.DataStream.{BindTable, SetLifeNumToIni, Open}
 import com.ergodicity.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import com.ergodicity.plaza2.Connection.{ProcessMessages, Connect}
 import com.ergodicity.plaza2._
@@ -46,7 +46,7 @@ class PartDataStreamIntegrationTest extends TestKit(ActorSystem("PartDataStreamI
       // Handle options data
       val repository = TestFSMRef(new Repository[Part.PartRecord](), "PartRepo")
 
-      dataStream ! JoinTable("part", repository, implicitly[Deserializer[Part.PartRecord]])
+      dataStream ! BindTable("part", repository, implicitly[Deserializer[Part.PartRecord]])
       dataStream ! Open(underlyingConnection)
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {

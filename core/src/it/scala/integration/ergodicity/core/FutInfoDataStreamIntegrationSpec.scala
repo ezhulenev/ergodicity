@@ -7,7 +7,7 @@ import plaza2.RequestType.CombinedDynamic
 import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
-import com.ergodicity.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
+import com.ergodicity.plaza2.DataStream.{BindTable, SetLifeNumToIni, Open}
 import com.ergodicity.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import com.ergodicity.plaza2.Connection.{ProcessMessages, Connect}
 import com.ergodicity.plaza2._
@@ -17,7 +17,7 @@ import scheme.{Deserializer, FutInfo}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
 import com.ergodicity.core.common.FutureContract
-import com.ergodicity.core.session.{JoinSession, SessionState, StatefulSessionContents}
+import com.ergodicity.core.session.{TrackSessionState, SessionState, StatefulSessionContents}
 
 class FutInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
   val log = LoggerFactory.getLogger(classOf[FutInfoDataStreamIntegrationSpec])
@@ -55,11 +55,11 @@ class FutInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataS
 
       val repository = TestFSMRef(new Repository[SessContentsRecord], "SessionsRepository")
 
-      dataStream ! JoinTable("fut_sess_contents", repository, implicitly[Deserializer[FutInfo.SessContentsRecord]])
+      dataStream ! BindTable("fut_sess_contents", repository, implicitly[Deserializer[FutInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
 
       val futures = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.SessContentsRecord](SessionState.Online), "Futures")
-      futures ! JoinSession(self)
+      futures ! TrackSessionState(self)
 
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {

@@ -10,7 +10,7 @@ import com.ergodicity.core.common.{IsinId, WhenUnhandled}
 object Positions {
   def apply = new Positions()
 
-  case class JoinPosRepl(dataStream: ActorRef)
+  case class BindPosRepl(dataStream: ActorRef)
 
 }
 

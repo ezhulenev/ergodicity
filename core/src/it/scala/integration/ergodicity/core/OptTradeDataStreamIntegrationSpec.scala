@@ -6,7 +6,7 @@ import org.scalatest.WordSpec
 import plaza2.RequestType.CombinedDynamic
 import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
 import akka.actor.{Actor, Props, ActorSystem}
-import com.ergodicity.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
+import com.ergodicity.plaza2.DataStream.{BindTable, SetLifeNumToIni, Open}
 import com.ergodicity.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import com.ergodicity.plaza2.Connection.{ProcessMessages, Connect}
 import com.ergodicity.plaza2._
@@ -55,8 +55,8 @@ class OptTradeDataStreamIntegrationSpec extends TestKit(ActorSystem("OptTradeDat
       val ordersLogRepo = TestFSMRef(new Repository[OptTrade.OrdersLogRecord], "OrdersLogRepo")
       val dealsRepo = TestFSMRef(new Repository[OptTrade.DealRecord], "DealsRepo")
 
-      dataStream ! JoinTable("orders_log", ordersLogRepo, implicitly[Deserializer[OptTrade.OrdersLogRecord]])
-      dataStream ! JoinTable("deal", dealsRepo, implicitly[Deserializer[OptTrade.DealRecord]])
+      dataStream ! BindTable("orders_log", ordersLogRepo, implicitly[Deserializer[OptTrade.OrdersLogRecord]])
+      dataStream ! BindTable("deal", dealsRepo, implicitly[Deserializer[OptTrade.DealRecord]])
       dataStream ! Open(underlyingConnection)
 
       val latch = new CountDownLatch(2)

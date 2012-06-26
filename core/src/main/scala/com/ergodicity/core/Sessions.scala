@@ -1,7 +1,7 @@
 package com.ergodicity.core
 
 import com.ergodicity.plaza2.scheme.FutInfo._
-import com.ergodicity.plaza2.DataStream.JoinTable
+import com.ergodicity.plaza2.DataStream.BindTable
 import com.ergodicity.plaza2.Repository
 import com.ergodicity.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import akka.event.Logging
@@ -9,7 +9,7 @@ import akka.actor.{PoisonPill, Props, Actor, ActorRef}
 import session.Session.{OptInfoSessionContents, FutInfoSessionContents}
 import session.{Session, SessionState, IntClearingState, SessionContent}
 import com.ergodicity.plaza2.scheme.{OptInfo, Deserializer, FutInfo}
-import com.ergodicity.core.Sessions.{JoinOptInfoRepl, JoinFutInfoRepl, OngoingSession, GetOngoingSession}
+import com.ergodicity.core.Sessions.{BindOptInfoRepl, BindFutInfoRepl, OngoingSession, GetOngoingSession}
 
 protected[core] case class SessionId(id: Long, optionSessionId: Long)
 
@@ -20,9 +20,9 @@ object Sessions {
 
   case class OngoingSession(session: Option[ActorRef])
 
-  case class JoinFutInfoRepl(dataStream: ActorRef)
+  case class BindFutInfoRepl(dataStream: ActorRef)
 
-  case class JoinOptInfoRepl(dataStream: ActorRef)
+  case class BindOptInfoRepl(dataStream: ActorRef)
 
 }
 
@@ -45,12 +45,12 @@ class Sessions extends Actor {
   protected def receive = {
     case GetOngoingSession => sender ! OngoingSession(ongoingSession)
 
-    case JoinFutInfoRepl(dataStream) =>
-      dataStream ! JoinTable("session", sessionRepository, implicitly[Deserializer[SessionRecord]])
-      dataStream ! JoinTable("fut_sess_contents", futSessContentsRepository, implicitly[Deserializer[FutInfo.SessContentsRecord]])
+    case BindFutInfoRepl(dataStream) =>
+      dataStream ! BindTable("session", sessionRepository, implicitly[Deserializer[SessionRecord]])
+      dataStream ! BindTable("fut_sess_contents", futSessContentsRepository, implicitly[Deserializer[FutInfo.SessContentsRecord]])
 
-    case JoinOptInfoRepl(dataStream) =>
-      dataStream ! JoinTable("opt_sess_contents", optSessContentsRepository, implicitly[Deserializer[OptInfo.SessContentsRecord]])
+    case BindOptInfoRepl(dataStream) =>
+      dataStream ! BindTable("opt_sess_contents", optSessContentsRepository, implicitly[Deserializer[OptInfo.SessContentsRecord]])
 
     case Snapshot(repo, data: Iterable[SessionRecord]) if (repo == sessionRepository) =>
       updateSessions(data)

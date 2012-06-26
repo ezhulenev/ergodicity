@@ -8,7 +8,7 @@ import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
-import com.ergodicity.plaza2.DataStream.{JoinTable, SetLifeNumToIni, Open}
+import com.ergodicity.plaza2.DataStream.{BindTable, SetLifeNumToIni, Open}
 import com.ergodicity.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import com.ergodicity.plaza2.Connection.{ProcessMessages, Connect}
 import com.ergodicity.plaza2.scheme.OptInfo.SessContentsRecord
@@ -51,11 +51,11 @@ class OptInfoDataStreamIntegrationSpec extends TestKit(ActorSystem("FutInfoDataS
       // Handle options data
       val repository = TestFSMRef(new Repository[SessContentsRecord](), "SessContentRepo")
 
-      dataStream ! JoinTable("opt_sess_contents", repository, implicitly[Deserializer[OptInfo.SessContentsRecord]])
+      dataStream ! BindTable("opt_sess_contents", repository, implicitly[Deserializer[OptInfo.SessContentsRecord]])
       dataStream ! Open(underlyingConnection)
 
       val options = TestActorRef(new StatelessSessionContents[OptionContract, OptInfo.SessContentsRecord](SessionState.Online)(com.ergodicity.core.session.OptionConverter), "Options")
-      options ! JoinSession(self)
+      options ! TrackSessionState(self)
 
       repository ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
