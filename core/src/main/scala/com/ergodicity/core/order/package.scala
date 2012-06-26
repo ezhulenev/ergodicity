@@ -2,7 +2,9 @@ package com.ergodicity.core
 
 package object order {
 
-  case class BindSessionOrders(sessionId: Int)
+  class OrdersTrackingException(message: String) extends RuntimeException(message)
+
+  case class TrackSession(sessionId: Int)
   
-  case class DropSessionOrders(sessionId: Int)
+  case class DropSession(sessionId: Int)
 }

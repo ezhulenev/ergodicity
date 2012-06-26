@@ -64,7 +64,7 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   private var setLifeNumToIni: Option[File] = None
 
   @volatile
-  private var tableJoiners = Map[String, (ActorRef, Deserializer[_ <: Record])]()
+  private var tableListeners = Map[String, (ActorRef, Deserializer[_ <: Record])]()
 
   startWith(Idle, None)
 
@@ -75,8 +75,8 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
 
     case Event(SubscribeLifeNumChanges(ref), _) => lifeNumSubscribers = ref +: lifeNumSubscribers; stay()
 
-    case Event(BindTable(table, ref, deserializer), _) if (!tableJoiners.contains(table)) =>
-      tableJoiners += (table ->(ref, deserializer)); stay()
+    case Event(BindTable(table, ref, deserializer), _) if (!tableListeners.contains(table)) =>
+      tableListeners += (table ->(ref, deserializer)); stay()
   }
 
   when(Opening, stateTimeout = 10.seconds) {
@@ -122,7 +122,7 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   initialize
 
   private def notifyStreamReopened() {
-    tableJoiners.foreach {
+    tableListeners.foreach {
       case (table, (ref, _)) =>
         ref ! DataBegin
         ref ! DatumDeleted(table, 0)
@@ -133,22 +133,22 @@ class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor w
   private def open(connection: P2Connection) = {
     val safeRelease = underlying.dispatchEvents {
       // First handle Data events
-      case StreamDataBegin => tableJoiners.foreach {
+      case StreamDataBegin => tableListeners.foreach {
         case (_, (ref, _)) => ref ! DataBegin
       }
-      case StreamDataEnd => tableJoiners.foreach {
+      case StreamDataEnd => tableListeners.foreach {
         case (_, (ref, _)) => ref ! DataEnd
       }
 
-      case StreamDatumDeleted(table, replRev) => tableJoiners.get(table).foreach {
+      case StreamDatumDeleted(table, replRev) => tableListeners.get(table).foreach {
         case (ref, _) => ref ! DatumDeleted(table, replRev)
       }
       case StreamDataInserted(table, record) =>
         Stats.incr(self.path + "/StreamDataInserted")
-        tableJoiners.get(table).foreach {
+        tableListeners.get(table).foreach {
           case (ref, ds) => ref ! DataInserted(table, ds(record))
         }
-      case StreamDataDeleted(table, replId, _) => tableJoiners.get(table).foreach {
+      case StreamDataDeleted(table, replId, _) => tableListeners.get(table).foreach {
         case (ref, _) => ref ! DataDeleted(table, replId)
       }
 
