@@ -33,6 +33,8 @@ class Order(val order: OrderProps) extends Actor with FSM[OrderState, RestAmount
 
   import OrderState._
 
+  log.debug("Create order: " + order)
+
   startWith(Active, RestAmount(order.amount))
 
   when(Active) {

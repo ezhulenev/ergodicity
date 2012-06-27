@@ -37,7 +37,7 @@ class BrokerIntegrationSpec extends WordSpec {
 
       val future = FutureContract(Isin(0, "RTS-9.12", ""), "")
 
-      val order = broker.buy(future, GoodTillCancelled, BigDecimal(130000), 3)
+      val order = broker.sell(future, GoodTillCancelled, BigDecimal(127000), 3)
 
       log.info("Order = " + order)
 

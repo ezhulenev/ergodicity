@@ -4,11 +4,13 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import com.ergodicity.core.AkkaConfigurations
 import AkkaConfigurations._
-import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import akka.actor.{ActorRef, ActorSystem}
 import org.mockito.Mockito._
 import com.ergodicity.plaza2.scheme.common.OrderLogRecord
-import com.ergodicity.plaza2.DataStream.DataInserted
+import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
+import com.ergodicity.core.order.FutureOrders.BindFutTradeRepl
+import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
+import com.ergodicity.plaza2.DataStream.{BindTable, DataInserted}
 
 class FutureOrdersSpec extends TestKit(ActorSystem("FutureOrdersSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -19,24 +21,37 @@ class FutureOrdersSpec extends TestKit(ActorSystem("FutureOrdersSpec", ConfigWit
 
 
   "Future Orders" must {
+
+    "bind data stream" in {
+      val futOrders = TestFSMRef(new FutureOrders, "FutureOrders")
+
+      futOrders ! SubscribeTransitionCallBack(self)
+      expectMsg(CurrentState(futOrders, FutureOrdersState.Idle))
+
+      futOrders ! BindFutTradeRepl(self)
+
+      expectMsgType[BindTable[OrderLogRecord]]
+      expectMsg(Transition(futOrders, FutureOrdersState.Idle, FutureOrdersState.Binded))
+    }
+
     "create new session orders on request" in {
-      val futOrders = TestActorRef(new FutureOrders, "FutureOrders")
-      val underlying = futOrders.underlyingActor
+      val futOrders = TestFSMRef(new FutureOrders, "FutureOrders")
+      futOrders.setState(FutureOrdersState.Binded)
 
       futOrders ! TrackSession(100)
       expectMsgType[ActorRef]
 
-      assert(underlying.sessions.size == 1)
+      assert(futOrders.stateData.size == 1)
     }
 
     "drop session orders" in {
-      val futOrders = TestActorRef(new FutureOrders, "FutureOrders")
-      val underlying = futOrders.underlyingActor
+      val futOrders = TestFSMRef(new FutureOrders, "FutureOrders")
+      futOrders.setState(FutureOrdersState.Binded)
 
       futOrders ! TrackSession(100)
       futOrders ! DropSession(100)
 
-      assert(underlying.sessions.size == 0)
+      assert(futOrders.stateData.size == 0)
     }
 
     "handle DataInserted event" in {
@@ -46,12 +61,12 @@ class FutureOrdersSpec extends TestKit(ActorSystem("FutureOrdersSpec", ConfigWit
         record
       }
 
-      val futOrders = TestActorRef(new FutureOrders, "FutureOrders")
-      val underlying = futOrders.underlyingActor
+      val futOrders = TestFSMRef(new FutureOrders, "FutureOrders")
+      futOrders.setState(FutureOrdersState.Binded)
 
       records.foreach(futOrders ! DataInserted("orders_log", _))
 
-      assert(underlying.sessions.size == 10)
+      assert(futOrders.stateData.size == 10)
     }
   }
 }
