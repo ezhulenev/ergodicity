@@ -47,7 +47,7 @@ class FutureOrders extends Actor with FSM[FutureOrdersState, Map[Int, ActorRef]]
 
     case Event(DataEnd, _) => stay()
 
-    case Event(e@DatumDeleted("orders_log", replRev), _) => stop(Failure("Illegal event: " + e))
+    case Event(e@DatumDeleted("orders_log", replRev), _) => stay()
 
     case Event(e@DataDeleted("orders_log", replId), _) => stop(Failure("Illegal event: " + e))
 
@@ -59,6 +59,7 @@ class FutureOrders extends Actor with FSM[FutureOrdersState, Map[Int, ActorRef]]
       val sessionId = record.sess_id
       log.debug("Create session orders for: " + sessionId)
       val actor = context.actorOf(Props(new FutureSessionOrders(sessionId)), "Session-" + sessionId)
+      actor ! record
       stay() using (sessions + (sessionId -> actor))
   }
 

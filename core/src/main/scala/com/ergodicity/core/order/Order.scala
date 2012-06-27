@@ -54,4 +54,9 @@ class Order(val order: OrderProps) extends Actor with FSM[OrderState, RestAmount
   whenUnhandled {
     case Event(CancelOrder(cancelAmount), RestAmount(restAmount)) => goto(Cancelled) using RestAmount(restAmount - cancelAmount)
   }
+
+  onTransition {
+    case Active -> Filled => log.debug("Order filled")
+    case Active -> Cancelled => log.debug("Order cancelled")
+  }
 }
