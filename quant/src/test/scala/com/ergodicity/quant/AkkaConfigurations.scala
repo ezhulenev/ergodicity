@@ -1,4 +1,4 @@
-package com.ergodicity.cep
+package com.ergodicity.quant
 
 import com.typesafe.config.ConfigFactory
 

@@ -1,4 +1,4 @@
-package com.ergodicity.cep
+package com.ergodicity.quant
 
 import org.joda.time.DateTime
 

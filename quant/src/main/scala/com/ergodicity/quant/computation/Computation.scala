@@ -1,4 +1,4 @@
-package com.ergodicity.cep.computation
+package com.ergodicity.quant.computation
 
 import org.joda.time.{Interval, Duration}
 import scalaz.NonEmptyList

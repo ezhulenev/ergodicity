@@ -1,4 +1,4 @@
-package com.ergodicity.cep.eip
+package com.ergodicity.quant.eip
 
 import akka.actor.{ActorRef, Actor}
 

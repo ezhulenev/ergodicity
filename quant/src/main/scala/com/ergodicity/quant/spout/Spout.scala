@@ -1,4 +1,4 @@
-package com.ergodicity.cep.spout
+package com.ergodicity.quant.spout
 
 import akka.actor.ActorRef
 

@@ -1,9 +1,9 @@
-package com.ergodicity.cep.spout
+package com.ergodicity.quant.spout
 
 import akka.actor.{ActorRef, Actor}
-import com.ergodicity.cep.MarketEvent
-import com.ergodicity.cep.computation.FramedReaction.{Jump, Stay}
-import com.ergodicity.cep.computation.FramedComputation
+import com.ergodicity.quant.MarketEvent
+import com.ergodicity.quant.computation.FramedReaction.{Jump, Stay}
+import com.ergodicity.quant.computation.FramedComputation
 
 case class SubscribeIntermediateComputations(ref: ActorRef)
 

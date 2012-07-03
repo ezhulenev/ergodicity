@@ -1,17 +1,17 @@
 package com.ergodicity.capture
 
-import com.ergodicity.plaza2.DataStream
 import com.ergodicity.plaza2.DataStream._
 import com.ergodicity.plaza2.scheme.Record
 import com.twitter.ostrich.stats.Stats
 import com.twitter.finagle.kestrel.Client
-import com.twitter.concurrent.Offer
 import java.util.concurrent.atomic.AtomicReference
 import sbinary._
 import Operations._
 import org.jboss.netty.buffer.ChannelBuffers
 import com.ergodicity.marketdb.model.{OrderPayload, TradePayload}
 import akka.actor.{Terminated, Props, FSM, Actor}
+import com.twitter.util.Future
+import com.twitter.concurrent.{Tx, Offer}
 
 sealed trait MarketDbCaptureState
 
@@ -147,15 +147,11 @@ sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List
     def apply[A](value: A): Offer[A] = new Offer[A] {
       val ref = new AtomicReference[Option[A]](Some(value))
 
-      def objects = Seq()
-
-      def poll() = ref.getAndSet(None).map(() => _)
-
-      def enqueue(setter: this.type#Setter) = null
+      def prepare() = ref.getAndSet(None) map {value =>
+        Future.value(Tx.const(value))
+      } getOrElse Future.never
     }
-
   }
-
 }
 
 class TradesBuncher(val client: Client, val queue: String) extends MarketDbBuncher[TradePayload] {

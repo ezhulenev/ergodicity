@@ -1,6 +1,6 @@
-package com.ergodicity.cep.computation
+package com.ergodicity.quant.computation
 
-import com.ergodicity.cep.MarketEvent
+import com.ergodicity.quant.MarketEvent
 import org.scala_tools.time.Implicits._
 import scalaz.NonEmptyList
 import org.joda.time.{Duration, Interval}
@@ -20,7 +20,7 @@ class ContinuousCounter[P](cnt: Int = 0) extends ContinuousComputation[P, Int] {
 }
 
 class FramedCounter[E <: MarketEvent](val frame: Interval, cnt: Int = 0) extends FramedComputation[E, Int] {
-  import com.ergodicity.cep.Implicits._
+  import com.ergodicity.quant.Implicits._
   def sequent() = new FramedCounter[E](frame.sequent)
 
   def apply() = cnt

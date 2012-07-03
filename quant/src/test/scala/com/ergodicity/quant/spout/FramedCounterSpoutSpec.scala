@@ -1,13 +1,13 @@
-package com.ergodicity.cep.spout
+package com.ergodicity.quant.spout
 
 import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
 import akka.actor.ActorSystem
 import akka.event.Logging
 import org.joda.time.DateTime
 import org.scala_tools.time.Implicits._
-import com.ergodicity.cep.{TestMarketEvent, AkkaConfigurations}
+import com.ergodicity.quant.{TestMarketEvent, AkkaConfigurations}
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
-import com.ergodicity.cep.computation.FramedCounter
+import com.ergodicity.quant.computation.FramedCounter
 
 class FramedCounterSpoutSpec extends TestKit(ActorSystem("FramedCounterSpoutSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)

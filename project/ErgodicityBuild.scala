@@ -2,6 +2,7 @@ import sbt._
 import sbt.Keys._
 import sbtassembly.Plugin._
 import AssemblyKeys._
+import net.virtualvoid.sbt.graph.Plugin._
 
 object ErgodicityBuild extends Build {
 
@@ -14,23 +15,31 @@ object ErgodicityBuild extends Build {
   lazy val ergodicity = Project(
     id = "ergodicity",
     base = file("."),
-    aggregate = Seq(capture, core, plaza2)
+    aggregate = Seq(capture, engine, core, plaza2)
   ).configs( IntegrationTest )
-    .settings( Defaults.itSettings : _*)
+    .settings( (Defaults.itSettings ++ graphSettings) : _*)
 
   lazy val capture = Project(
     id = "capture",
     base = file("capture"),
     dependencies = Seq(core),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ Seq(libraryDependencies ++= Dependencies.capture) ++ assemblySettings
+    settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.capture) ++
+      assemblySettings ++ extAssemblySettings
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
-  lazy val cep = Project(
-    id = "cep",
-    base = file("cep"),
+  lazy val quant = Project(
+    id = "quant",
+    base = file("quant"),
     dependencies = Seq(core),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ Seq(libraryDependencies ++= Dependencies.cep)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.quant)
+  ).configs( IntegrationTest )
+    .settings( Defaults.itSettings : _*)
+
+  lazy val engine = Project(
+    id = "engine",
+    base = file("engine"),
+    settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.engine)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
@@ -38,14 +47,14 @@ object ErgodicityBuild extends Build {
     id = "core",
     base = file("core"),
     dependencies = Seq(plaza2),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ Seq(libraryDependencies ++= Dependencies.core)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.core)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
   lazy val plaza2 = Project(
     id = "plaza2",
     base = file("plaza2"),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ Seq(libraryDependencies ++= Dependencies.plaza2)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.plaza2)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
@@ -64,6 +73,49 @@ object ErgodicityBuild extends Build {
     resolvers += "Twitter Repository" at "http://maven.twttr.com/",
     resolvers += "Akka Repository" at "http://akka.io/snapshots/"
   )
+
+  private val LicenseFile = """(license|licence|notice|copying)([.]\w+)?$""".r
+  private def isLicenseFile(fileName: String): Boolean =
+    fileName.toLowerCase match {
+      case LicenseFile(_, ext) if ext != ".class" => true // DISLIKE
+      case _ => false
+    }
+
+  private val ReadMe = """(readme)([.]\w+)?$""".r
+  private def isReadme(fileName: String): Boolean =
+    fileName.toLowerCase match {
+      case ReadMe(_, ext) if ext != ".class" => true
+      case _ => false
+    }
+
+  private object PathList {
+    private val sysFileSep = System.getProperty("file.separator")
+    def unapplySeq(path: String): Option[List[String]] = {
+      val split = path.split(if (sysFileSep.equals( """\""")) """\\""" else sysFileSep)
+      if (split.size == 0) None
+      else Some(split.toList)
+    }
+  }
+
+  lazy val extAssemblySettings = scala.Seq[sbt.Project.Setting[_]](
+    jarName in assembly <<= (name, version) { (name, version) => "market-capture-" + version + ".jar" } ,
+    test in assembly := {},
+
+    mergeStrategy in assembly := {
+      case PathList(ps @ _*) if isReadme(ps.last) || isLicenseFile(ps.last) =>
+        MergeStrategy.rename
+      case PathList("META-INF", xs @ _*) =>
+        (xs.map {_.toLowerCase}) match {
+          case ("manifest.mf" :: Nil) => MergeStrategy.discard
+          case list @ (head :: tail) if (list.reverse.head == "manifest.mf") => MergeStrategy.discard
+          case list @ (head :: tail) if (list.reverse.head == "notice.txt") => MergeStrategy.discard
+          case "plexus" :: _ => MergeStrategy.discard
+          case "maven" :: _ => MergeStrategy.discard
+          case e => MergeStrategy.deduplicate
+        }
+      case _ => MergeStrategy.deduplicate
+    }
+  )
 }
 
 object Dependencies {
@@ -71,11 +123,13 @@ object Dependencies {
 
   val capture = Seq(scalaz, finagleKestrel, marketDb, casbah, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
-  val cep = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val quant = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+
+  val engine = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
   val core = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
-  val plaza2 = Seq(plaza2Connectivity, akka, scalaTime, slf4jApi, logback, jodaTime, jodaConvert) ++
+  val plaza2 = Seq(ostrich, plaza2Connectivity, akka, scalaTime, slf4jApi, logback, jodaTime, jodaConvert) ++
     Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 }
 
@@ -97,13 +151,15 @@ object Dependency {
     val ScalaSTM     = "0.4"
     val JodaTime     = "2.0"
     val JodaConvert  = "1.2"
-    val Finagle      = "1.11.1"
     val SBinary      = "0.4.0"
     val ScalaTime    = "0.5"
-    val Ostrich      = "4.10.6"
     val Akka         = "2.0"
     val ScalaIO      = "0.3.0"
     val Casbah       = "2.1.5-1"
+
+    // Twitter dependencies
+    val Finagle      = "4.0.2"
+    val Ostrich      = "7.0.0"
   }
 
   // Compile
@@ -120,7 +176,7 @@ object Dependency {
   val finagleKestrel         = "com.twitter"                      %% "finagle-kestrel"        % V.Finagle
   val ostrich                = "com.twitter"                      %% "ostrich"                % V.Ostrich
   val sbinary                = "org.scala-tools.sbinary"          %% "sbinary"                % V.SBinary
-  val scalaTime              = "org.scala-tools.time"             %% "time"                   % V.ScalaTime
+  val scalaTime              = "org.scala-tools.time"             %% "time"                   % V.ScalaTime intransitive()
   val akka                   = "com.typesafe.akka"                 % "akka-actor"             % V.Akka
   val scalaIO                = "com.github.scala-incubator.io"    %% "scala-io-core"          % V.ScalaIO
   val casbah                 = "com.mongodb.casbah"               %% "casbah"                 % V.Casbah

@@ -1,10 +1,10 @@
-package com.ergodicity.cep.spout
+package com.ergodicity.quant.spout
 
-import com.ergodicity.cep.MarketEvent
-import com.ergodicity.cep.computation.SlidingComputation
+import com.ergodicity.quant.MarketEvent
+import com.ergodicity.quant.computation.SlidingComputation
 import akka.event.Logging
 import akka.actor.{ActorRef, Actor}
-import com.ergodicity.cep.computation.SlidingReaction.{Slide, Stay}
+import com.ergodicity.quant.computation.SlidingReaction.{Slide, Stay}
 import scalaz.NonEmptyList
 
 sealed trait SlidingState

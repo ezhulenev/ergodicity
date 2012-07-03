@@ -1,14 +1,14 @@
-package com.ergodicity.cep.spout
+package com.ergodicity.quant.spout
 
 import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
 import org.joda.time.DateTime
-import com.ergodicity.cep.{TestMarketEvent, AkkaConfigurations}
+import com.ergodicity.quant.{TestMarketEvent, AkkaConfigurations}
 import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import org.scala_tools.time.Implicits._
-import com.ergodicity.cep.computation.Counter
-import com.ergodicity.cep.eip.Transformer
+import com.ergodicity.quant.computation.Counter
+import com.ergodicity.quant.eip.Transformer
 
 class SlidingCounterSpoutSpec extends TestKit(ActorSystem("SlidingCounterSpoutSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)
