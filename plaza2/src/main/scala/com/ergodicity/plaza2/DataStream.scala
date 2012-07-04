@@ -56,12 +56,12 @@ object DataStream {
   def apply(underlying: P2DataStream) = new DataStream(underlying)
 }
 
-class DataStream(protected[plaza2] val underlying: P2DataStream) extends Actor with FSM[DataStreamState, Option[SafeRelease]] {
+class DataStream(protected[plaza2] val underlying: P2DataStream, ini: Option[File] = None) extends Actor with FSM[DataStreamState, Option[SafeRelease]] {
 
   import DataStreamState._
 
   private var lifeNumSubscribers = Seq[ActorRef]()
-  private var setLifeNumToIni: Option[File] = None
+  private var setLifeNumToIni: Option[File] = ini
 
   @volatile
   private var tableListeners = Map[String, (ActorRef, Deserializer[_ <: Record])]()

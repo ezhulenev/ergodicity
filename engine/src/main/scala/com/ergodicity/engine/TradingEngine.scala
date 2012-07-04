@@ -1,9 +1,9 @@
 package com.ergodicity.engine
 
-import component.ConnectionComponent
-import com.ergodicity.plaza2.ConnectionState
 import akka.actor.{Terminated, Props, FSM, Actor}
 import akka.actor.FSM.{Failure, Transition, SubscribeTransitionCallBack}
+import com.ergodicity.plaza2.ConnectionState
+import component.{OptInfoDataStreamComponent, FutInfoDataStreamComponent, ConnectionComponent}
 
 sealed trait TradingEngineState
 
@@ -24,7 +24,8 @@ case class StartTradingEngine(connection: ConnectionProperties)
 
 
 class TradingEngine extends Actor with FSM[TradingEngineState, Unit] {
-  this: Actor with FSM[TradingEngineState, Unit] with ConnectionComponent =>
+  this: Actor with FSM[TradingEngineState, Unit] with ConnectionComponent
+    with FutInfoDataStreamComponent with OptInfoDataStreamComponent =>
 
   import TradingEngineState._
 
@@ -32,6 +33,10 @@ class TradingEngine extends Actor with FSM[TradingEngineState, Unit] {
   val Connection = context.actorOf(Props(connectionCreator), "Connection")
   context.watch(Connection)
   Connection ! SubscribeTransitionCallBack(self)
+
+  // Create DataStreams
+  val FutInfo = context.actorOf(Props(futInfoCreator), "FuturesInfoDataStream")
+  val OptInfo = context.actorOf(Props(optInfoCreator), "OptionsInfoDataStream")
 
   startWith(Idle, Unit)
 
