@@ -6,6 +6,8 @@ import com.jacob.com.Variant
 import com.ergodicity.core.common._
 
 object Broker {
+  val FORTS_MSG = "FORTS_MSG"
+
   def apply(clientCode: String, connection: P2Connection)(implicit messageFactory: MessageFactory) = new Broker(clientCode, connection)
 }
 
@@ -19,9 +21,10 @@ case class OptOrder(id: Long) extends Order
 
 
 class Broker(clientCode: String, connection: P2Connection)(implicit messageFactory: MessageFactory) {
+  import Broker._
+
   private val log = LoggerFactory.getLogger(classOf[Broker])
 
-  private val FORTS_MSG = "FORTS_MSG"
   lazy val service = connection.resolveService("FORTS_SRV")
 
   private def mapOrderType(orderType: OrderType) = orderType match {

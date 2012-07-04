@@ -32,6 +32,8 @@ class BrokerSpec extends WordSpec {
       when(messageFactory.createMessage("FutAddOrder")).thenReturn(message)
 
       val response = mock(classOf[Message])
+      when(response.field("P2_Category")).thenReturn(new Variant(Broker.FORTS_MSG));
+      when(response.field("P2_Type")).thenReturn(new Variant(101));
       when(response.field("code")).thenReturn(new Variant(100))
       when(response.field("message")).thenReturn(new Variant("error"))
 

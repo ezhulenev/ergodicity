@@ -43,7 +43,7 @@ class Connection(protected[plaza2] val underlying: P2Connection) extends Actor w
       goto(Connecting) using Some(connect(host, port, appName))
   }
 
-  when(Connecting, stateTimeout = 10.second) {
+  when(Connecting, stateTimeout = 3.second) {
     case Event(ConnectionStatusChanged(ConnectionConnected, Some(RouterConnected)), _) =>
       goto(Connected)
 

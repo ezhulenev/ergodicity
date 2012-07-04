@@ -39,6 +39,7 @@ object ErgodicityBuild extends Build {
   lazy val engine = Project(
     id = "engine",
     base = file("engine"),
+    dependencies = Seq(core),
     settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.engine)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
