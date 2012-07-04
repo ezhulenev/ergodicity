@@ -130,7 +130,7 @@ object Dependencies {
 
   val core = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
-  val plaza2 = Seq(ostrich, plaza2Connectivity, akka, scalaTime, slf4jApi, logback, jodaTime, jodaConvert) ++
+  val plaza2 = Seq(ostrich, plaza2Connectivity, akka, scalaTime, logback, jodaTime, jodaConvert) ++
     Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 }
 
@@ -144,11 +144,10 @@ object Dependency {
     val Plaza2       = "0.1-SNAPSHOT"
 
     val Scalatest    = "1.6.1"
-    val Slf4j        = "1.6.4"
     val Mockito      = "1.8.1"
     val Scalacheck   = "1.9"
     val Scalaz       = "6.0.4"
-    val Logback      = "1.0.0"
+    val Logback      = "1.0.3"
     val ScalaSTM     = "0.4"
     val JodaTime     = "2.0"
     val JodaConvert  = "1.2"
@@ -167,7 +166,6 @@ object Dependency {
   val plaza2Connectivity     = "com.ergodicity.connectivity"      %% "plaza2"                 % V.Plaza2
   val marketDb               = "com.ergodicity.marketdb"          %% "marketdb-api"           % V.MarketDb
 
-  val slf4jApi               = "org.slf4j"                         % "slf4j-api"              % V.Slf4j
   val logback                = "ch.qos.logback"                    % "logback-classic"        % V.Logback
   val scalaz                 = "org.scalaz"                       %% "scalaz-core"            % V.Scalaz
   val scalaSTM               = "org.scala-tools"                  %% "scala-stm"              % V.ScalaSTM
