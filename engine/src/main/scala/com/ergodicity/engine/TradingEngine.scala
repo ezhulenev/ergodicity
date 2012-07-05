@@ -4,7 +4,6 @@ import scalaz._
 import Scalaz._
 import component.{OptInfoDataStreamComponent, FutInfoDataStreamComponent, ConnectionComponent}
 import com.ergodicity.core.Sessions
-import com.ergodicity.core.Sessions.{BindOptInfoRepl, BindFutInfoRepl}
 import com.ergodicity.plaza2.DataStream.Open
 import akka.actor.FSM.{Failure => FSMFailure, _}
 import com.jacob.com.ComFailException
@@ -12,6 +11,7 @@ import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
 import com.ergodicity.plaza2.{DataStream, DataStreamState, Connection, ConnectionState}
 import com.ergodicity.plaza2.Connection.ProcessMessages
+import com.ergodicity.core.Sessions.BindSessions
 
 
 sealed trait TradingEngineState
@@ -68,7 +68,7 @@ class TradingEngine(processMessagesTimeout: Int) extends Actor with FSM[TradingE
   val OptInfo = context.actorOf(Props(DataStream(underlyingOptInfo)), "OptionsInfoDataStream")
 
   // Sessions tracking
-  val Sessions = context.actorOf(Props(new Sessions), "Sessions")
+  val Sessions = context.actorOf(Props(new Sessions(FutInfo, OptInfo)), "Sessions")
 
   startWith(Idle, Blank)
 
@@ -111,8 +111,7 @@ class TradingEngine(processMessagesTimeout: Int) extends Actor with FSM[TradingE
       log.debug("Initializing Trading Engine")
 
       // Bind sessions tracker to data streams
-      Sessions ! BindFutInfoRepl(FutInfo)
-      Sessions ! BindOptInfoRepl(OptInfo)
+      Sessions ! BindSessions
 
       // Subscribe for state updates
       FutInfo ! SubscribeTransitionCallBack(self)

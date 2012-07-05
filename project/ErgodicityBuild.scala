@@ -128,7 +128,7 @@ object Dependencies {
 
   val engine = Seq(scalaz) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
-  val core = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val core = Seq(scalaz) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
   val plaza2 = Seq(ostrich, plaza2Connectivity, akka, scalaTime, logback, jodaTime, jodaConvert) ++
     Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)

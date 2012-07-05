@@ -2,122 +2,220 @@ package com.ergodicity.core
 
 import com.ergodicity.plaza2.scheme.FutInfo._
 import com.ergodicity.plaza2.DataStream.BindTable
-import com.ergodicity.plaza2.Repository
 import com.ergodicity.plaza2.Repository.{Snapshot, SubscribeSnapshots}
-import akka.event.Logging
-import akka.actor.{PoisonPill, Props, Actor, ActorRef}
 import session.Session.{OptInfoSessionContents, FutInfoSessionContents}
 import session.{Session, SessionState, IntClearingState, SessionContent}
 import com.ergodicity.plaza2.scheme.{OptInfo, Deserializer, FutInfo}
-import com.ergodicity.core.Sessions.{BindOptInfoRepl, BindFutInfoRepl, OngoingSession, GetOngoingSession}
+import com.ergodicity.plaza2.{DataStreamState, Repository}
+import akka.actor._
+import scalaz._
+import Scalaz._
+import akka.actor.FSM.{UnsubscribeTransitionCallBack, Transition, CurrentState, SubscribeTransitionCallBack}
+
 
 protected[core] case class SessionId(id: Long, optionSessionId: Long)
 
 object Sessions {
-  def apply = new Sessions()
+  def apply(FutInfoStream: ActorRef, OptInfoStream: ActorRef) = new Sessions(FutInfoStream, OptInfoStream)
 
   case object GetOngoingSession
 
   case class OngoingSession(session: Option[ActorRef])
 
-  case class BindFutInfoRepl(dataStream: ActorRef)
+  case object BindSessions
+}
 
-  case class BindOptInfoRepl(dataStream: ActorRef)
+sealed trait SessionsState
+
+object SessionsState {
+
+  case object Idle extends SessionsState
+
+  case object Binding extends SessionsState
+
+  case object LoadingSessions extends SessionsState
+
+  case object LoadingFuturesContents extends SessionsState
+
+  case object LoadingOptionsContents extends SessionsState
+
+  case object Online extends SessionsState
 
 }
 
-class Sessions extends Actor {
-  val log = Logging(context.system, this)
+sealed trait SessionsData
 
-  protected[core] var ongoingSession: Option[ActorRef] = None
-  protected[core] var trackingSessions: Map[SessionId, ActorRef] = Map()
+object SessionsData {
 
-  // Repositories
-  val sessionRepository = context.actorOf(Props(Repository[SessionRecord]), "SessionRepository")
-  sessionRepository ! SubscribeSnapshots(self)
+  case object Blank extends SessionsData
 
-  val futSessContentsRepository = context.actorOf(Props(Repository[FutInfo.SessContentsRecord]), "FutSessContentsRepository")
-  futSessContentsRepository ! SubscribeSnapshots(self)
+  case class BindingStates(futures: Option[DataStreamState], options: Option[DataStreamState]) extends SessionsData
 
-  val optSessContentsRepository = context.actorOf(Props(Repository[OptInfo.SessContentsRecord]), "OptSessContentsRepository")
-  optSessContentsRepository ! SubscribeSnapshots(self)
+  case class TrackingSessions(sessions: Map[SessionId, ActorRef], ongoing: Option[ActorRef]) extends SessionsData {
+    def updateWith(records: Iterable[SessionRecord])(implicit context: ActorContext): TrackingSessions = {
+      {
+        val (alive, outdated) = sessions.partition {
+          case (SessionId(i1, i2), ref) => records.find((r: SessionRecord) => r.sessionId == i1 && r.optionsSessionId == i2).isDefined
+        }
 
-  protected def receive = {
-    case GetOngoingSession => sender ! OngoingSession(ongoingSession)
+        // Kill all outdated sessions
+        outdated.foreach {
+          case (id, session) => session ! PoisonPill
+        }
 
-    case BindFutInfoRepl(dataStream) =>
-      dataStream ! BindTable("session", sessionRepository, implicitly[Deserializer[SessionRecord]])
-      dataStream ! BindTable("fut_sess_contents", futSessContentsRepository, implicitly[Deserializer[FutInfo.SessContentsRecord]])
+        // Update status for still alive sessions
+        alive.foreach {
+          case (SessionId(i1, i2), session) =>
+            records.find((r: SessionRecord) => r.sessionId == i1 && r.optionsSessionId == i2) foreach {
+              record =>
+                session ! SessionState(record.state)
+                session ! IntClearingState(record.interClState)
+            }
+        }
 
-    case BindOptInfoRepl(dataStream) =>
-      dataStream ! BindTable("opt_sess_contents", optSessContentsRepository, implicitly[Deserializer[OptInfo.SessContentsRecord]])
+        // Create actors for new sessions
+        val newSessions = records.filter(record => !alive.contains(SessionId(record.sessionId, record.optionsSessionId))).map {
+          newRecord =>
+            val sessionId = newRecord.sessionId
+            val state = SessionState(newRecord.state)
+            val intClearingState = IntClearingState(newRecord.interClState)
+            val content = new SessionContent(newRecord)
+            val session = context.actorOf(Props(new Session(content, state, intClearingState)), sessionId.toString)
 
-    case Snapshot(repo, data: Iterable[SessionRecord]) if (repo == sessionRepository) =>
-      updateSessions(data)
-      futSessContentsRepository ! SubscribeSnapshots(self)
+            SessionId(sessionId, newRecord.optionsSessionId) -> session
+        }
 
-    case snapshot@Snapshot(repo, _) if (repo == futSessContentsRepository) =>
-      handleFutSessContents(snapshot.asInstanceOf[Snapshot[FutInfo.SessContentsRecord]])
-
-    case snapshot@Snapshot(repo, _) if (repo == optSessContentsRepository) =>
-      handleOptSessContents(snapshot.asInstanceOf[Snapshot[OptInfo.SessContentsRecord]])
+        TrackingSessions(alive ++ newSessions, records.filter {
+          record => SessionState(record.state) match {
+            case SessionState.Completed | SessionState.Canceled => false
+            case _ => true
+          }
+        }.headOption.flatMap {
+          record => (alive ++ newSessions).get(SessionId(record.sessionId, record.optionsSessionId))
+        })
+      }
+    }
   }
 
-  protected def handleOptSessContents(snapshot: Snapshot[OptInfo.SessContentsRecord]) {
-    trackingSessions.foreach {
+}
+
+class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor with FSM[SessionsState, SessionsData] {
+
+  import Sessions._
+  import SessionsState._
+  import SessionsData._
+
+  // Repositories
+  val SessionRepository = context.actorOf(Props(Repository[SessionRecord]), "SessionRepository")
+  val FutSessContentsRepository = context.actorOf(Props(Repository[FutInfo.SessContentsRecord]), "FutSessContentsRepository")
+  val OptSessContentsRepository = context.actorOf(Props(Repository[OptInfo.SessContentsRecord]), "OptSessContentsRepository")
+
+  startWith(Idle, Blank)
+
+  when(Idle) {
+    case Event(BindSessions, Blank) => goto(Binding) using BindingStates(None, None)
+  }
+
+  when(Binding) {
+    // Handle FutInfo and OptInfo data streams state updates
+    case Event(CurrentState(FutInfoStream, state: DataStreamState), binding: BindingStates) =>
+      handleBindingState(binding.copy(futures = Some(state)))
+
+    case Event(CurrentState(OptInfoStream, state: DataStreamState), binding: BindingStates) =>
+      handleBindingState(binding.copy(options = Some(state)))
+
+    case Event(Transition(FutInfoStream, _, state: DataStreamState), binding: BindingStates) =>
+      handleBindingState(binding.copy(futures = Some(state)))
+
+    case Event(Transition(OptInfoStream, _, state: DataStreamState), binding: BindingStates) =>
+      handleBindingState(binding.copy(options = Some(state)))
+  }
+
+  when(LoadingSessions) {
+    case Event(Snapshot(SessionRepository, data: Iterable[SessionRecord]), tracking: TrackingSessions) =>
+      goto(LoadingFuturesContents) using tracking.updateWith(data)
+  }
+
+  when(LoadingFuturesContents) {
+    case Event(snapshot@Snapshot(FutSessContentsRepository, _), tracking: TrackingSessions) =>
+      dispatchFutSessContents(snapshot.asInstanceOf[Snapshot[FutInfo.SessContentsRecord]])(tracking)
+      goto(LoadingOptionsContents)
+  }
+
+  when(LoadingOptionsContents) {
+    case Event(snapshot@Snapshot(OptSessContentsRepository, _), tracking: TrackingSessions) =>
+      dispatchOptSessContents(snapshot.asInstanceOf[Snapshot[OptInfo.SessContentsRecord]])(tracking)
+      goto(Online)
+  }
+
+  when(Online) {
+    case Event(GetOngoingSession, TrackingSessions(_, ongoing)) =>
+      sender ! OngoingSession(ongoing);
+      stay()
+
+    case Event(snapshot@Snapshot(FutSessContentsRepository, _), tracking: TrackingSessions) =>
+      dispatchFutSessContents(snapshot.asInstanceOf[Snapshot[FutInfo.SessContentsRecord]])(tracking)
+      stay()
+
+    case Event(snapshot@Snapshot(OptSessContentsRepository, _), tracking: TrackingSessions) =>
+      dispatchOptSessContents(snapshot.asInstanceOf[Snapshot[OptInfo.SessContentsRecord]])(tracking)
+      stay()
+  }
+
+  whenUnhandled {
+    case Event(Snapshot(SessionRepository, data: Iterable[SessionRecord]), tracking: TrackingSessions) =>
+      stay() using tracking.updateWith(data)
+  }
+
+  onTransition {
+    case Idle -> Binding =>
+      log.debug("Bind to FutInfo and OptInfo data streams")
+
+      // Bind to tables
+      FutInfoStream ! BindTable("session", SessionRepository, implicitly[Deserializer[SessionRecord]])
+      FutInfoStream ! BindTable("fut_sess_contents", FutSessContentsRepository, implicitly[Deserializer[FutInfo.SessContentsRecord]])
+      OptInfoStream ! BindTable("opt_sess_contents", OptSessContentsRepository, implicitly[Deserializer[OptInfo.SessContentsRecord]])
+
+      // Track Data Stream states
+      FutInfoStream ! SubscribeTransitionCallBack(self)
+      OptInfoStream ! SubscribeTransitionCallBack(self)
+
+    case Binding -> LoadingSessions =>
+      log.debug("Loading sessions")
+      // Unsubscribe from updates
+      FutInfoStream ! UnsubscribeTransitionCallBack(self)
+      OptInfoStream ! UnsubscribeTransitionCallBack(self)
+      // Subscribe for sessions snapshots
+      SessionRepository ! SubscribeSnapshots(self)
+
+    case LoadingSessions -> LoadingFuturesContents =>
+      log.debug("Sessions loaded; Load Futures contents")
+      FutSessContentsRepository ! SubscribeSnapshots(self)
+
+    case LoadingFuturesContents -> LoadingOptionsContents =>
+      log.debug("Futures contents loaded; Load Options contents")
+      OptSessContentsRepository ! SubscribeSnapshots(self)
+
+    case LoadingOptionsContents -> Online =>
+      log.debug("Sessions contentes loaded")
+  }
+
+  protected def dispatchOptSessContents(snapshot: Snapshot[OptInfo.SessContentsRecord])(implicit tracking: TrackingSessions) {
+    tracking.sessions.foreach {
       case (SessionId(_, id), session) =>
         session ! OptInfoSessionContents(snapshot.filter(_.sessionId == id))
     }
   }
 
-  protected def handleFutSessContents(snapshot: Snapshot[FutInfo.SessContentsRecord]) {
-    trackingSessions.foreach {
+  protected def dispatchFutSessContents(snapshot: Snapshot[FutInfo.SessContentsRecord])(implicit tracking: TrackingSessions) {
+    tracking.sessions.foreach {
       case (SessionId(id, _), session) =>
         session ! FutInfoSessionContents(snapshot.filter(_.sessionId == id))
     }
   }
 
-  protected def updateSessions(records: Iterable[SessionRecord]) {
-    val (alive, outdated) = trackingSessions.partition {
-      case (SessionId(i1, i2), ref) => records.find((r: SessionRecord) => r.sessionId == i1 && r.optionsSessionId == i2).isDefined
-    }
-
-    // Kill all outdated sessions
-    outdated.foreach {
-      case (id, session) => session ! PoisonPill
-    }
-
-    // Update status for still alive sessions
-    alive.foreach {
-      case (SessionId(i1, i2), session) =>
-        records.find((r: SessionRecord) => r.sessionId == i1 && r.optionsSessionId == i2) foreach {
-          record =>
-            session ! SessionState(record.state)
-            session ! IntClearingState(record.interClState)
-        }
-    }
-
-    // Create actors for new sessions
-    val newSessions = records.filter(record => !alive.contains(SessionId(record.sessionId, record.optionsSessionId))).map {
-      newRecord =>
-        val sessionId = newRecord.sessionId
-        val state = SessionState(newRecord.state)
-        val intClearingState = IntClearingState(newRecord.interClState)
-        val content = new SessionContent(newRecord)
-        val session = context.actorOf(Props(new Session(content, state, intClearingState)), sessionId.toString)
-
-        SessionId(sessionId, newRecord.optionsSessionId) -> session
-    }
-
-    // Update internal state
-    trackingSessions = alive ++ newSessions
-    ongoingSession = records.filter {
-      record => SessionState(record.state) match {
-        case SessionState.Completed | SessionState.Canceled => false
-        case _ => true
-      }
-    }.headOption.flatMap {
-      record => trackingSessions.get(SessionId(record.sessionId, record.optionsSessionId))
-    }
+  protected def handleBindingState(state: BindingStates): State = (state.futures <**> state.options) {(_, _)} match {
+    case Some((DataStreamState.Online, DataStreamState.Online)) => goto(LoadingSessions) using TrackingSessions(Map(), None)
+    case _ => stay() using state
   }
 }
