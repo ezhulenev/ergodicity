@@ -131,6 +131,7 @@ class DataStream(protected[plaza2] val underlying: P2DataStream, ini: Option[Fil
   }
 
   private def open(connection: P2Connection) = {
+    log.debug("Open stream using connection: " + connection)
     val safeRelease = underlying.dispatchEvents {
       // First handle Data events
       case StreamDataBegin => tableListeners.foreach {

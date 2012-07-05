@@ -7,13 +7,10 @@ import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import org.mockito.Mockito._
 import TradingEngineState._
 import akka.actor.{Terminated, ActorSystem}
-import plaza2.{ConnectionStatusChanged, Connection => P2Connection, DataStream => P2DataStream}
-import com.ergodicity.plaza2.{DataStream, Connection}
+import plaza2.{Connection => P2Connection, DataStream => P2DataStream}
 
 class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
-
-  type StatusHandler = ConnectionStatusChanged => Unit
 
   override def afterAll() {
     system.shutdown()
@@ -53,30 +50,11 @@ class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigW
     }
   }
 
-  def buildEngine(p2: P2Connection = mock(classOf[P2Connection])) = TestFSMRef(new TradingEngine with MockConnectionComponent with MockFutInfoDataStream with MockOptInfoDataStream {
-      lazy val underlyingConnection = p2
+  def buildEngine(p2: P2Connection = mock(classOf[P2Connection])) = TestFSMRef(new TradingEngine(100) with ConnectionComponent with FutInfoDataStreamComponent with OptInfoDataStreamComponent {
+    lazy val underlyingConnection = p2
 
-      lazy val underlyingFutInfo = mock(classOf[P2DataStream])
+    lazy val underlyingFutInfo = mock(classOf[P2DataStream])
 
-      lazy val underlyingOptInfo = mock(classOf[P2DataStream])
-    }, "Engine")
-
-  trait MockConnectionComponent extends ConnectionComponent {
-    def underlyingConnection: P2Connection
-
-    lazy val connectionCreator = Connection(underlyingConnection)
-  }
-
-  trait MockFutInfoDataStream extends FutInfoDataStreamComponent {
-    def underlyingFutInfo: P2DataStream
-
-    def futInfoCreator = new DataStream(underlyingFutInfo)
-  }
-
-  trait MockOptInfoDataStream extends OptInfoDataStreamComponent {
-    def underlyingOptInfo: P2DataStream
-
-    def optInfoCreator = new DataStream(underlyingOptInfo)
-  }
-
+    lazy val underlyingOptInfo = mock(classOf[P2DataStream])
+  }, "Engine")
 }

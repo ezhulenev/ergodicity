@@ -126,7 +126,7 @@ object Dependencies {
 
   val quant = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
-  val engine = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val engine = Seq(scalaz) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
   val core = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
