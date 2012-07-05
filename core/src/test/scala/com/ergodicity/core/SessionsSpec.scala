@@ -1,6 +1,5 @@
 package com.ergodicity.core
 
-import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import com.ergodicity.plaza2.Repository.Snapshot
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import akka.actor.{Terminated, ActorSystem}
@@ -11,6 +10,11 @@ import session.Session.{OptInfoSessionContents, FutInfoSessionContents}
 import session.SessionState
 import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
 import com.ergodicity.plaza2.scheme.{OptInfo, FutInfo}
+import akka.testkit.{TestFSMRef, TestActorRef, ImplicitSender, TestKit}
+import plaza2.{DataStream => P2DataStream}
+import org.mockito.Mockito._
+import com.ergodicity.plaza2.{DataStreamState, DataStream}
+import com.ergodicity.core.SessionsData.TrackingSessions
 
 class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -19,27 +23,56 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
     system.shutdown()
   }
 
-/*
   "Sessions" must {
+
+    "initialized in Idle state" in {
+      val futuresDs = mock(classOf[P2DataStream])
+      val optionsDs = mock(classOf[P2DataStream])
+
+      val sessions = TestFSMRef(new Sessions(TestFSMRef(DataStream(futuresDs)), TestFSMRef(DataStream(optionsDs))), "Sessions")
+      assert(sessions.stateName == SessionsState.Idle)
+    }
+
     "track sessions state" in {
-      val sessions = TestActorRef(new Sessions, "Sessions")
+      val futuresDs = mock(classOf[P2DataStream])
+      val optionsDs = mock(classOf[P2DataStream])
 
-      val underlying = sessions.underlyingActor
+      val FutInfo = TestFSMRef(DataStream(futuresDs))
+      val OptInfo = TestFSMRef(DataStream(optionsDs))
+      val sessions = TestFSMRef(new Sessions(FutInfo, OptInfo), "Sessions")
+
+      val underlying = sessions.underlyingActor.asInstanceOf[Sessions]
       val sessionRepository = underlying.SessionRepository
+      
+      when("BindSessions received")
+      sessions ! BindSessions
+      
+      then("should go to BindingState")
+      assert(sessions.stateName == SessionsState.Binding)
+      
+      when("both data Streams goes online")
+      sessions ! Transition(FutInfo, DataStreamState.Opening, DataStreamState.Online)
+      sessions ! Transition(OptInfo, DataStreamState.Opening, DataStreamState.Online)
+      
+      then("should go to LoadingSessions state")
+      assert(sessions.stateName == SessionsState.LoadingSessions)
 
-      when("initialized with Online session")
+      when("receive Sessions snapthot with Online session")
       sessions ! Snapshot(sessionRepository, Seq(sessionRecord(46, 396, 4021, SessionState.Online)))
 
       then("should create actor for it")
-      val session1 = underlying.trackingSessions(SessionId(4021, 3547))
+      val session1 = sessions.stateData.asInstanceOf[TrackingSessions].sessions(SessionId(4021, 3547))
       watch(session1)
-
       session1 ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(session1, SessionState.Online))
 
-      assert(underlying.ongoingSession == Some(session1))
-      assert(underlying.trackingSessions.size == 1)
+      assert(sessions.stateData.asInstanceOf[TrackingSessions].ongoing == Some(session1))
+      assert(sessions.stateData.asInstanceOf[TrackingSessions].sessions.size == 1)
 
+      and("go to LoadingFuturesContens state")
+      assert(sessions.stateName == SessionsState.LoadingFuturesContents)
+
+      /*
       when("session completed")
       sessions ! Snapshot(sessionRepository, Seq(sessionRecord(46, 397, 4021, SessionState.Completed)))
 
@@ -85,10 +118,10 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       expectMsg(Terminated(session2))
 
       assert(underlying.ongoingSession == None)
-      assert(underlying.trackingSessions.size == 0)
+      assert(underlying.trackingSessions.size == 0)*/
     }
 
-    "should forward FutInfo.SessContentsRecord snapshot to child sessions" in {
+    /*"should forward FutInfo.SessContentsRecord snapshot to child sessions" in {
       val sessions = TestActorRef(new Sessions, "SessionsSpec")
 
       val underlying = sessions.underlyingActor
@@ -116,9 +149,8 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
 
       sessions ! Snapshot(optSessContentsRepository, option1 :: option2 :: Nil)
       expectMsg(OptInfoSessionContents(Snapshot(optSessContentsRepository, option1 :: Nil)))
-    }
+    }*/
   }
-*/
 
   def sessionRecord(replID: Long, revId: Long, sessionId: Int, sessionState: SessionState) = {
     import SessionState._
