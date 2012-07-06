@@ -31,7 +31,7 @@ object SessionsState {
 
   case object Idle extends SessionsState
 
-  case object Binding extends SessionsState
+  case object Binded extends SessionsState
 
   case object LoadingSessions extends SessionsState
 
@@ -113,10 +113,10 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   startWith(Idle, Blank)
 
   when(Idle) {
-    case Event(BindSessions, Blank) => goto(Binding) using BindingStates(None, None)
+    case Event(BindSessions, Blank) => goto(Binded) using BindingStates(None, None)
   }
 
-  when(Binding) {
+  when(Binded) {
     // Handle FutInfo and OptInfo data streams state updates
     case Event(CurrentState(FutInfoStream, state: DataStreamState), binding: BindingStates) =>
       handleBindingState(binding.copy(futures = Some(state)))
@@ -168,7 +168,7 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   }
 
   onTransition {
-    case Idle -> Binding =>
+    case Idle -> Binded =>
       log.debug("Bind to FutInfo and OptInfo data streams")
 
       // Bind to tables
@@ -180,7 +180,7 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
       FutInfoStream ! SubscribeTransitionCallBack(self)
       OptInfoStream ! SubscribeTransitionCallBack(self)
 
-    case Binding -> LoadingSessions =>
+    case Binded -> LoadingSessions =>
       log.debug("Loading sessions")
       // Unsubscribe from updates
       FutInfoStream ! UnsubscribeTransitionCallBack(self)

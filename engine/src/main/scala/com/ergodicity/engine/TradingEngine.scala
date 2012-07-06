@@ -1,9 +1,6 @@
 package com.ergodicity.engine
 
-import scalaz._
-import Scalaz._
 import component.{OptInfoDataStreamComponent, FutInfoDataStreamComponent, ConnectionComponent}
-import com.ergodicity.core.Sessions
 import com.ergodicity.plaza2.DataStream.Open
 import akka.actor.FSM.{Failure => FSMFailure, _}
 import com.jacob.com.ComFailException
@@ -12,6 +9,7 @@ import akka.actor._
 import com.ergodicity.plaza2.{DataStream, DataStreamState, Connection, ConnectionState}
 import com.ergodicity.plaza2.Connection.ProcessMessages
 import com.ergodicity.core.Sessions.BindSessions
+import com.ergodicity.core.{SessionsState, Sessions}
 
 
 sealed trait TradingEngineState
@@ -85,18 +83,21 @@ class TradingEngine(processMessagesTimeout: Int) extends Actor with FSM[TradingE
   }
 
   when(Initializing) {
-    // Handle FutInfo and OptInfo data streams updates
-    case Event(CurrentState(FutInfo, state: DataStreamState), initialization: InitializationState) =>
-      handleInitializationState(initialization.copy(futures = Some(state)))
 
-    case Event(CurrentState(OptInfo, state: DataStreamState), initialization: InitializationState) =>
-      handleInitializationState(initialization.copy(options = Some(state)))
+    case Event(Transition(Sessions, _, SessionsState.Binded), _) =>
+      log.debug("Open FutInfo & OptInfo data streams")
+      // Open data streams
+      FutInfo ! Open(underlyingConnection)
+      OptInfo ! Open(underlyingConnection)
 
-    case Event(Transition(FutInfo, _, state: DataStreamState), initialization: InitializationState) =>
-      handleInitializationState(initialization.copy(futures = Some(state)))
+      // Start message processing
+      Connection ! ProcessMessages(processMessagesTimeout);
 
-    case Event(Transition(OptInfo, _, state: DataStreamState), initialization: InitializationState) =>
-      handleInitializationState(initialization.copy(options = Some(state)))
+      stay()
+
+    case Event(Transition(Sessions, _, SessionsState.Online), _) =>
+      log.debug("Sessions online")
+      goto(Trading)
   }
   
   when(Trading) {
@@ -111,30 +112,12 @@ class TradingEngine(processMessagesTimeout: Int) extends Actor with FSM[TradingE
       log.debug("Initializing Trading Engine")
 
       // Bind sessions tracker to data streams
+      Sessions ! SubscribeTransitionCallBack(self)
       Sessions ! BindSessions
-
-      // Subscribe for state updates
-      FutInfo ! SubscribeTransitionCallBack(self)
-      OptInfo ! SubscribeTransitionCallBack(self)
-
-      Thread.sleep(100)
-
-      // Open data streams
-      FutInfo ! Open(underlyingConnection)
-      OptInfo ! Open(underlyingConnection)
-
-      // Start message processing
-      Connection ! ProcessMessages(processMessagesTimeout);
 
     case Initializing -> Trading =>
       log.debug("Initialization finished, session contents loaded")
-      FutInfo ! UnsubscribeTransitionCallBack(self)
-      OptInfo ! UnsubscribeTransitionCallBack(self)
-  }
-
-  protected def handleInitializationState(state: InitializationState): State = (state.futures <**> state.options) {(_, _)} match {
-    case Some((DataStreamState.Online, DataStreamState.Online)) => goto(Trading) using Blank
-    case _ => stay() using state
+      Sessions ! UnsubscribeTransitionCallBack(self)
   }
 
 }
