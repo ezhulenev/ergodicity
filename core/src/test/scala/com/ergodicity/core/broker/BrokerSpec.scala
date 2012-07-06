@@ -1,17 +1,24 @@
 package com.ergodicity.core.broker
 
-import org.scalatest.WordSpec
 import org.mockito.Mockito._
 import org.mockito.Matchers._
-import org.slf4j.LoggerFactory
 import java.util.concurrent.Executor
 import com.jacob.com.Variant
 import akka.dispatch.ExecutionContext
 import plaza2.{ServiceRef, Message, MessageFactory, Connection => P2Connection}
 import com.ergodicity.core.common.{GoodTillCancelled, Isin, FutureContract}
+import akka.testkit.{ImplicitSender, TestKit}
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import akka.event.Logging
+import com.ergodicity.core.AkkaConfigurations
+import akka.actor.ActorSystem
 
-class BrokerSpec extends WordSpec {
-  val log = LoggerFactory.getLogger(classOf[BrokerSpec])
+class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+  val log = Logging(system, self)
+
+  override def afterAll() {
+    system.shutdown()
+  }
 
   implicit val ec = ExecutionContext.fromExecutor(new Executor {
     def execute(command: Runnable) {

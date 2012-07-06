@@ -1,16 +1,22 @@
 package integration.ergodicity.core
 
-import org.scalatest.WordSpec
-import org.slf4j.LoggerFactory
 import java.io.File
 import plaza2.RouterStatus.RouterConnected
 import plaza2.{MessageFactory, Connection}
 import com.ergodicity.core.broker.{FutOrder, Broker}
 import com.ergodicity.core.common.{GoodTillCancelled, Isin, FutureContract}
+import com.ergodicity.core.AkkaConfigurations
+import akka.testkit.{ImplicitSender, TestKit}
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import akka.event.Logging
+import akka.actor.ActorSystem
 
+class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+  val log = Logging(system, self)
 
-class BrokerIntegrationSpec extends WordSpec {
-  val log = LoggerFactory.getLogger(classOf[BrokerIntegrationSpec])
+  override def afterAll() {
+    system.shutdown()
+  }
 
   val Host = "localhost"
   val Port = 4001

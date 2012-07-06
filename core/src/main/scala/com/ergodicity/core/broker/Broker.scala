@@ -1,14 +1,15 @@
 package com.ergodicity.core.broker
 
 import plaza2.{MessageFactory, Connection => P2Connection}
-import org.slf4j.LoggerFactory
 import com.jacob.com.Variant
 import com.ergodicity.core.common._
+import akka.event.Logging
+import akka.actor.ActorSystem
 
 object Broker {
   val FORTS_MSG = "FORTS_MSG"
 
-  def apply(clientCode: String, connection: P2Connection)(implicit messageFactory: MessageFactory) = new Broker(clientCode, connection)
+  def apply(clientCode: String, connection: P2Connection)(implicit messageFactory: MessageFactory, system: ActorSystem) = new Broker(clientCode, connection)
 }
 
 protected[broker] sealed trait Order {
@@ -20,10 +21,10 @@ case class FutOrder(id: Long) extends Order
 case class OptOrder(id: Long) extends Order
 
 
-class Broker(clientCode: String, connection: P2Connection)(implicit messageFactory: MessageFactory) {
+class Broker(clientCode: String, connection: P2Connection)(implicit messageFactory: MessageFactory, system: ActorSystem) {
   import Broker._
 
-  private val log = LoggerFactory.getLogger(classOf[Broker])
+  private val log = Logging(system, classOf[Broker])
 
   lazy val service = connection.resolveService("FORTS_SRV")
 
