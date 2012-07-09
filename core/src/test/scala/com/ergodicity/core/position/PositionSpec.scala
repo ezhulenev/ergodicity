@@ -19,6 +19,8 @@ class PositionSpec extends TestKit(ActorSystem("PositionSpec", ConfigWithDetaile
 
   "Position" must {
 
+    import PositionState._
+
     "initialied in closed state" in {
       val position = TestFSMRef(new Position(isin))
       assert(position.stateName == UndefinedPosition)

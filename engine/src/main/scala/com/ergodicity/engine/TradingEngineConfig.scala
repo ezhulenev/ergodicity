@@ -24,6 +24,7 @@ trait TradingEngineConfig extends Config[TradingEngine] {
   // Ini files
   var futInfo = required[File]
   var optInfo = required[File]
+  var pos     = required[File]
 
   def connectionProperties = ConnectionProperties(host, port, applicationName)
 }

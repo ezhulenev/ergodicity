@@ -1,13 +1,21 @@
 package com.ergodicity.engine
 
-import component.{OptInfoDataStreamComponent, FutInfoDataStreamComponent, ConnectionComponent}
+import component.{PosDataStreamComponent, OptInfoDataStreamComponent, FutInfoDataStreamComponent, ConnectionComponent}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import org.mockito.Mockito._
+import org.mockito.Matchers._
 import TradingEngineState._
 import akka.actor.{Terminated, ActorSystem}
-import plaza2.{Connection => P2Connection, DataStream => P2DataStream}
+import com.ergodicity.plaza2.ConnectionState
+import akka.actor.FSM.Transition
+import com.ergodicity.core.SessionsState
+import com.ergodicity.core.position.PositionsState
+import com.ergodicity.engine.TradingEngineData.InitializationState
+import plaza2.{ConnectionStatusChanged, Connection => P2Connection, DataStream => P2DataStream}
+import plaza2.ConnectionStatus.ConnectionConnected
+import plaza2.RouterStatus.RouterConnected
 
 class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -36,6 +44,8 @@ class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigW
       Thread.sleep(100)
 
       verify(p2).connect()
+
+      assert(engine.stateName == TradingEngineState.Connecting)
     }
 
     "stop on connection terminated" in {
@@ -48,13 +58,31 @@ class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigW
       engine ! Terminated(underlying.Connection)
       expectMsg(Terminated(engine))
     }
+
+    "goto Initializing state after connection connected" in {
+      val engine = buildEngine()
+      val underlying = engine.underlyingActor.asInstanceOf[TradingEngine]
+
+      engine.setState(Connecting)
+
+      engine ! Transition(underlying.Connection, ConnectionState.Connecting, ConnectionState.Connected)
+      assert(engine.stateName == TradingEngineState.Initializing)
+    }
   }
 
-  def buildEngine(p2: P2Connection = mock(classOf[P2Connection])) = TestFSMRef(new TradingEngine(100) with ConnectionComponent with FutInfoDataStreamComponent with OptInfoDataStreamComponent {
-    lazy val underlyingConnection = p2
+  def buildEngine(conn: P2Connection = mock(classOf[P2Connection]),
+                  futInfo: P2DataStream = mock(classOf[P2DataStream]),
+                  optInfo: P2DataStream = mock(classOf[P2DataStream]),
+                  pos: P2DataStream = mock(classOf[P2DataStream])) = TestFSMRef(new TradingEngine(100) with ConnectionComponent
+    with FutInfoDataStreamComponent with OptInfoDataStreamComponent with PosDataStreamComponent {
 
-    lazy val underlyingFutInfo = mock(classOf[P2DataStream])
+    lazy val underlyingConnection = conn
 
-    lazy val underlyingOptInfo = mock(classOf[P2DataStream])
+    lazy val underlyingFutInfo = futInfo
+
+    lazy val underlyingOptInfo = optInfo
+
+    lazy val underlyingPos = pos
+
   }, "Engine")
 }

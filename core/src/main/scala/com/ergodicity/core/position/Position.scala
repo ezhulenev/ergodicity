@@ -4,14 +4,15 @@ import akka.actor.{ActorRef, FSM, Actor}
 import com.ergodicity.core.common.IsinId
 
 
+case class PositionData(open: Int, buys: Int, sells: Int, position: Int, volume: BigDecimal, lastDealId: Long)
+
 sealed trait PositionState
 
-case object UndefinedPosition extends PositionState
+object PositionState {
+  case object UndefinedPosition extends PositionState
 
-case object OpenedPosition extends PositionState
-
-
-case class PositionData(open: Int, buys: Int, sells: Int, position: Int, volume: BigDecimal, lastDealId: Long)
+  case object OpenedPosition extends PositionState
+}
 
 
 // Events
@@ -28,6 +29,8 @@ case class PositionUpdated(position: ActorRef, data: PositionData)
 case object PositionTerminated
 
 class Position(isin: IsinId) extends Actor with FSM[PositionState, Option[PositionData]] {
+
+  import PositionState._
 
   private var subscribers = List[ActorRef]()
 
