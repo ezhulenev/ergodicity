@@ -9,14 +9,18 @@ object OptInfoDataStreamComponent {
 }
 
 trait OptInfoDataStreamComponent {
+  def optInfoIni: Option[File] = None
   def underlyingOptInfo: P2DataStream
 }
 
 trait OptInfoDataStream extends OptInfoDataStreamComponent {
   import OptInfoDataStreamComponent._
 
-  def optInfoIni: File
-  private lazy val tableSet = P2TableSet(optInfoIni)
+  private lazy val tableSet = {
+    if (!optInfoIni.isDefined) throw new IllegalStateException("OptInfo data stream scheme not defined")
+    P2TableSet(optInfoIni.get)
+  }
+
   lazy val underlyingOptInfo = P2DataStream(StreamName, CombinedDynamic, tableSet)
 }
 

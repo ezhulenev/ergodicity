@@ -4,7 +4,9 @@ import plaza2.{MessageFactory, Connection => P2Connection}
 import com.jacob.com.Variant
 import com.ergodicity.core.common._
 import akka.event.Logging
-import akka.actor.ActorSystem
+import akka.actor.{Actor, ActorSystem}
+import com.ergodicity.core.common.OrderType._
+import akka.dispatch.{ExecutionContexts, ExecutionContext, Future}
 
 object Broker {
   val FORTS_MSG = "FORTS_MSG"
@@ -21,12 +23,62 @@ case class FutOrder(id: Long) extends Order
 case class OptOrder(id: Long) extends Order
 
 
-class Broker(clientCode: String, connection: P2Connection)(implicit messageFactory: MessageFactory, system: ActorSystem) {
-  import Broker._
+protected[broker] sealed trait BrokerCommand
 
-  private val log = Logging(system, classOf[Broker])
+object BrokerCommand {
+  case class Sell[S <: Security](sec: S, orderType: OrderType, price: BigDecimal, amount: Int) extends BrokerCommand
+
+  case class Buy[S <: Security](sec: S, orderType: OrderType, price: BigDecimal, amount: Int) extends BrokerCommand
+
+  case class Cancel[O <: Order](order: O) extends BrokerCommand
+}
+
+case class ExecutionReport[O <: Order](order: Either[String, O])
+
+case class CancelReport(amount: Either[String,  Int])
+
+
+class Broker(clientCode: String, connection: P2Connection)(implicit messageFactory: MessageFactory) extends Actor with WhenUnhandled {
+  import Broker._
+  import BrokerCommand._
+
+  val log = Logging(context.system, self)
+
+  implicit val system = context.system
 
   lazy val service = connection.resolveService("FORTS_SRV")
+
+  private def handleBuyCommand: Receive = {
+    case Buy(future: FutureContract, orderType, price, amount) =>
+      val replyTo = sender
+      Future {buy(future, orderType, price, amount)} onSuccess {case res =>
+        replyTo ! ExecutionReport(res)
+      } onFailure {case err =>
+        replyTo ! ExecutionReport(Left("Adding order failed; Error = "+err.toString))
+      }
+  }
+
+  private def handleSellCommand: Receive = {
+    case Sell(future: FutureContract, orderType, price, amount) =>
+      val replyTo = sender
+      Future {sell(future, orderType, price, amount)} onSuccess {case res =>
+        replyTo ! ExecutionReport(res)
+      } onFailure {case err =>
+        replyTo ! ExecutionReport(Left("Adding order failed; Error = "+err.toString))
+      }
+  }
+  
+  private def handleCancel: Receive = {
+    case Cancel(FutOrder(id)) =>
+    val replyTo = sender
+    Future(cancel(FutOrder(id))) onSuccess {case res =>
+      replyTo ! CancelReport(res)
+    } onFailure {case err =>
+      replyTo ! CancelReport(Left("Canceling order failed; Error = "+err.toString))
+    }
+  }
+
+  protected def receive = handleBuyCommand orElse handleSellCommand orElse handleCancel orElse whenUnhandled
 
   private def mapOrderType(orderType: OrderType) = orderType match {
     case GoodTillCancelled => 1
@@ -35,10 +87,10 @@ class Broker(clientCode: String, connection: P2Connection)(implicit messageFacto
   }
 
   private def mapOrderDirection(direction: OrderDirection) = direction match {
-    case Buy => 1
-    case Sell => 2
-  }
-
+    case OrderDirection.Buy => 1
+    case OrderDirection.Sell => 2
+  }  
+  
   private def addOrder(future: FutureContract, orderType: OrderType, direction: OrderDirection, price: BigDecimal, amount: Int): Either[String, FutOrder] = {
 
     val message = messageFactory.createMessage("FutAddOrder")
@@ -70,17 +122,17 @@ class Broker(clientCode: String, connection: P2Connection)(implicit messageFacto
     }
   }
 
-  def buy(future: FutureContract, orderType: OrderType, price: BigDecimal, amount: Int) = {
+  private def buy(future: FutureContract, orderType: OrderType, price: BigDecimal, amount: Int) = {
     log.debug("Buy: Security = " + future + "; Price = " + price + "; Amount = " + amount + "; Type = " + orderType)
-    addOrder(future, orderType, Buy, price, amount)
+    addOrder(future, orderType, OrderDirection.Buy, price, amount)
   }
 
-  def sell(future: FutureContract, orderType: OrderType, price: BigDecimal, amount: Int) = {
+  private def sell(future: FutureContract, orderType: OrderType, price: BigDecimal, amount: Int) = {
     log.debug("Sell: Security = " + future + "; Price = " + price + "; Amount = " + amount + "; Type = " + orderType)
-    addOrder(future, orderType, Sell, price, amount)
+    addOrder(future, orderType, OrderDirection.Sell, price, amount)
   }
 
-  def cancel(order: FutOrder): Either[String, Int] = {
+  private def cancel(order: FutOrder): Either[String, Int] = {
     val message = messageFactory.createMessage("FutDelOrder")
 
     message.destAddr = service.address

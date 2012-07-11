@@ -3,13 +3,18 @@ package integration.ergodicity.core
 import java.io.File
 import plaza2.RouterStatus.RouterConnected
 import plaza2.{MessageFactory, Connection}
-import com.ergodicity.core.broker.{FutOrder, Broker}
-import com.ergodicity.core.common.{GoodTillCancelled, Isin, FutureContract}
+import com.ergodicity.core.common.{Isin, FutureContract}
+import com.ergodicity.core.common.OrderType._
 import com.ergodicity.core.AkkaConfigurations
-import akka.testkit.{ImplicitSender, TestKit}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
+import akka.pattern.ask
 import akka.actor.ActorSystem
+import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
+import com.ergodicity.core.broker.BrokerCommand.{Cancel, Sell}
+import com.ergodicity.core.broker.{CancelReport, ExecutionReport, FutOrder, Broker}
+import akka.util.Timeout
+import akka.dispatch.Await
 
 class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -22,6 +27,8 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
   val Port = 4001
   val AppName = "BrokerIntegrationSpec"
 
+  import akka.util.duration._
+  implicit val timeout = Timeout(5 seconds)
   implicit val factory = MessageFactory(new File("core/scheme/p2fortsgate_messages.ini"))
 
   "Broker" must {
@@ -39,16 +46,17 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
       assert(conn.status == plaza2.ConnectionStatus.ConnectionConnected)
       assert(conn.routerStatus == Some(RouterConnected))
 
-      val broker = new Broker("533", conn)
+      val broker = TestActorRef(new Broker("533", conn))
 
       val future = FutureContract(Isin(0, "RTS-9.12", ""), "")
 
-      val order = broker.sell(future, GoodTillCancelled, BigDecimal(127000), 3)
+      val report = Await.result((broker ? Sell(future, GoodTillCancelled, BigDecimal(127000), 3)).mapTo[ExecutionReport[FutOrder]], 2 seconds)
 
-      log.info("Order = " + order)
+      log.info("Report = " + report)
 
-      if (order.isRight) {
-        val cancel = broker.cancel(order.right.get)
+      if (report.order.isRight) {
+        val order = report.order.right.get
+        val cancel = Await.result((broker ? Cancel(order)).mapTo[CancelReport], 2 seconds)
         log.info("Cancel = " + cancel)
       }
 
@@ -71,9 +79,9 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
       assert(conn.status == plaza2.ConnectionStatus.ConnectionConnected)
       assert(conn.routerStatus == Some(RouterConnected))
 
-      val broker = new Broker("533", conn)
+      val broker = TestActorRef(new Broker("533", conn))
 
-      val cancel = broker.cancel(order)
+      val cancel = Await.result((broker ? Cancel(order)).mapTo[CancelReport], 2 seconds)
       log.info("Cancel = " + cancel)
 
       conn.disconnect()

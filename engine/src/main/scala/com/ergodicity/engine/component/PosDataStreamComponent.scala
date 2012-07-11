@@ -9,13 +9,16 @@ object PosDataStreamComponent {
 }
 
 trait PosDataStreamComponent {
+  def posIni: Option[File] = None
   def underlyingPos: P2DataStream
 }
 
 trait PosDataStream extends PosDataStreamComponent {
   import PosDataStreamComponent._
 
-  def posIni: File
-  private lazy val tableSet = P2TableSet(posIni)
+  private lazy val tableSet = {
+    if (!posIni.isDefined) throw new IllegalStateException("POS data stream scheme not defined")
+    P2TableSet(posIni.get)
+  }
   lazy val underlyingPos = P2DataStream(StreamName, CombinedDynamic, tableSet)
 }

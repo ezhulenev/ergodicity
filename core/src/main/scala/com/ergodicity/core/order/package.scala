@@ -2,6 +2,8 @@ package com.ergodicity.core
 
 import com.ergodicity.plaza2.scheme.common.OrderLogRecord
 import common._
+import OrderType._
+import OrderDirection._
 
 package object order {
   implicit def toOrderProps(record: OrderLogRecord) = {

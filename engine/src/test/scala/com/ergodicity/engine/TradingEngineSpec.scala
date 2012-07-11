@@ -1,21 +1,15 @@
 package com.ergodicity.engine
 
-import component.{PosDataStreamComponent, OptInfoDataStreamComponent, FutInfoDataStreamComponent, ConnectionComponent}
+import component._
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import org.mockito.Mockito._
-import org.mockito.Matchers._
 import TradingEngineState._
 import akka.actor.{Terminated, ActorSystem}
 import com.ergodicity.plaza2.ConnectionState
 import akka.actor.FSM.Transition
-import com.ergodicity.core.SessionsState
-import com.ergodicity.core.position.PositionsState
-import com.ergodicity.engine.TradingEngineData.InitializationState
-import plaza2.{ConnectionStatusChanged, Connection => P2Connection, DataStream => P2DataStream}
-import plaza2.ConnectionStatus.ConnectionConnected
-import plaza2.RouterStatus.RouterConnected
+import plaza2.{MessageFactory, Connection => P2Connection, DataStream => P2DataStream}
 
 class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -73,8 +67,9 @@ class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigW
   def buildEngine(conn: P2Connection = mock(classOf[P2Connection]),
                   futInfo: P2DataStream = mock(classOf[P2DataStream]),
                   optInfo: P2DataStream = mock(classOf[P2DataStream]),
-                  pos: P2DataStream = mock(classOf[P2DataStream])) = TestFSMRef(new TradingEngine(100) with ConnectionComponent
-    with FutInfoDataStreamComponent with OptInfoDataStreamComponent with PosDataStreamComponent {
+                  pos: P2DataStream = mock(classOf[P2DataStream]),
+                  mf: MessageFactory = mock(classOf[MessageFactory])) = TestFSMRef(new TradingEngine("000", 100) with ConnectionComponent
+    with FutInfoDataStreamComponent with OptInfoDataStreamComponent with PosDataStreamComponent with MessageFactoryComponent {
 
     lazy val underlyingConnection = conn
 
@@ -83,6 +78,8 @@ class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigW
     lazy val underlyingOptInfo = optInfo
 
     lazy val underlyingPos = pos
+
+    implicit lazy val messageFactory = mf
 
   }, "Engine")
 }

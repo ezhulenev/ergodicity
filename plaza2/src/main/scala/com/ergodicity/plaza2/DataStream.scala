@@ -53,7 +53,7 @@ object DataStream {
 
   case class DataDeleted(table: String, replId: Long) extends DataEvent
 
-  def apply(underlying: P2DataStream) = new DataStream(underlying)
+  def apply(underlying: P2DataStream, ini: Option[File] = None) = new DataStream(underlying, ini)
 }
 
 class DataStream(protected[plaza2] val underlying: P2DataStream, ini: Option[File] = None) extends Actor with FSM[DataStreamState, Option[SafeRelease]] {

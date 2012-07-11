@@ -11,6 +11,8 @@ case class ConnectionProperties(host: String, port: Int, appName: String) {
 
 trait TradingEngineConfig extends Config[TradingEngine] {
 
+  var clientCode = required[String]
+
   // Connection Data
   var host = required[String]("localhost")
   var port = required[Int](4001)
@@ -25,6 +27,7 @@ trait TradingEngineConfig extends Config[TradingEngine] {
   var futInfo = required[File]
   var optInfo = required[File]
   var pos     = required[File]
+  var messages = required[File]
 
   def connectionProperties = ConnectionProperties(host, port, applicationName)
 }

@@ -9,13 +9,17 @@ object FutInfoDataStreamComponent {
 }
 
 trait FutInfoDataStreamComponent {
+  def futInfoIni: Option[File] = None
   def underlyingFutInfo: P2DataStream
 }
 
 trait FutInfoDataStream extends FutInfoDataStreamComponent {
   import FutInfoDataStreamComponent._
 
-  def futInfoIni: File
-  private lazy val tableSet = P2TableSet(futInfoIni)
+  private lazy val tableSet = {
+    if (!futInfoIni.isDefined) throw new IllegalStateException("FutInfo data stream scheme not defined")
+    P2TableSet(futInfoIni.get)
+  }
+
   lazy val underlyingFutInfo = P2DataStream(StreamName, CombinedDynamic, tableSet)
 }

@@ -9,9 +9,12 @@ import com.ergodicity.plaza2.{DataStream, Connection, ConnectionState}
 import com.ergodicity.plaza2.Connection.ProcessMessages
 import com.ergodicity.core.Sessions.BindSessions
 import com.ergodicity.core.{SessionsState, Sessions}
-import component.{PosDataStreamComponent, OptInfoDataStreamComponent, FutInfoDataStreamComponent, ConnectionComponent}
 import com.ergodicity.core.position.{Positions, PositionsState}
 import com.ergodicity.core.position.Positions.BindPositions
+import com.ergodicity.core.broker.Broker
+import component._
+import org.mockito.Mockito._
+import plaza2.MessageFactory
 
 
 sealed trait TradingEngineState
@@ -42,9 +45,9 @@ object TradingEngineData {
 case class StartTradingEngine(connection: ConnectionProperties)
 
 
-class TradingEngine(processMessagesTimeout: Int) extends Actor with FSM[TradingEngineState, TradingEngineData] {
+class TradingEngine(clientCode: String, processMessagesTimeout: Int) extends Actor with FSM[TradingEngineState, TradingEngineData] {
   this: Actor with FSM[TradingEngineState, TradingEngineData] with ConnectionComponent
-    with FutInfoDataStreamComponent with OptInfoDataStreamComponent with PosDataStreamComponent =>
+    with FutInfoDataStreamComponent with OptInfoDataStreamComponent with PosDataStreamComponent with MessageFactoryComponent =>
 
   import TradingEngineState._
   import TradingEngineData._
@@ -64,15 +67,18 @@ class TradingEngine(processMessagesTimeout: Int) extends Actor with FSM[TradingE
   Connection ! SubscribeTransitionCallBack(self)
 
   // Create DataStreams
-  val FutInfo = context.actorOf(Props(DataStream(underlyingFutInfo)), "FuturesInfoDataStream")
-  val OptInfo = context.actorOf(Props(DataStream(underlyingOptInfo)), "OptionsInfoDataStream")
-  val Pos = context.actorOf(Props(DataStream(underlyingPos)), "PositionsDataStream")
+  val FutInfo = context.actorOf(Props(DataStream(underlyingFutInfo, futInfoIni)), "FuturesInfoDataStream")
+  val OptInfo = context.actorOf(Props(DataStream(underlyingOptInfo, optInfoIni)), "OptionsInfoDataStream")
+  val Pos = context.actorOf(Props(DataStream(underlyingPos, posIni)), "PositionsDataStream")
 
   // Sessions tracking
   val Sessions = context.actorOf(Props(new Sessions(FutInfo, OptInfo)), "Sessions")
 
   // Positions tracking
   val Positions = context.actorOf(Props(new Positions(Pos)), "Positions")
+
+  // Broker
+  val Broker = context.actorOf(Props(new Broker(clientCode, underlyingConnection)), "Broker")
 
   startWith(Idle, Blank)
 

@@ -4,9 +4,11 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import com.ergodicity.core.AkkaConfigurations
 import AkkaConfigurations._
-import com.ergodicity.core.common.{IsinId, Buy, GoodTillCancelled}
+import com.ergodicity.core.common.{IsinId}
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.actor.{Terminated, ActorSystem}
+import com.ergodicity.core.common.OrderType._
+import com.ergodicity.core.common.OrderDirection._
 
 
 class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {

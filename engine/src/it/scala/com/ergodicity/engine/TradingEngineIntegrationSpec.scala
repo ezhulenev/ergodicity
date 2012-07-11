@@ -1,6 +1,6 @@
 package com.ergodicity.engine
 
-import component.{PosDataStream, ConnectionComponent, OptInfoDataStream, FutInfoDataStream}
+import component._
 import org.scalatest.WordSpec
 import akka.event.Logging
 import akka.actor.ActorSystem
@@ -15,20 +15,26 @@ class TradingEngineIntegrationSpec extends TestKit(ActorSystem("TradingEngineInt
 
   val actorSystem = system
   val config = new TradingEngineConfig {
+    clientCode = "533"
+
     system = specified(actorSystem)
     optInfo = specified(new File("engine/schema/OptInfo.ini"))
     futInfo = specified(new File("engine/schema/FutInfo.ini"))
     pos = specified(new File("engine/schema/Pos.ini"))
+    messages = specified(new File("engine/schema/Messages.ini"))
 
-    def apply() = new TradingEngine(processMessagesTimeout) with ConnectionComponent with FutInfoDataStream with OptInfoDataStream with PosDataStream {
+    def apply() = new TradingEngine(clientCode, processMessagesTimeout) with ConnectionComponent with FutInfoDataStream with OptInfoDataStream with PosDataStream with MessagesFromScheme {
 
       lazy val underlyingConnection = P2Connection()
 
-      def optInfoIni = optInfo
 
-      def futInfoIni = futInfo
+      def messagesScheme = messages
 
-      def posIni = pos
+      override def optInfoIni = Some(optInfo)
+
+      override def futInfoIni = Some(futInfo)
+
+      override def posIni = Some(pos)
     }
   }
 
