@@ -39,6 +39,14 @@ trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[S
     case Event(snapshot: Snapshot[R], _) => handleSessionContentsRecord(snapshot.data); stay()
   }
 
+  whenUnhandled {
+    case Event(GetSessionInstrument(isin), _) =>
+      val i = instruments.get(isin)
+      log.debug("Get session instrument: " + isin + "; Result = " + i)
+      sender ! i
+      stay()
+  }
+
   onTransition {
     case from -> to => log.info("SessionContents updated from " + from + " -> " + to)
   }

@@ -8,14 +8,13 @@ import akka.util.duration._
 import com.ergodicity.plaza2.{DataStream, Connection, ConnectionState}
 import com.ergodicity.plaza2.Connection.ProcessMessages
 import com.ergodicity.core.{SessionsState, Sessions}
-import com.ergodicity.core.Sessions.{OngoingSession => SessionsOngoingSession}
 import com.ergodicity.core.position.{Positions, PositionsState}
 import com.ergodicity.core.position.Positions.BindPositions
 import com.ergodicity.core.broker.Broker
 import component._
 import akka.actor.FSM.{UnsubscribeTransitionCallBack, Transition, SubscribeTransitionCallBack, Failure => FSMFailure}
-import com.ergodicity.core.Sessions.{GetOngoingSession, BindSessions}
 import akka.util.Timeout
+import com.ergodicity.core.Sessions.{CurrentOngoingSession, OngoingSessionTransition, SubscribeOngoingSessions, BindSessions}
 
 object TradingEngine {
   implicit val timeout = Timeout(5 seconds)
@@ -35,6 +34,7 @@ object TradingEngineState {
   case object WaitingOngoingSession extends TradingEngineState
 
   case object Trading extends TradingEngineState
+
 }
 
 sealed trait TradingEngineData
@@ -45,9 +45,8 @@ object TradingEngineData {
 
   case class InitializationState(sessions: Option[SessionsState], positions: Option[PositionsState]) extends TradingEngineData
 
-  case class WaitRepeat(n: Int) extends TradingEngineData
-
   case class OngoingSession(session: ActorRef) extends TradingEngineData
+
 }
 
 case class StartTradingEngine(connection: ConnectionProperties)
@@ -56,7 +55,6 @@ class TradingEngine(clientCode: String, processMessagesTimeout: Int) extends Act
   this: Actor with FSM[TradingEngineState, TradingEngineData] with ConnectionComponent
     with FutInfoDataStreamComponent with OptInfoDataStreamComponent with PosDataStreamComponent with MessageFactoryComponent =>
 
-  import TradingEngine._
   import TradingEngineState._
   import TradingEngineData._
 
@@ -111,9 +109,15 @@ class TradingEngine(clientCode: String, processMessagesTimeout: Int) extends Act
   }
 
   when(WaitingOngoingSession, stateTimeout = 5.second) {
-    case Event(SessionsOngoingSession(Some(session)), _) => goto(Trading) using OngoingSession(session)
-    case Event(FSM.StateTimeout, WaitRepeat(n)) if (n < OngoingSessionRepeat) => stay() using WaitRepeat(n + 1)
-    case Event(FSM.StateTimeout, WaitRepeat(n)) if (n == OngoingSessionRepeat) => stop(FSMFailure("Failed connect to ongoing session"))
+    case Event(CurrentOngoingSession(Some(session)), _) =>
+      log.info("Ongoins session set to: " + session)
+      goto(Trading) using OngoingSession(session)
+
+    case Event(OngoingSessionTransition(Some(session)), _) =>
+      log.info("Ongoins session set to: " + session)
+      goto(Trading) using OngoingSession(session)
+
+    case Event(FSM.StateTimeout, _) => stop(FSMFailure("Failed connect to ongoing session"))
   }
 
   when(Trading) {
@@ -136,27 +140,22 @@ class TradingEngine(clientCode: String, processMessagesTimeout: Int) extends Act
       Positions ! BindPositions
 
     case Initializing -> WaitingOngoingSession =>
-      log.debug("Initialization finished, get ongoing session!")
+      log.debug("Initialization finished, subscribe for ongoing sessions!")
       Sessions ! UnsubscribeTransitionCallBack(self)
       Positions ! UnsubscribeTransitionCallBack(self)
+      Sessions ! SubscribeOngoingSessions(self)
 
-    case _ -> WaitingOngoingSession =>
-      import akka.pattern.ask
-      log.debug("Get ongoing session")
-      (Sessions ? GetOngoingSession) onComplete {case sess =>
-        log.info("EBAKA = "+sess)
-        self ! sess
-      }
-
-    case WaitingOngoingSession -> Trading =>
-      log.debug("Joined session, start trading; Session = " + stateData.asInstanceOf[OngoingSession].session)
+    case _ -> Trading =>
+      log.debug("Joined session, start trading")
   }
 
   private def handleInitializationState(initialization: InitializationState): State = {
     import scalaz._
     import Scalaz._
 
-    (initialization.sessions |@| initialization.positions) {(_, _)} match {
+    (initialization.sessions |@| initialization.positions) {
+      (_, _)
+    } match {
       case Some((SessionsState.Binded, PositionsState.Binded)) =>
         log.debug("Open Sessions & Positions underlying streams")
         // Open data streams when binded to all of them
@@ -170,7 +169,7 @@ class TradingEngine(clientCode: String, processMessagesTimeout: Int) extends Act
         stay() using initialization
 
       case Some((SessionsState.Online, PositionsState.Online)) =>
-        goto(WaitingOngoingSession) using WaitRepeat(0)
+        goto(WaitingOngoingSession) using Blank
 
       case _ => stay() using initialization
     }

@@ -3,12 +3,15 @@ package com.ergodicity.core.session
 import org.joda.time.Interval
 import org.scala_tools.time.Implicits._
 import akka.actor.{ActorRef, Props, Actor, FSM}
+import akka.pattern.ask
 import com.ergodicity.plaza2.scheme.FutInfo._
 import akka.actor.FSM._
 import com.ergodicity.plaza2.Repository.Snapshot
 import com.ergodicity.plaza2.scheme.{OptInfo, FutInfo}
-import com.ergodicity.core.session.Session.{OptInfoSessionContents, FutInfoSessionContents}
-import com.ergodicity.core.common.{FutureContract, OptionContract}
+import com.ergodicity.core.common.{Isin, FutureContract, OptionContract}
+import akka.util.Timeout
+import java.util.concurrent.TimeUnit
+
 
 case class SessionContent(id: Int, optionsSessionId: Int, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval) {
   def this(rec: SessionRecord) = this(
@@ -23,6 +26,8 @@ case class SessionContent(id: Int, optionsSessionId: Int, primarySession: Interv
 
 
 object Session {
+  implicit val timeout = Timeout(1, TimeUnit.SECONDS)
+
   def apply(rec: SessionRecord) = {
     new Session(
       new SessionContent(rec),
@@ -37,8 +42,11 @@ object Session {
 
 }
 
+case class GetSessionInstrument(isin: Isin)
+
 case class Session(content: SessionContent, state: SessionState, intClearingState: IntClearingState) extends Actor with FSM[SessionState, ActorRef] {
 
+  import Session._
   import SessionState._
 
   val intClearing = context.actorOf(Props(new IntClearing(intClearingState)), "IntClearing")
@@ -82,6 +90,22 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
 
   onTransition {
     case from -> to => log.info("Session updated from " + from + " -> " + to)
+  }
+
+  whenUnhandled {
+    case Event(GetSessionInstrument(isin), _) =>
+      val replyTo = sender
+
+      val future = (futures ? GetSessionInstrument(isin)).mapTo[Option[ActorRef]]
+      val option = (options ? GetSessionInstrument(isin)).mapTo[Option[ActorRef]]
+
+      val instrument = for {
+        f ← future
+        o ← option
+      } yield f orElse o
+
+      instrument onComplete {_.fold(_ => replyTo ! None, replyTo ! _)}
+      stay()
   }
 
   initialize

@@ -98,18 +98,25 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       then("should remain in the same state")
       assert(sessions.stateData.asInstanceOf[TrackingSessions].ongoing == None)
 
+      when("subscribe for ongoing sessions")
+      sessions ! SubscribeOngoingSessions(self)
+
+      then("should be returned current ongoing session which is None")
+      expectMsg(CurrentOngoingSession(None))
+
       when("assigned new session")
       sessions ! Snapshot(sessionRepository, sessionRecord(46, 398, 4021, SessionState.Completed) :: sessionRecord(47, 399, 4022, SessionState.Assigned) :: Nil)
 
       then("new actor should be created")
       val session2 = sessions.stateData.asInstanceOf[TrackingSessions].sessions(SessionId(4022, 3547))
-      watch(session2)
 
+      and("notified about ongoing session transition")
+      expectMsg(OngoingSessionTransition(Some(session2)))
+
+      and("new session should be in Assigned state")
+      watch(session2)
       session2 ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(session2, SessionState.Assigned))
-
-      sessions ! GetOngoingSession
-      expectMsg(OngoingSession(Some(session2)))
 
       assert(sessions.stateData.asInstanceOf[TrackingSessions].sessions.size == 2)
 
@@ -127,6 +134,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       sessions ! Snapshot(sessionRepository, Seq.empty[SessionRecord])
 
       then("second session should also be terminated")
+      expectMsg(OngoingSessionTransition(None))
       expectMsg(Terminated(session2))
 
       assert(sessions.stateData.asInstanceOf[TrackingSessions].ongoing == None)

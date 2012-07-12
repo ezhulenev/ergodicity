@@ -18,11 +18,15 @@ protected[core] case class SessionId(id: Long, optionSessionId: Long)
 object Sessions {
   def apply(FutInfoStream: ActorRef, OptInfoStream: ActorRef) = new Sessions(FutInfoStream, OptInfoStream)
 
-  case object GetOngoingSession
-
-  case class OngoingSession(session: Option[ActorRef])
-
   case object BindSessions
+
+  // Tracking ongoing sessions
+
+  case class SubscribeOngoingSessions(ref: ActorRef)
+
+  case class CurrentOngoingSession(session: Option[ActorRef])
+
+  case class OngoingSessionTransition(session: Option[ActorRef])
 }
 
 sealed trait SessionsState
@@ -104,7 +108,10 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   import Sessions._
   import SessionsState._
   import SessionsData._
-
+  
+  // Subscribers for ongoing sessions
+  var subscribers: List[ActorRef] = Nil
+  
   // Repositories
   val SessionRepository = context.actorOf(Props(Repository[SessionRecord]), "SessionRepository")
   val FutSessContentsRepository = context.actorOf(Props(Repository[FutInfo.SessContentsRecord]), "FutSessContentsRepository")
@@ -149,9 +156,17 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   }
 
   when(Online) {
-    case Event(GetOngoingSession, TrackingSessions(_, ongoing)) =>
-      sender ! OngoingSession(ongoing);
+    case Event(SubscribeOngoingSessions(ref), TrackingSessions(_, ongoing)) =>
+      subscribers = ref +: subscribers
+      ref ! CurrentOngoingSession(ongoing)
       stay()
+
+    case Event(Snapshot(SessionRepository, data: Iterable[SessionRecord]), tracking: TrackingSessions) =>
+      val updated = tracking.updateWith(data)
+      if (updated.ongoing != tracking.ongoing) {
+        subscribers.foreach(_ ! OngoingSessionTransition(updated.ongoing))
+      }
+      stay() using updated
 
     case Event(snapshot@Snapshot(FutSessContentsRepository, _), tracking: TrackingSessions) =>
       dispatchFutSessContents(snapshot.asInstanceOf[Snapshot[FutInfo.SessContentsRecord]])(tracking)

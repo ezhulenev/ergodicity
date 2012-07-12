@@ -7,9 +7,9 @@ import com.ergodicity.plaza2.Repository.Snapshot
 import com.ergodicity.plaza2.scheme.FutInfo.SessContentsRecord
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import com.ergodicity.plaza2.scheme.FutInfo
-import akka.actor.ActorSystem
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
 import com.ergodicity.core.common.FutureContract
+import akka.actor.ActorSystem
 
 class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionContentsSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)

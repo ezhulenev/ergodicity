@@ -11,11 +11,17 @@ import com.ergodicity.plaza2.Repository.Snapshot
 import com.ergodicity.core.AkkaConfigurations._
 import com.ergodicity.core.session.Session.FutInfoSessionContents
 import akka.testkit.{TestActorRef, ImplicitSender, TestFSMRef, TestKit}
-import akka.actor.{Terminated, ActorSystem}
+import akka.actor.{ActorRef, Terminated, ActorSystem}
+import akka.dispatch.Await
+import akka.pattern.ask
+import com.ergodicity.core.common.Isin
+import java.util.concurrent.TimeUnit
+import akka.util.{Duration, Timeout}
 
 class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
+  implicit val timeout = Timeout(1, TimeUnit.SECONDS)
   val primaryInterval = new DateTime to new DateTime
   val positionTransferInterval = new DateTime to new DateTime
 
@@ -80,7 +86,7 @@ class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedL
       expectMsg(Transition(intClearing, IntClearingState.Oncoming, IntClearingState.Running))
     }
 
-    "handle SessContentsRecord from FutInfo" in {
+    "handle SessContentsRecord from FutInfo and return instument on request" in {
       val content = SessionContent(100, 101, primaryInterval, None, None, positionTransferInterval)
       val session = TestActorRef(new Session(content, SessionState.Online, IntClearingState.Oncoming), "Session2")
 
@@ -91,10 +97,13 @@ class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedL
 
       Thread.sleep(300)
 
-      val futureInstrument = system.actorFor("user/Session2/Futures/GMKR-6.12")
+      val gmkFutures = system.actorFor("user/Session2/Futures/GMKR-6.12")
 
-      futureInstrument ! SubscribeTransitionCallBack(self)
-      expectMsg(CurrentState(futureInstrument, InstrumentState.Suspended))
+      gmkFutures ! SubscribeTransitionCallBack(self)
+      expectMsg(CurrentState(gmkFutures, InstrumentState.Suspended))
+
+      val instrument = (session ? GetSessionInstrument(Isin(166911, "GMKR-6.12", "GMM2"))).mapTo[Option[ActorRef]]
+      assert(Await.result(instrument, Duration(1, TimeUnit.SECONDS)) == Some(gmkFutures))
     }
   }
 }
