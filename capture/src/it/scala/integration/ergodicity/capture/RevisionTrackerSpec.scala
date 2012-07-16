@@ -2,13 +2,13 @@ package integration.ergodicity.capture
 
 import org.scalatest.WordSpec
 import org.slf4j.LoggerFactory
-import com.ergodicity.capture.{RevisionTracker, MongoDefault, MarketCaptureRepository}
+import com.ergodicity.capture.{RevisionTracker, MongoLocal, MarketCaptureRepository}
 
 
 class RevisionTrackerSpec extends WordSpec {
   val log = LoggerFactory.getLogger(classOf[RevisionTrackerSpec])
 
-  val repository = new MarketCaptureRepository(MongoDefault("RevisionTrackerSpec")) with RevisionTracker
+  val repository = new MarketCaptureRepository(MongoLocal("RevisionTrackerSpec")) with RevisionTracker
 
   "MarketCaptureRepository with RevisionTracker" must {
     "set, get and reset revision" in {

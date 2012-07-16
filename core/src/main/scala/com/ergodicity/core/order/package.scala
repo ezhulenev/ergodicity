@@ -2,20 +2,18 @@ package com.ergodicity.core
 
 import com.ergodicity.plaza2.scheme.common.OrderLogRecord
 import common._
-import OrderType._
-import OrderDirection._
 
 package object order {
   implicit def toOrderProps(record: OrderLogRecord) = {
 
     def mapOrderType(orderType: Int) = orderType match {
-      case t if ((t & 0x01) > 0) => GoodTillCancelled
-      case t if ((t & 0x02) > 0) => ImmediateOrCancel
+      case t if ((t & 0x01) > 0) => OrderType.GoodTillCancelled
+      case t if ((t & 0x02) > 0) => OrderType.ImmediateOrCancel
     }
 
     def mapOrderDirection(direction: Short) = direction match {
-      case 1 => Buy
-      case 2 => Sell
+      case 1 => OrderDirection.Buy
+      case 2 => OrderDirection.Sell
       case _ => throw new IllegalArgumentException("Illegal order direction: " + direction)
     }
 

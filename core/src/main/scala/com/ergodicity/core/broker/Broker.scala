@@ -5,8 +5,7 @@ import com.jacob.com.Variant
 import com.ergodicity.core.common._
 import akka.event.Logging
 import akka.actor.{Actor, ActorSystem}
-import com.ergodicity.core.common.OrderType._
-import akka.dispatch.{ExecutionContexts, ExecutionContext, Future}
+import akka.dispatch.Future
 
 object Broker {
   val FORTS_MSG = "FORTS_MSG"
@@ -81,9 +80,9 @@ class Broker(clientCode: String, connection: P2Connection)(implicit messageFacto
   protected def receive = handleBuyCommand orElse handleSellCommand orElse handleCancel orElse whenUnhandled
 
   private def mapOrderType(orderType: OrderType) = orderType match {
-    case GoodTillCancelled => 1
-    case ImmediateOrCancel => 2
-    case FillOrKill => 3
+    case OrderType.GoodTillCancelled => 1
+    case OrderType.ImmediateOrCancel => 2
+    case OrderType.FillOrKill => 3
   }
 
   private def mapOrderDirection(direction: OrderDirection) = direction match {

@@ -13,7 +13,7 @@ new CaptureEngineConfig {
     "capture/scheme/OptTradeDeal.ini"
   )
 
-  val database = MongoDefault("MarketCaptureDev")
+  val database = MongoLocal("MarketCaptureDev")
   
   val kestrel = KestrelConfig("localhost", 22133, "trades", "orders", 30)
 }

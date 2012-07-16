@@ -57,10 +57,6 @@ class CaptureEngine(connectionProperties: ConnectionProperties, scheme: Plaza2Sc
     }), "Watcher")
 
     marketCapture ! Connect(connectionProperties)
-
-    system.scheduler.schedule(120.seconds, 10.seconds) {
-      watcher ! Terminated(marketCapture)
-    }
   }
 
   def shutdown() {

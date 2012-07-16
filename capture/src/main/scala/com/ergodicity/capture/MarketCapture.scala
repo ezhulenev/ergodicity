@@ -51,14 +51,11 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
   val Forts = Market("FORTS");
   val TimeFormat = DateTimeFormat.forPattern("yyyy/MM/dd HH:mm:ss.SSS")
 
-  implicit val revisionTracker = repository;
+  implicit val revisionTracker = repository
 
   assertKestrelRunning()
-  assert(new File(scheme.futInfo).exists(), "Futures info scheme doesn't exists")
-  assert(new File(scheme.optInfo).exists(), "Options info scheme doesn't exists")
-  assert(new File(scheme.ordLog).exists(), "Orders log scheme doesn't exists")
-  assert(new File(scheme.futTrade).exists(), "Futures deals scheme doesn't exists")
-  assert(new File(scheme.optTrade).exists(), "Options deals scheme doesn't exists")
+
+  assertSchemeExists()
 
   val FORTS_ORDLOG_REPL = "FORTS_ORDLOG_REPL"
   val FORTS_FUTTRADE_REPL = "FORTS_FUTTRADE_REPL"
@@ -255,6 +252,24 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
     optTradeDataStream ! SetLifeNumToIni(ini)
     optTradeDataStream
   }
+
+  private def assertSchemeExists() {
+    val futInfo = new File(scheme.futInfo)
+    assert(futInfo.exists(), "Futures info scheme doesn't exists: " + futInfo.getAbsolutePath)
+
+    val optInfo = new File(scheme.optInfo)
+    assert(optInfo.exists(), "Options info scheme doesn't exists: " + optInfo.getAbsolutePath)
+
+    val ordLog = new File(scheme.ordLog)
+    assert(ordLog.exists(), "Orders log scheme doesn't exists: " + ordLog.getAbsolutePath)
+
+    val futTrade = new File(scheme.futTrade)
+    assert(futTrade.exists(), "Futures deals scheme doesn't exists: " + futTrade.getAbsolutePath)
+
+    val optTrade = new File(scheme.optTrade)
+    assert(optTrade.exists(), "Options deals scheme doesn't exists: " + optTrade.getAbsolutePath)
+  }
+
 
   private def assertKestrelRunning() {
     try {

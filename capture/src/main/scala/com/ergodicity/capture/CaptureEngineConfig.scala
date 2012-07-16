@@ -10,8 +10,12 @@ sealed trait CaptureDatabase {
   def db: MongoDB
 }
 
-case class MongoDefault(database: String) extends CaptureDatabase {
+case class MongoLocal(database: String) extends CaptureDatabase {
   lazy val db = MongoConnection()(database)
+}
+
+case class MongoRemote(address: String, database: String) extends CaptureDatabase {
+  lazy val db = MongoConnection(address)(database)
 }
 
 case class Plaza2Scheme(futInfo: String, optInfo: String, ordLog: String, futTrade: String, optTrade: String)

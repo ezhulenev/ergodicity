@@ -2,14 +2,14 @@ package integration.ergodicity.capture
 
 import org.scalatest.WordSpec
 import org.slf4j.LoggerFactory
-import com.ergodicity.capture.{FutSessionContentsTracker, MongoDefault, MarketCaptureRepository}
+import com.ergodicity.capture.{FutSessionContentsTracker, MongoLocal, MarketCaptureRepository}
 import com.ergodicity.plaza2.scheme.FutInfo
 import com.mongodb.casbah.commons.MongoDBObject
 
 class FutSessionContentsTrackerSpec extends WordSpec {
   val log = LoggerFactory.getLogger(classOf[FutSessionContentsTrackerSpec])
 
-  val repository = new MarketCaptureRepository(MongoDefault("FutSessionContentsTrackerSpec")) with FutSessionContentsTracker
+  val repository = new MarketCaptureRepository(MongoLocal("FutSessionContentsTrackerSpec")) with FutSessionContentsTracker
 
   val gmkFuture = FutInfo.SessContentsRecord(7477, 47740, 0, 4023, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
 
