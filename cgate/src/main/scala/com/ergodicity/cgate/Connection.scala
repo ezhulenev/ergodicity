@@ -2,7 +2,7 @@ package com.ergodicity.cgate
 
 import akka.util.duration._
 import akka.actor.FSM.Failure
-import ru.micexrts.cgate.{Connection => CGConnection}
+import ru.micexrts.cgate.{Connection => CGConnection, ErrorCode}
 import akka.actor.{Cancellable, FSM, Actor}
 
 object Connection {
@@ -48,7 +48,10 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
 
     case Event(StartMessageProcessing(timeout), None) =>
       val cancellable = context.system.scheduler.schedule(0 millisecond, 0 millisecond) {
-        underlying.process(timeout)
+        val res = underlying.process(timeout)
+        if (res == ErrorCode.TIMEOUT) {
+          log.warning("Timed out on message processing")
+        }
       }
       stay() using Some(cancellable)
   }
