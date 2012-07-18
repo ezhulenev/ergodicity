@@ -23,7 +23,7 @@ object ErgodicityBuild extends Build {
     id = "capture",
     base = file("capture"),
     dependencies = Seq(core),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.capture) ++
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.capture) ++
       assemblySettings ++ extAssemblySettings
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
@@ -32,7 +32,7 @@ object ErgodicityBuild extends Build {
     id = "quant",
     base = file("quant"),
     dependencies = Seq(core),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.quant)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.quant)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
@@ -40,7 +40,7 @@ object ErgodicityBuild extends Build {
     id = "engine",
     base = file("engine"),
     dependencies = Seq(core),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.engine)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.engine)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
@@ -48,21 +48,21 @@ object ErgodicityBuild extends Build {
     id = "core",
     base = file("core"),
     dependencies = Seq(plaza2),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.core)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.core)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
   lazy val plaza2 = Project(
     id = "plaza2",
     base = file("plaza2"),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.plaza2)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.plaza2)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
   lazy val cgate = Project(
     id = "cgate",
     base = file("cgate"),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.cgate) ++ Seq(
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.cgate) ++ Seq(
       (sourceGenerators in Compile) <+= (sourceManaged in Compile) map {
         case out: File => SchemeTools.generateSchemes(file("cgate").getAbsoluteFile, out)
       })
@@ -72,7 +72,9 @@ object ErgodicityBuild extends Build {
 
   // -- Settings
   
-  override lazy val settings = super.settings ++ buildSettings
+  lazy val compilerSettings = scala.Seq[sbt.Project.Setting[_]](
+    scalacOptions += "-unchecked"
+  )
 
   lazy val repositoriesSetting = Seq(
     resolvers += "Scala tools releases" at "http://scala-tools.org/repo-releases/",

@@ -33,7 +33,7 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
       when(cg.getState).thenReturn(CGState.OPENING)
 
       val connection = TestFSMRef(new Connection(cg), "Connection")
-      connection ! Open(Tcp, Host, Port, AppName)
+      connection ! Open
 
       verify(cg).open(anyString())
 
@@ -45,7 +45,7 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
       when(cg.getState).thenReturn(CGState.ACTIVE)
 
       val connection = TestFSMRef(new Connection(cg), "Connection")
-      connection ! Open(Tcp, Host, Port, AppName)
+      connection ! Open
 
       verify(cg).open(anyString())
 
@@ -59,7 +59,7 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
         .thenReturn(CGState.ACTIVE)
 
       val connection = TestFSMRef(new Connection(cg), "Connection")
-      connection ! Open(Tcp, Host, Port, AppName)
+      connection ! Open
 
       assert(connection.stateName == Opening)
       connection ! ConnectionState(Active)
@@ -73,7 +73,7 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
 
       val connection = TestFSMRef(new Connection(cg), "Connection")
       watch(connection)
-      connection ! Open(Tcp, Host, Port, AppName)
+      connection ! Open
 
       assert(connection.stateName == Opening)
       connection ! ConnectionState(Error)
@@ -86,7 +86,7 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
 
       val connection = TestFSMRef(new Connection(cg), "Connection")
       watch(connection)
-      connection ! Open(Tcp, Host, Port, AppName)
+      connection ! Open
 
       Thread.sleep(100)
 

@@ -9,21 +9,7 @@ object Connection {
 
   val StateUpdateTimeOut = 1.second
 
-  sealed trait ConnectionProtocol {
-    def prefix: String
-  }
-
-  case object Tcp extends ConnectionProtocol {
-    def prefix = "p2tcp://"
-  }
-
-  case object Lrpcq extends ConnectionProtocol {
-    def prefix = "p2lrpcq://"
-  }
-
-  case class Open(protocol: ConnectionProtocol, host: String, port: Int, appName: String) {
-    val connectionString = protocol.prefix + host + ":" + port + ";app_name=" + appName
-  }
+  case object Open
 
   case object Close
 
@@ -41,9 +27,9 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
   startWith(Closed, None)
 
   when(Closed) {
-    case Event(properties@Open(protocol, host, port, appName), _) =>
-      log.info("Open; Host = " + properties.host + "; Port = " + properties.port + "; AppName = " + properties.appName + "; Protocol = " + properties.protocol)
-      underlying.open(properties.connectionString)
+    case Event(Open, _) =>
+      log.info("Open connection")
+      underlying.open("")
       goto(Opening)
   }
 
@@ -76,6 +62,8 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
     case Event(ConnectionState(state), _) if (state != stateName) =>
       log.debug("Connection state changed to " + state)
       goto(state)
+
+    case Event(ConnectionState(state), _) if (state == stateName) => stay()
   }
 
   onTermination {
@@ -90,6 +78,6 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
 
   // Subscribe for connection state updates
   context.system.scheduler.schedule(0 milliseconds, StateUpdateTimeOut) {
-    self ! ConnectionState(underlying.getState)
+    self ! ConnectionState(State(underlying.getState))
   }
 }
