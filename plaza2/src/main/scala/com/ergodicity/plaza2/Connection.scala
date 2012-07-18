@@ -78,7 +78,7 @@ class Connection(protected[plaza2] val underlying: P2Connection) extends Actor w
   initialize
 
   private def connect(host: String, port: Int, appName: String) = {
-    log.info("Connect; Host = " + host + "; Port = " + port + "; AppName = " + appName)
+    log.info("Open; Host = " + host + "; Port = " + port + "; AppName = " + appName)
     underlying.host = host
     underlying.port = port
     underlying.appName = appName

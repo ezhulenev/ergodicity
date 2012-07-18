@@ -90,7 +90,7 @@ class TradingEngine(clientCode: String, processMessagesTimeout: Int) extends Act
 
   when(Idle) {
     case Event(StartTradingEngine(props@ConnectionProperties(host, port, appName)), _) =>
-      log.info("Connect to host = " + host + ", port = " + port + ", appName = " + appName)
+      log.info("Open to host = " + host + ", port = " + port + ", appName = " + appName)
       Connection ! props.asConnect
       goto(Connecting)
   }

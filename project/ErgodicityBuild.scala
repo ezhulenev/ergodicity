@@ -15,7 +15,7 @@ object ErgodicityBuild extends Build {
   lazy val ergodicity = Project(
     id = "ergodicity",
     base = file("."),
-    aggregate = Seq(capture, engine, core, plaza2)
+    aggregate = Seq(cgate, core, capture, engine, plaza2)
   ).configs( IntegrationTest )
     .settings( (Defaults.itSettings ++ graphSettings) : _*)
 
@@ -58,6 +58,17 @@ object ErgodicityBuild extends Build {
     settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.plaza2)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
+
+  lazy val cgate = Project(
+    id = "cgate",
+    base = file("cgate"),
+    settings = Project.defaultSettings ++ repositoriesSetting ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.cgate) ++ Seq(
+      (sourceGenerators in Compile) <+= (sourceManaged in Compile) map {
+        case out: File => SchemeTools.generateSchemes(file("cgate").getAbsoluteFile, out)
+      })
+  ).configs( IntegrationTest )
+    .settings( Defaults.itSettings : _*)
+
 
   // -- Settings
   
@@ -132,6 +143,8 @@ object Dependencies {
 
   val plaza2 = Seq(ostrich, plaza2Connectivity, akka, scalaTime, logback, jodaTime, jodaConvert) ++
     Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+
+  val cgate = Seq(akka, ostrich) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 }
 
 
