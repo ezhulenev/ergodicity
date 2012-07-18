@@ -6,16 +6,19 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import com.ergodicity.cgate._
 import com.ergodicity.cgate.Connection._
-import com.ergodicity.cgate.ConnectionProperties
+import config.CGateConfig
 import ru.micexrts.cgate.{CGate, Connection => CGConnection}
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
+import com.ergodicity.cgate.config.ConnectionType.Tcp
+import java.io.File
 
 
 class ConnectionIntegrationSpec extends TestKit(ActorSystem("ConnectionIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   override def beforeAll() {
-    CGate.open("ini=cgate/scheme/cgate_dev.ini;key=11111111");
+    val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
+    CGate.open(props())
   }
 
   override def afterAll() {
@@ -27,11 +30,11 @@ class ConnectionIntegrationSpec extends TestKit(ActorSystem("ConnectionIntegrati
   val Port = 4001
   val AppName = "ConnectionIntegrationSpec"
 
-  val Properties = ConnectionProperties(Tcp, Host, Port, AppName)
+  val RouterConnection = Tcp(Host, Port, AppName)
 
   "Connection" must {
     "connect to CGate router in" in {
-      val underlying = new CGConnection(Properties())
+      val underlying = new CGConnection(RouterConnection())
       val connection = TestFSMRef(new Connection(underlying))
 
       connection ! Open

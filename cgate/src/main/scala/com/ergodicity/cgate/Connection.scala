@@ -55,7 +55,8 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
 
   onTransition {
     case Closed -> Opening => log.info("Trying to establish connection to CGate router")
-    case _ -> Active => log.info("Successfully connected to CGate router");
+    case _ -> Active => log.info("Successfully connected to CGate router")
+    case Active -> err => log.error("Connection failed; Moved to state " + err)
   }
 
   whenUnhandled {
