@@ -2,11 +2,9 @@ package com.ergodicity.cgate
 
 import akka.util.duration._
 import config.Replication.ReplicationMode
-import ru.micexrts.cgate.{Listener => CGListener, ErrorCode}
-import ru.micexrts.cgate.messages.Message
-import akka.event.LoggingAdapter
+import ru.micexrts.cgate.{Listener => CGListener}
 import akka.actor.FSM.Failure
-import akka.actor.{Cancellable, ActorRef, Actor, FSM}
+import akka.actor.{Cancellable, Actor, FSM}
 import com.ergodicity.cgate.Listener.OpenSettings
 
 object Listener {
@@ -27,11 +25,9 @@ object Listener {
 
 protected[cgate] case class ListenerState(state: State)
 
-class Listener(listener: Subscriber => CGListener) extends Actor with FSM[State, Option[OpenSettings]] {
+class Listener(underlying: CGListener) extends Actor with FSM[State, Option[OpenSettings]] {
 
   import Listener._
-
-  val underlying = listener(ListenerSubscriber(self)(log))
 
   private var statusTracker: Option[Cancellable] = None
 
@@ -49,7 +45,10 @@ class Listener(listener: Subscriber => CGListener) extends Actor with FSM[State,
   }
 
   when(Active) {
-    case Event("NoSuchEventEver", _) => stay()
+    case Event(Close, _) =>
+      log.info("Close Listener")
+      underlying.close()
+      goto(Closed) using None
   }
 
   onTransition {
@@ -65,11 +64,6 @@ class Listener(listener: Subscriber => CGListener) extends Actor with FSM[State,
 
     case Event(ListenerState(state), _) if (state == stateName) => stay()
 
-    case Event(Close, _) =>
-      log.info("Close Listener")
-      underlying.close()
-      goto(Closed) using None
-
     case Event(TrackUnderlyingStatus(duration), _) =>
       statusTracker.foreach(_.cancel())
       statusTracker = Some(context.system.scheduler.schedule(0 milliseconds, duration) {
@@ -83,11 +77,4 @@ class Listener(listener: Subscriber => CGListener) extends Actor with FSM[State,
   }
 
   initialize
-}
-
-case class ListenerSubscriber(listener: ActorRef)(implicit log: LoggingAdapter) extends Subscriber {
-  def handleMessage(msg: Message) = {
-    log.info("Got message = " + msg)
-    ErrorCode.OK
-  }
 }
