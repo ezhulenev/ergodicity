@@ -17,7 +17,7 @@ class ConnectionIntegrationSpec extends TestKit(ActorSystem("ConnectionIntegrati
   val log = Logging(system, self)
 
   override def beforeAll() {
-    val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
+    val props = CGateConfig(new File("cgate/ini/cgate_dev.ini"), "11111111")
     CGate.open(props())
   }
 

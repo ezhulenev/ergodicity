@@ -11,6 +11,8 @@ object Connection {
 
   case object Close
 
+  case object Dispose
+
   case class StartMessageProcessing(timeout: Int)
 
   def apply(underlying: CGConnection) = new Connection(underlying)
@@ -68,6 +70,15 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
       cancellable.foreach(_.cancel())
       underlying.close()
       stay()
+
+    case Event(Dispose, cancellable) =>
+      log.info("Dispose connection")
+      statusTracker.foreach(_.cancel())
+      statusTracker = None
+      cancellable.foreach(_.cancel())
+      underlying.dispose()
+      stop(Failure("Disposed"))
+
 
     case Event(TrackUnderlyingStatus(duration), _) =>
       statusTracker.foreach(_.cancel())

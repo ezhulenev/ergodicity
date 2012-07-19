@@ -1,31 +1,24 @@
 package com.ergodicity.cgate
 
 import akka.util.duration._
-import config.Replication.ReplicationMode
+import config.ListenerOpenParams
 import ru.micexrts.cgate.{Listener => CGListener}
 import akka.actor.FSM.Failure
 import akka.actor.{Cancellable, Actor, FSM}
-import com.ergodicity.cgate.Listener.OpenSettings
 
 object Listener {
-  sealed trait OpenSettings {
-    def config: String
-  }
 
-  case class ReplicationSettings(mode: ReplicationMode, state: Option[String] = None) {
-    private val modeParam = "mode=" + mode.name
-    val config = state.map(modeParam + ";replstate=" + _).getOrElse(modeParam)
-  }
-
-  case class Open(params: OpenSettings)
+  case class Open(config: ListenerOpenParams)
 
   case object Close
+
+  case object Dispose
 
 }
 
 protected[cgate] case class ListenerState(state: State)
 
-class Listener(underlying: CGListener) extends Actor with FSM[State, Option[OpenSettings]] {
+class Listener(underlying: CGListener) extends Actor with FSM[State, Option[ListenerOpenParams]] {
 
   import Listener._
 
@@ -34,10 +27,10 @@ class Listener(underlying: CGListener) extends Actor with FSM[State, Option[Open
   startWith(Closed, None)
 
   when(Closed) {
-    case Event(Open(params), None) =>
-      log.info("Open listener with params = " + params)
-      underlying.open(params.config)
-      stay() using Some(params)
+    case Event(Open(config), None) =>
+      log.info("Open listener with config = " + config)
+      underlying.open(config.config)
+      stay() using Some(config)
   }
 
   when(Opening, stateTimeout = 3.second) {
@@ -70,6 +63,11 @@ class Listener(underlying: CGListener) extends Actor with FSM[State, Option[Open
         self ! ListenerState(State(underlying.getState))
       })
       stay()
+
+    case Event(Dispose, _) =>
+      log.info("Dispose listener")
+      underlying.dispose()
+      stop(Failure("Disposed"))
   }
 
   onTermination {

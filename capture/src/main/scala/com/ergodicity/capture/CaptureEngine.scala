@@ -2,7 +2,6 @@ package com.ergodicity.capture
 
 import org.slf4j.LoggerFactory
 import akka.actor._
-import akka.util.duration._
 import com.twitter.ostrich.admin.{RuntimeEnvironment, Service}
 import plaza2.{Connection => P2Connection}
 import com.typesafe.config.ConfigFactory

@@ -1,9 +1,9 @@
 package com.ergodicity.cgate
 
-import akka.actor.{Actor, FSM}
-import ru.micexrts.cgate.{CGateException, MessageType}
 import java.nio.ByteBuffer
-import ru.micexrts.cgate.messages.{StreamDataMessage, Message}
+import ru.micexrts.cgate.messages.Message
+import akka.actor.{ActorRef, Actor, FSM}
+import ru.micexrts.cgate.{ErrorCode, CGateException, MessageType}
 
 
 sealed trait DataStreamState
@@ -35,16 +35,25 @@ object StreamEvent {
 
   case object GoOnline extends StreamEvent
 
+}
 
-  def apply(msg: Message) = msg.getType match {
+class DataStreamSubscriber(ref: ActorRef) extends Subscriber {
+
+  import StreamEvent._
+
+  private def decode(msg: Message) = msg.getType match {
     case MessageType.MSG_OPEN => Open
     case MessageType.MSG_CLOSE => Close
     case MessageType.MSG_TN_BEGIN => TnBegin
     case MessageType.MSG_TN_COMMIT => TnCommit
-    case MessageType.MSG_STREAM_DATA =>
-      msg.asInstanceOf[StreamDataMessage].getMsgName
     case MessageType.MSG_P2REPL_ONLINE => GoOnline
+
     case t => throw new CGateException("Unsupported message type = " + t)
+  }
+
+  def handleMessage(msg: Message) = {
+    ref ! decode(msg)
+    ErrorCode.OK
   }
 }
 
