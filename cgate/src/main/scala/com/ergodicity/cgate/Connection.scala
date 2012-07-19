@@ -2,12 +2,10 @@ package com.ergodicity.cgate
 
 import akka.util.duration._
 import akka.actor.FSM.Failure
-import ru.micexrts.cgate.{Connection => CGConnection, ErrorCode}
 import akka.actor.{Cancellable, FSM, Actor}
+import ru.micexrts.cgate.{Connection => CGConnection, ErrorCode}
 
 object Connection {
-
-  val StateUpdateTimeOut = 1.second
 
   case object Open
 
@@ -24,13 +22,15 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
 
   import Connection._
 
+  private var statusTracker: Option[Cancellable] = None
+
   startWith(Closed, None)
 
   when(Closed) {
     case Event(Open, _) =>
       log.info("Open connection")
       underlying.open("")
-      goto(Opening)
+      stay()
   }
 
   when(Opening, stateTimeout = 3.second) {
@@ -38,14 +38,6 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
   }
 
   when(Active) {
-    case Event(Close, cancellable) =>
-      log.info("Close connection")
-      cancellable.foreach(_.cancel())
-      underlying.close()
-      stop(Failure("Connection closed"))
-
-    case Event(ConnectionState(state@(Closed | Error | Opening)), _) => stop(Failure("Connection switched to failed state = " + state))
-
     case Event(StartMessageProcessing(timeout), None) =>
       val cancellable = context.system.scheduler.schedule(0 millisecond, 0 millisecond) {
         val res = underlying.process(timeout)
@@ -58,16 +50,31 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
 
   onTransition {
     case Closed -> Opening => log.info("Trying to establish connection to CGate router")
-    case _ -> Active => log.info("Successfully connected to CGate router")
-    case Active -> err => log.error("Connection failed; Moved to state " + err)
+    case _ -> Active => log.info("Connection opened")
+    case _ -> Closed => log.info("Connection closed")
   }
 
   whenUnhandled {
-    case Event(ConnectionState(state), _) if (state != stateName) =>
-      log.debug("Connection state changed to " + state)
-      goto(state)
+    case Event(ConnectionState(Error), _) => stop(Failure("Connection in Error state"))
+
+    case Event(ConnectionState(state), _) if (state != stateName) => goto(state)
 
     case Event(ConnectionState(state), _) if (state == stateName) => stay()
+
+    case Event(Close, cancellable) =>
+      log.info("Close connection")
+      statusTracker.foreach(_.cancel())
+      statusTracker = None
+      cancellable.foreach(_.cancel())
+      underlying.close()
+      stay()
+
+    case Event(TrackUnderlyingStatus(duration), _) =>
+      statusTracker.foreach(_.cancel())
+      statusTracker = Some(context.system.scheduler.schedule(0 milliseconds, duration) {
+        self ! ConnectionState(State(underlying.getState))
+      })
+      stay()
   }
 
   onTermination {
@@ -79,9 +86,4 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
   }
 
   initialize
-
-  // Subscribe for connection state updates
-  context.system.scheduler.schedule(0 milliseconds, StateUpdateTimeOut) {
-    self ! ConnectionState(State(underlying.getState))
-  }
 }

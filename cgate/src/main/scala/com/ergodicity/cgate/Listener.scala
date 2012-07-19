@@ -1,36 +1,25 @@
 package com.ergodicity.cgate
 
-import akka.actor.{Actor, FSM}
 import akka.util.duration._
-import com.ergodicity.cgate.StreamState.Offline
 import config.Replication.ReplicationMode
 import ru.micexrts.cgate.{Listener => CGListener, ErrorCode}
 import ru.micexrts.cgate.messages.Message
-
-sealed trait StreamState
-
-object StreamState {
-
-  case object Offline extends StreamState
-
-  case object Online extends StreamState
-
-}
-
+import akka.event.LoggingAdapter
+import akka.actor.FSM.Failure
+import akka.actor.{Cancellable, ActorRef, Actor, FSM}
+import com.ergodicity.cgate.Listener.OpenSettings
 
 object Listener {
-  val StateUpdateTimeOut = 1.second
-
-  sealed trait OpenParams {
+  sealed trait OpenSettings {
     def config: String
   }
 
-  case class Replication(mode: ReplicationMode, state: Option[String] = None) {
+  case class ReplicationSettings(mode: ReplicationMode, state: Option[String] = None) {
     private val modeParam = "mode=" + mode.name
     val config = state.map(modeParam + ";replstate=" + _).getOrElse(modeParam)
   }
 
-  case class Open(params: OpenParams)
+  case class Open(params: OpenSettings)
 
   case object Close
 
@@ -38,45 +27,55 @@ object Listener {
 
 protected[cgate] case class ListenerState(state: State)
 
-class Listener(listener: Subscriber => CGListener, initialState: Option[String] = None) extends Actor with FSM[State, StreamState] {
+class Listener(listener: Subscriber => CGListener) extends Actor with FSM[State, Option[OpenSettings]] {
 
   import Listener._
 
-  val subscriber = new Subscriber {
-    def handleMessage(msg: Message) = {
-      log.info("Got message = " + msg)
-      ErrorCode.OK
-    }
-  }
+  val underlying = listener(ListenerSubscriber(self)(log))
 
-  val underlying = listener(subscriber)
+  private var statusTracker: Option[Cancellable] = None
 
-  startWith(Closed, Offline)
+  startWith(Closed, None)
 
   when(Closed) {
-    case Event(Open(params), Offline) =>
+    case Event(Open(params), None) =>
       log.info("Open listener with params = " + params)
       underlying.open(params.config)
-      stay()
+      stay() using Some(params)
+  }
+
+  when(Opening, stateTimeout = 3.second) {
+    case Event(FSM.StateTimeout, _) => stop(Failure("Connecting timeout"))
+  }
+
+  when(Active) {
+    case Event("NoSuchEventEver", _) => stay()
   }
 
   onTransition {
-    case Closed -> Opening => log.info("Openin listener")
-    case _ -> Active => log.info("Successfully opened listener")
-    case Active -> err => log.error("Listener failed; Moved to state " + err)
+    case Closed -> Opening => log.info("Opening listener")
+    case _ -> Active => log.info("Listener opened")
+    case _ -> Closed => log.info("Listener closed")
   }
 
   whenUnhandled {
-    case Event(ListenerState(state), _) if (state != stateName) =>
-      log.debug("Listener state changed to " + state)
-      goto(state)
+    case Event(ListenerState(Error), _) => stop(Failure("Listener in Error state"))
+
+    case Event(ListenerState(state), _) if (state != stateName) => goto(state)
+
+    case Event(ListenerState(state), _) if (state == stateName) => stay()
 
     case Event(Close, _) =>
       log.info("Close Listener")
       underlying.close()
-      stay()
+      goto(Closed) using None
 
-    case Event(ListenerState(state), _) if (state == stateName) => stay()
+    case Event(TrackUnderlyingStatus(duration), _) =>
+      statusTracker.foreach(_.cancel())
+      statusTracker = Some(context.system.scheduler.schedule(0 milliseconds, duration) {
+        self ! ListenerState(State(underlying.getState))
+      })
+      stay()
   }
 
   onTermination {
@@ -84,10 +83,11 @@ class Listener(listener: Subscriber => CGListener, initialState: Option[String] 
   }
 
   initialize
+}
 
-  // Subscribe for listener state updates
-  context.system.scheduler.schedule(0 milliseconds, StateUpdateTimeOut) {
-    self ! ListenerState(State(underlying.getState))
+case class ListenerSubscriber(listener: ActorRef)(implicit log: LoggingAdapter) extends Subscriber {
+  def handleMessage(msg: Message) = {
+    log.info("Got message = " + msg)
+    ErrorCode.OK
   }
-
 }

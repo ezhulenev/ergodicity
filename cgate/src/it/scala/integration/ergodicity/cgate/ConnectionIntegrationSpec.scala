@@ -35,7 +35,7 @@ class ConnectionIntegrationSpec extends TestKit(ActorSystem("ConnectionIntegrati
   "Connection" must {
     "connect to CGate router in" in {
       val underlying = new CGConnection(RouterConnection())
-      val connection = TestFSMRef(new Connection(underlying))
+      val connection = TestFSMRef(new Connection(underlying), "Connection")
 
       connection ! Open
 

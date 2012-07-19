@@ -37,6 +37,7 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
 
       verify(cg).open(anyString())
 
+      connection ! ConnectionState(Opening)
       assert(connection.stateName == Opening)
     }
 
@@ -49,7 +50,7 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
 
       verify(cg).open(anyString())
 
-      Thread.sleep(100)
+      connection ! ConnectionState(Active)
       assert(connection.stateName == Active)
     }
 
@@ -61,7 +62,6 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
       val connection = TestFSMRef(new Connection(cg), "Connection")
       connection ! Open
 
-      assert(connection.stateName == Opening)
       connection ! ConnectionState(Active)
       assert(connection.stateName == Active)
     }
@@ -75,25 +75,18 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
       watch(connection)
       connection ! Open
 
-      assert(connection.stateName == Opening)
       connection ! ConnectionState(Error)
       expectMsg(Terminated(connection))
     }
 
-    "terminate after Close connection sent" in {
+    "return to Closed state after Close connection sent" in {
       val cg = mock(classOf[CGConnection])
       when(cg.getState).thenReturn(CGState.ACTIVE)
 
       val connection = TestFSMRef(new Connection(cg), "Connection")
       watch(connection)
-      connection ! Open
-
-      Thread.sleep(100)
-
-      assert(connection.stateName == Active)
-
       connection ! Close
-      expectMsg(Terminated(connection))
+      assert(connection.stateName == Closed)
     }
 
     "terminate on FSM.StateTimeout in Opening state" in {
@@ -101,11 +94,8 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
       when(cg.getState).thenReturn(CGState.OPENING)
 
       val connection = TestFSMRef(new Connection(cg), "Connection")
+      connection.setState(Opening)
       watch(connection)
-
-      Thread.sleep(100)
-
-      assert(connection.stateName == Opening)
       connection ! FSM.StateTimeout
       expectMsg(Terminated(connection))
     }
