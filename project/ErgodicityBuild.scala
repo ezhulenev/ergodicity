@@ -146,7 +146,7 @@ object Dependencies {
   val plaza2 = Seq(ostrich, plaza2Connectivity, akka, scalaTime, logback, jodaTime, jodaConvert) ++
     Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
-  val cgate = Seq(akka, ostrich) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val cgate = Seq(scalaz, akka, ostrich) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 }
 
 
