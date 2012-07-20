@@ -2,7 +2,7 @@ package com.ergodicity.cgate
 
 import java.nio.ByteBuffer
 import akka.actor.{ActorRef, Actor, FSM}
-import ru.micexrts.cgate.{ErrorCode, CGateException, MessageType}
+import ru.micexrts.cgate.{ErrorCode, MessageType}
 import ru.micexrts.cgate.messages._
 import scalaz._
 import Scalaz._

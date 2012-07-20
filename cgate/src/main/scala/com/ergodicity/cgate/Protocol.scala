@@ -1,4 +1,4 @@
-package com.ergodicity.cgate.repository
+package com.ergodicity.cgate
 
 import com.ergodicity.cgate.scheme.FutInfo
 import java.nio.ByteBuffer

@@ -3,6 +3,7 @@ package com.ergodicity.cgate.repository
 import akka.actor.{ActorRef, FSM, Actor}
 import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, Snapshot}
 import akka.actor.FSM.Failure
+import com.ergodicity.cgate.Reads
 
 sealed trait RepositoryState
 

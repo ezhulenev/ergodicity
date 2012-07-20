@@ -8,7 +8,7 @@ import repository.Repository.{Snapshot, SubscribeSnapshots}
 import repository.RepositoryState.Consistent
 import repository.{RepositoryState, Repository}
 import scheme.FutInfo
-import com.ergodicity.cgate.repository.Protocol._
+import com.ergodicity.cgate.Protocol._
 import com.ergodicity.cgate.repository.ReplicaExtractor._
 import java.nio.ByteBuffer
 import akka.util.duration._
