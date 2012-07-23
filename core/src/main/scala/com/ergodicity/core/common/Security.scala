@@ -3,13 +3,13 @@ package com.ergodicity.core.common
 
 
 sealed trait Security {
-  def isin: Isin
+  def isin: FullIsin
 }
 
-case class BasicSecurity(isin: Isin) extends Security
+case class BasicSecurity(isin: FullIsin) extends Security
 
 sealed trait Derivative extends Security
 
-case class FutureContract(isin: Isin, name: String) extends Derivative
+case class FutureContract(isin: FullIsin, name: String) extends Derivative
 
-case class OptionContract(isin: Isin, name: String) extends Derivative
+case class OptionContract(isin: FullIsin, name: String) extends Derivative

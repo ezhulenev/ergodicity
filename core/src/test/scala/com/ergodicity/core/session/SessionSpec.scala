@@ -12,7 +12,7 @@ import akka.testkit.{TestActorRef, ImplicitSender, TestFSMRef, TestKit}
 import akka.actor.{ActorRef, Terminated, ActorSystem}
 import akka.dispatch.Await
 import akka.pattern.ask
-import com.ergodicity.core.common.Isin
+import com.ergodicity.core.common.FullIsin
 import java.util.concurrent.TimeUnit
 import akka.util.{Duration, Timeout}
 import com.ergodicity.core.Mocking._
@@ -102,7 +102,7 @@ class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedL
       gmkFutures ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(gmkFutures, InstrumentState.Suspended))
 
-      val instrument = (session ? GetSessionInstrument(Isin(166911, "GMKR-6.12", "GMM2"))).mapTo[Option[ActorRef]]
+      val instrument = (session ? GetSessionInstrument(FullIsin(166911, "GMKR-6.12", "GMM2"))).mapTo[Option[ActorRef]]
       assert(Await.result(instrument, Duration(1, TimeUnit.SECONDS)) == Some(gmkFutures))
     }
   }

@@ -185,7 +185,7 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
     isin.map {
       isin =>
         val deal = if (record.id_deal > 0) Some(record.deal_price) else None
-        OrderPayload(Forts, MarketDbSecurity(isin.code),
+        OrderPayload(Forts, MarketDbSecurity(isin.isin),
           record.id_ord, TimeFormat.parseDateTime(record.moment),
           record.status, record.action, record.dir, record.price, record.amount, record.amount_rest, deal)
     }
@@ -196,7 +196,7 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
     isin.map {
       isin =>
         val nosystem = record.nosystem == 1 // Nosystem	0 - Рыночная сделка, 1 - Адресная сделка
-        TradePayload(Forts, MarketDbSecurity(isin.code), record.id_deal, record.price, record.amount, TimeFormat.parseDateTime(record.moment), nosystem)
+        TradePayload(Forts, MarketDbSecurity(isin.isin), record.id_deal, record.price, record.amount, TimeFormat.parseDateTime(record.moment), nosystem)
     }
   }
 
@@ -205,7 +205,7 @@ class MarketCapture(underlyingConnection: P2Connection, scheme: Plaza2Scheme,
     isin.map {
       isin =>
         val nosystem = record.nosystem == 1 // Nosystem	0 - Рыночная сделка, 1 - Адресная сделка
-        TradePayload(Forts, MarketDbSecurity(isin.code), record.id_deal, record.price, record.amount, TimeFormat.parseDateTime(record.moment), nosystem)
+        TradePayload(Forts, MarketDbSecurity(isin.isin), record.id_deal, record.price, record.amount, TimeFormat.parseDateTime(record.moment), nosystem)
     }
   }
 

@@ -7,7 +7,7 @@ import akka.util.duration._
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
-import com.ergodicity.core.common.{Isin, FutureContract}
+import com.ergodicity.core.common.{FullIsin, FutureContract}
 import akka.actor.{ActorRef, ActorSystem}
 import akka.dispatch.Await
 import akka.util.Timeout
@@ -31,7 +31,7 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
 
     "return None if no instument found" in {
       val contents = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](SessionState.Online), "Futures")
-      val future = (contents ? GetSessionInstrument(Isin(100, "BadCode", "BadShortCode"))).mapTo[Option[ActorRef]]
+      val future = (contents ? GetSessionInstrument(FullIsin(100, "BadCode", "BadShortCode"))).mapTo[Option[ActorRef]]
       assert(Await.result(future, 1.second) == None)
     }
 
@@ -42,7 +42,7 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
       contents ! Snapshot(self, gmkFuture :: Nil)
       Thread.sleep(1000)
       val gmk = system.actorFor("user/Futures/GMKR-6.12")
-      val future = (contents ? GetSessionInstrument(Isin(166911, "GMKR-6.12", "GMM2"))).mapTo[Option[ActorRef]]
+      val future = (contents ? GetSessionInstrument(FullIsin(166911, "GMKR-6.12", "GMM2"))).mapTo[Option[ActorRef]]
       assert(Await.result(future, 1.second) == Some(gmk))
     }
   }

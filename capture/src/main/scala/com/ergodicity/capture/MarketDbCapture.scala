@@ -45,10 +45,10 @@ class MarketDbCapture[T <: Record, M](revisionTracker: StreamRevisionTracker, ma
       revisionBuncher ! FlushBunch
       goto(MarketDbCaptureState.Idle)
 
-    case Event(DataInserted(table, record: T), _) =>
+    case Event(DataInserted(table, record), _) =>
       Stats.incr(self.path + "/DataInserted")
       revisionBuncher ! BunchRevision(table, record.replRev)
-      marketBuncher ! BunchMarketEvent(toMarketDbPayload(record))
+      marketBuncher ! BunchMarketEvent(toMarketDbPayload(record.asInstanceOf[T]))
 
       stay()
   }
@@ -120,13 +120,13 @@ sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List
   startWith(BuncherState.Idle, None)
 
   when(BuncherState.Idle) {
-    case Event(BunchMarketEvent(payload: T), None) => goto(BuncherState.Accumulating) using Some(List(payload))
+    case Event(BunchMarketEvent(payload), None) => goto(BuncherState.Accumulating) using Some(List(payload.asInstanceOf[T]))
   }
 
   when(BuncherState.Accumulating) {
-    case Event(BunchMarketEvent(payload: T), None) => stay() using Some(List(payload))
-    case Event(BunchMarketEvent(payload: T), Some(payloads)) =>
-      stay() using Some(payload :: payloads)
+    case Event(BunchMarketEvent(payload), None) => stay() using Some(List(payload.asInstanceOf[T]))
+    case Event(BunchMarketEvent(payload), Some(payloads)) =>
+      stay() using Some(payload.asInstanceOf[T] :: payloads)
 
     case Event(FlushBunch, Some(payloads)) => flushPayloads(payloads); goto(BuncherState.Idle) using None
   }

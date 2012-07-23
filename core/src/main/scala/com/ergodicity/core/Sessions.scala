@@ -142,8 +142,8 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   }
 
   when(LoadingSessions) {
-    case Event(Snapshot(SessionRepository, data: Iterable[FutInfo.session]), tracking: TrackingSessions) =>
-      goto(LoadingFuturesContents) using tracking.updateWith(data)
+    case Event(Snapshot(SessionRepository, data), tracking: TrackingSessions) =>
+      goto(LoadingFuturesContents) using tracking.updateWith(data.asInstanceOf[Iterable[FutInfo.session]])
   }
 
   when(LoadingFuturesContents) {
@@ -164,8 +164,8 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
       ref ! CurrentOngoingSession(ongoing)
       stay()
 
-    case Event(Snapshot(SessionRepository, data: Iterable[FutInfo.session]), tracking: TrackingSessions) =>
-      val updated = tracking.updateWith(data)
+    case Event(Snapshot(SessionRepository, data), tracking: TrackingSessions) =>
+      val updated = tracking.updateWith(data.asInstanceOf[Iterable[FutInfo.session]])
       if (updated.ongoing != tracking.ongoing) {
         subscribers.foreach(_ ! OngoingSessionTransition(updated.ongoing))
       }
@@ -181,8 +181,8 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   }
 
   whenUnhandled {
-    case Event(Snapshot(SessionRepository, data: Iterable[FutInfo.session]), tracking: TrackingSessions) =>
-      stay() using tracking.updateWith(data)
+    case Event(Snapshot(SessionRepository, data), tracking: TrackingSessions) =>
+      stay() using tracking.updateWith(data.asInstanceOf[Iterable[FutInfo.session]])
   }
 
   onTransition {

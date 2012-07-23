@@ -3,7 +3,7 @@ package com.ergodicity.core.session
 import akka.actor.{FSM, Props, ActorRef, Actor}
 import akka.actor.FSM.{SubscribeTransitionCallBack, CurrentState, Transition}
 import com.ergodicity.cgate.repository.Repository.Snapshot
-import com.ergodicity.core.common.{WhenUnhandled, Isin, Security}
+import com.ergodicity.core.common.{FullIsin, Security}
 
 case class TrackSessionState(session: ActorRef)
 
@@ -25,7 +25,7 @@ trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[S
 
   def converter: R => S
 
-  protected[core] var instruments: Map[Isin, ActorRef] = Map()
+  protected[core] var instruments: Map[FullIsin, ActorRef] = Map()
 
   startWith(Idle, initialState)
 
@@ -36,7 +36,7 @@ trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[S
   when(TrackingSession) {
     case Event(CurrentState(_, state: SessionState), _) => stay() using state
     case Event(Transition(_, _, to: SessionState), _) => handleSessionState(to); stay() using to
-    case Event(snapshot: Snapshot[R], _) => handleSessionContentsRecord(snapshot.data); stay()
+    case Event(Snapshot(_, data), _) => handleSessionContentsRecord(data.asInstanceOf[Iterable[R]]); stay()
   }
 
   whenUnhandled {
@@ -57,12 +57,12 @@ trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[S
 
   def conformIsinToActorName(isin: String): String = isin.replaceAll(" ", "@")
 
-  def conformIsinToActorName(isin: Isin): String = conformIsinToActorName(isin.code)
+  def conformIsinToActorName(isin: FullIsin): String = conformIsinToActorName(isin.isin)
 }
 
 case class StatefulSessionContents[S <: Security, R <: StatefulSessContents](initialState: SessionState)(implicit val converter: R => S) extends SessionContents[S, R] {
 
-  private var originalInstrumentState: Map[Isin, InstrumentState] = Map()
+  private var originalInstrumentState: Map[FullIsin, InstrumentState] = Map()
 
   protected def handleSessionState(state: SessionState) {
     instruments.foreach {
@@ -76,7 +76,7 @@ case class StatefulSessionContents[S <: Security, R <: StatefulSessContents](ini
         val isin = record2isin(record)
         val state = mergeStates(stateData, InstrumentState(record.get_state()))
         instruments.get(isin).map(_ ! state) getOrElse {
-          instruments = instruments + (isin -> context.actorOf(Props(new Instrument(converter(record), state)), isin.code))
+          instruments = instruments + (isin -> context.actorOf(Props(new Instrument(converter(record), state)), isin.isin))
         }
         originalInstrumentState = originalInstrumentState + (isin -> InstrumentState(record.get_state()))
     }

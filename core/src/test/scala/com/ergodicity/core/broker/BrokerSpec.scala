@@ -6,7 +6,7 @@ import java.util.concurrent.Executor
 import com.jacob.com.Variant
 import akka.pattern._
 import plaza2.{ServiceRef, Message, MessageFactory, Connection => P2Connection}
-import com.ergodicity.core.common.{Isin, FutureContract}
+import com.ergodicity.core.common.{FullIsin, FutureContract}
 import com.ergodicity.core.common.OrderType._
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
@@ -57,7 +57,7 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
       val broker = TestActorRef(new Broker("000", connection))
 
       // -- Execute
-      val future = FutureContract(Isin(111, "isin", "shortIsin"), "name")
+      val future = FutureContract(FullIsin(111, "isin", "shortIsin"), "name")
 
       val report = Await.result((broker ? Buy(future, GoodTillCancelled, BigDecimal(100), 1)).mapTo[ExecutionReport[FutOrder]], 100 millis)
       log.info("Res = " + report)

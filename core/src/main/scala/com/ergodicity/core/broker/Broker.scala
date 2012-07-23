@@ -99,7 +99,7 @@ class Broker(clientCode: String, connection: P2Connection)(implicit messageFacto
     message.setField("P2_Category", FORTS_MSG)
     message.setField("P2_Type", 36)
 
-    message.setField("isin", future.isin.code)
+    message.setField("isin", future.isin.isin)
     message.setField("price", price.toString())
     message.setField("amount", amount)
     message.setField("client_code", clientCode)

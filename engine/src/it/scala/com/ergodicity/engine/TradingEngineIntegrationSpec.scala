@@ -1,17 +1,21 @@
 package com.ergodicity.engine
 
 import component._
-import org.scalatest.WordSpec
 import akka.event.Logging
 import akka.actor.ActorSystem
 import akka.testkit.{TestFSMRef, TestKit}
 import java.util.concurrent.TimeUnit
 import java.io.File
 import plaza2.{Connection => P2Connection}
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
 
-class TradingEngineIntegrationSpec extends TestKit(ActorSystem("TradingEngineIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec {
+class TradingEngineIntegrationSpec extends TestKit(ActorSystem("TradingEngineIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll {
 
   val log = Logging(system, "TradingEngineIntegrationSpec")
+
+  override def afterAll() {
+    system.shutdown()
+  }
 
   val actorSystem = system
   val config = new TradingEngineConfig {

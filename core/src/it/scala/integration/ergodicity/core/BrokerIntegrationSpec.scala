@@ -3,7 +3,7 @@ package integration.ergodicity.core
 import java.io.File
 import plaza2.RouterStatus.RouterConnected
 import plaza2.{MessageFactory, Connection}
-import com.ergodicity.core.common.{Isin, FutureContract}
+import com.ergodicity.core.common.{FullIsin, FutureContract}
 import com.ergodicity.core.common.OrderType._
 import com.ergodicity.core.AkkaConfigurations
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
@@ -48,7 +48,7 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
 
       val broker = TestActorRef(new Broker("533", conn))
 
-      val future = FutureContract(Isin(0, "RTS-9.12", ""), "")
+      val future = FutureContract(FullIsin(0, "RTS-9.12", ""), "")
 
       val report = Await.result((broker ? Sell(future, GoodTillCancelled, BigDecimal(127000), 3)).mapTo[ExecutionReport[FutOrder]], 2 seconds)
 
