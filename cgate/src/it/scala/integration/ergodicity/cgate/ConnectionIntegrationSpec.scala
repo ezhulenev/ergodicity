@@ -28,9 +28,8 @@ class ConnectionIntegrationSpec extends TestKit(ActorSystem("ConnectionIntegrati
 
   val Host = "localhost"
   val Port = 4001
-  val AppName = "ConnectionIntegrationSpec"
 
-  val RouterConnection = Tcp(Host, Port, AppName)
+  val RouterConnection = Tcp(Host, Port, system.name)
 
   "Connection" must {
     "connect to CGate router in" in {

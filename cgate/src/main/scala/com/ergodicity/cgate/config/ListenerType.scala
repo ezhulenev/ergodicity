@@ -4,18 +4,19 @@ import java.io.File
 
 sealed trait ListenerType {
   def config: String
+  def apply(): String = config
 }
 
 sealed trait ListenerOpenParams {
   def config: String
 }
 
-class Replication(stream: String, ini: File, scheme: String) extends ListenerType {
+case class Replication(stream: String, ini: File, scheme: String) extends ListenerType {
   if (!ini.exists()) throw new IllegalArgumentException("Scheme ini file doesn't exists")
 
   val prefix = "p2repl://"
 
-  def config = prefix + stream + ";scheme=|FILE|" + ini.getAbsolutePath + "|" + scheme
+  val config = prefix + stream + ";scheme=|FILE|" + ini.getAbsolutePath + "|" + scheme
 }
 
 object Replication {
@@ -40,7 +41,7 @@ object Replication {
 
   }
 
-  class ReplicationParams(mode: ReplicationMode, state: Option[String] = None) extends ListenerOpenParams {
+  case class ReplicationParams(mode: ReplicationMode, state: Option[String] = None) extends ListenerOpenParams {
     private val modeParam = "mode=" + mode.name
     val config = state.map(modeParam + ";replstate=" + _).getOrElse(modeParam)
   }
