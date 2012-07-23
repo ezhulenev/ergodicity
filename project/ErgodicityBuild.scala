@@ -47,7 +47,7 @@ object ErgodicityBuild extends Build {
   lazy val core = Project(
     id = "core",
     base = file("core"),
-    dependencies = Seq(plaza2),
+    dependencies = Seq(cgate, plaza2),
     settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.core)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)

@@ -6,22 +6,18 @@ import org.scalatest.WordSpec
 import plaza2.RequestType.CombinedDynamic
 import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
 import akka.actor.{Actor, Props, ActorSystem}
-import com.ergodicity.plaza2.DataStream.{BindTable, SetLifeNumToIni, Open}
-import com.ergodicity.plaza2.Repository.{Snapshot, SubscribeSnapshots}
+import com.ergodicity.plaza2.DataStream.{SetLifeNumToIni, Open}
 import com.ergodicity.plaza2.Connection.{ProcessMessages, Connect}
 import com.ergodicity.plaza2._
 import AkkaIntegrationConfigurations._
-import scheme.FutInfo.{Signs, SessContentsRecord}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
-import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
-import com.ergodicity.core.common.FutureContract
-import java.util.concurrent.{CountDownLatch, TimeUnit}
-import scheme.{OptTrade, FutTrade, Deserializer}
+import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
+import java.util.concurrent.TimeUnit
 import com.ergodicity.core.order.FutureOrders
 import com.ergodicity.core.order.FutureOrders.BindFutTradeRepl
 
 class FutureOrdersIntegrationSpec extends TestKit(ActorSystem("FutureOrdersIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec {
-  val log = LoggerFactory.getLogger(classOf[FutTradeDataStreamIntegrationSpec])
+  val log = LoggerFactory.getLogger(classOf[FutureOrdersIntegrationSpec])
 
 
   val Host = "localhost"

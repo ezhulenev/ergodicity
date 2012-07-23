@@ -1,9 +1,9 @@
 package com.ergodicity.core.session
 
-import com.ergodicity.plaza2.Repository.Snapshot
 import akka.actor.{FSM, Props, ActorRef, Actor}
 import akka.actor.FSM.{SubscribeTransitionCallBack, CurrentState, Transition}
-import com.ergodicity.core.common.{Isin, Security}
+import com.ergodicity.cgate.repository.Repository.Snapshot
+import com.ergodicity.core.common.{WhenUnhandled, Isin, Security}
 
 case class TrackSessionState(session: ActorRef)
 
@@ -74,11 +74,11 @@ case class StatefulSessionContents[S <: Security, R <: StatefulSessContents](ini
     records.foreach {
       record =>
         val isin = record2isin(record)
-        val state = mergeStates(stateData, InstrumentState(record.state))
+        val state = mergeStates(stateData, InstrumentState(record.get_state()))
         instruments.get(isin).map(_ ! state) getOrElse {
           instruments = instruments + (isin -> context.actorOf(Props(new Instrument(converter(record), state)), isin.code))
         }
-        originalInstrumentState = originalInstrumentState + (isin -> InstrumentState(record.state))
+        originalInstrumentState = originalInstrumentState + (isin -> InstrumentState(record.get_state()))
     }
   }
 

@@ -86,14 +86,17 @@ class DataStreamSubscriber(dataStream: ActorRef) extends Subscriber {
   }
 }
 
-case class BindTable(tableIndex: Int, ref: ActorRef)
+object DataStream {
+  case class BindTable(tableIndex: Int, ref: ActorRef)
 
-case class SubscribeReplState(ref: ActorRef)
+  case class SubscribeReplState(ref: ActorRef)
 
-case class DataStreamReplState(stream: ActorRef, state: String)
+  case class DataStreamReplState(stream: ActorRef, state: String)
+}
 
 class DataStream extends Actor with FSM[DataStreamState, Map[Int, Seq[ActorRef]]] {
 
+  import DataStream._
   import StreamEvent._
   import DataStreamState._
 

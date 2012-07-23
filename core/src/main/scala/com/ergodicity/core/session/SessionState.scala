@@ -3,7 +3,7 @@ package com.ergodicity.core.session
 sealed trait SessionState
 
 object SessionState {
-  def apply(state: Long) = state match {
+  def apply(state: Int) = state match {
     case 0 => Assigned
     case 1 => Online
     case 2 => Suspended
@@ -33,7 +33,7 @@ object IntClearingState {
   private val FinalizingMask = 0x08
   private val CompletedMask = 0x10
 
-  def apply(state: Long) = state match {
+  def apply(state: Int) = state match {
     case UndefinedMask => Undefined
     case i if (i & OncomingMask) != 0 => Oncoming
     case i if (i & CanceledMask) != 0 => Canceled

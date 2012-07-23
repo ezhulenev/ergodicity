@@ -1,23 +1,24 @@
 package com.ergodicity.core
 
-import com.ergodicity.plaza2.Repository.Snapshot
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
-import akka.actor.{Terminated, ActorSystem}
-import com.ergodicity.plaza2.scheme.FutInfo.SessionRecord
 import com.ergodicity.core.Sessions._
 import akka.event.Logging
 import session.Session.{OptInfoSessionContents, FutInfoSessionContents}
 import session.SessionState
 import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
-import com.ergodicity.plaza2.scheme.{OptInfo, FutInfo}
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
-import plaza2.{DataStream => P2DataStream}
-import org.mockito.Mockito._
-import com.ergodicity.plaza2.{DataStreamState, DataStream}
 import com.ergodicity.core.SessionsData.TrackingSessions
+import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
+import Mocking._
+import com.ergodicity.cgate.repository.Repository.Snapshot
+import java.nio.ByteBuffer
+import com.ergodicity.cgate.{DataStream, DataStreamState}
+import akka.actor.{Kill, Terminated, ActorSystem}
 
-class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
+class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)
+  
+  val OptionSessionId = 3547
 
   override def afterAll() {
     system.shutdown()
@@ -26,24 +27,24 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
   "Sessions" must {
 
     "initialized in Idle state" in {
-      val futuresDs = mock(classOf[P2DataStream])
-      val optionsDs = mock(classOf[P2DataStream])
-
-      val sessions = TestFSMRef(new Sessions(TestFSMRef(DataStream(futuresDs)), TestFSMRef(DataStream(optionsDs))), "Sessions")
+      val sessions = TestFSMRef(new Sessions(TestFSMRef(new DataStream()), TestFSMRef(new DataStream())), "Sessions")
       assert(sessions.stateName == SessionsState.Idle)
     }
 
     "track sessions state" in {
-      val futuresDs = mock(classOf[P2DataStream])
-      val optionsDs = mock(classOf[P2DataStream])
+      val FutInfoDS = TestFSMRef(new DataStream(), "FutInfoDS")
+      val OptInfoDS = TestFSMRef(new DataStream(), "OptInfoDS")
 
-      val FutInfoDS = TestFSMRef(DataStream(futuresDs))
-      val OptInfoDS = TestFSMRef(DataStream(optionsDs))
       val sessions = TestFSMRef(new Sessions(FutInfoDS, OptInfoDS), "Sessions")
 
       val underlying = sessions.underlyingActor.asInstanceOf[Sessions]
       val sessionRepository = underlying.SessionRepository
-      
+
+      // Kill child repositories
+      underlying.SessionRepository ! Kill
+      underlying.FutSessContentsRepository ! Kill
+      underlying.OptSessContentsRepository ! Kill
+
       when("BindSessions received")
       sessions ! BindSessions
       
@@ -51,8 +52,8 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       assert(sessions.stateName == SessionsState.Binded)
       
       when("both data Streams goes online")
-      sessions ! Transition(FutInfoDS, DataStreamState.Opening, DataStreamState.Online)
-      sessions ! Transition(OptInfoDS, DataStreamState.Opening, DataStreamState.Online)
+      sessions ! Transition(FutInfoDS, DataStreamState.Opened, DataStreamState.Online)
+      sessions ! Transition(OptInfoDS, DataStreamState.Opened, DataStreamState.Online)
       
       then("should go to LoadingSessions state")
       assert(sessions.stateName == SessionsState.LoadingSessions)
@@ -61,7 +62,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       sessions ! Snapshot(sessionRepository, Seq(sessionRecord(46, 396, 4021, SessionState.Online)))
 
       then("should create actor for it")
-      val session1 = sessions.stateData.asInstanceOf[TrackingSessions].sessions(SessionId(4021, 3547))
+      val session1 = sessions.stateData.asInstanceOf[TrackingSessions].sessions(SessionId(4021, OptionSessionId))
       watch(session1)
       session1 ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(session1, SessionState.Online))
@@ -70,16 +71,17 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       assert(sessions.stateData.asInstanceOf[TrackingSessions].sessions.size == 1)
 
       and("go to LoadingFuturesContents state")
+      log.info("EBAKA = "+sessions.stateName)
       assert(sessions.stateName == SessionsState.LoadingFuturesContents)
       
       when("receive Futures sessions contentes")
-      sessions ! Snapshot(underlying.FutSessContentsRepository, List[FutInfo.SessContentsRecord]())
+      sessions ! Snapshot(underlying.FutSessContentsRepository, List[FutInfo.fut_sess_contents]())
       
       then("should go to LoadingOptionsContents state")
       assert(sessions.stateName == SessionsState.LoadingOptionsContents)
 
       when("receive Options sessions contentes")
-      sessions ! Snapshot(underlying.OptSessContentsRepository, List[OptInfo.SessContentsRecord]())
+      sessions ! Snapshot(underlying.OptSessContentsRepository, List[OptInfo.opt_sess_contents]())
 
       then("should go to Online state")
       assert(sessions.stateName == SessionsState.Online)
@@ -108,7 +110,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       sessions ! Snapshot(sessionRepository, sessionRecord(46, 398, 4021, SessionState.Completed) :: sessionRecord(47, 399, 4022, SessionState.Assigned) :: Nil)
 
       then("new actor should be created")
-      val session2 = sessions.stateData.asInstanceOf[TrackingSessions].sessions(SessionId(4022, 3547))
+      val session2 = sessions.stateData.asInstanceOf[TrackingSessions].sessions(SessionId(4022, OptionSessionId))
 
       and("notified about ongoing session transition")
       expectMsg(OngoingSessionTransition(Some(session2)))
@@ -131,7 +133,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       assert(sessions.stateData.asInstanceOf[TrackingSessions].sessions.size == 1)
 
       when("all sessions removed")
-      sessions ! Snapshot(sessionRepository, Seq.empty[SessionRecord])
+      sessions ! Snapshot(sessionRepository, Seq.empty[FutInfo.session])
 
       then("second session should also be terminated")
       expectMsg(OngoingSessionTransition(None))
@@ -142,57 +144,41 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
     }
 
     "should forward FutInfo.SessContentsRecord snapshot to child sessions" in {
-      val futuresDs = mock(classOf[P2DataStream])
-      val optionsDs = mock(classOf[P2DataStream])
-
-      val FutInfoDS = TestFSMRef(DataStream(futuresDs))
-      val OptInfoDS = TestFSMRef(DataStream(optionsDs))
+      val FutInfoDS = TestFSMRef(new DataStream())
+      val OptInfoDS = TestFSMRef(new DataStream())
       val sessions = TestFSMRef(new Sessions(FutInfoDS, OptInfoDS), "Sessions")
 
       val underlying = sessions.underlyingActor.asInstanceOf[Sessions]
 
       sessions.setState(SessionsState.Online, TrackingSessions(Map(SessionId(100l, 0l) -> self), None))
 
-      val future1 = FutInfo.SessContentsRecord(7477, 47740, 0, 100, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
-      val future2 = FutInfo.SessContentsRecord(7477, 47740, 0, 102, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
+      val future1 = mockFuture(100, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
+      val future2 = mockFuture(102, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
 
       sessions ! Snapshot(underlying.FutSessContentsRepository, future1 :: future2 :: Nil)
       expectMsg(FutInfoSessionContents(Snapshot(underlying.FutSessContentsRepository, future1 :: Nil)))
     }
 
     "should forward OptInfo.SessContentsRecord snapshot to child sessions" in {
-      val futuresDs = mock(classOf[P2DataStream])
-      val optionsDs = mock(classOf[P2DataStream])
-
-      val FutInfoDS = TestFSMRef(DataStream(futuresDs))
-      val OptInfoDS = TestFSMRef(DataStream(optionsDs))
+      val FutInfoDS = TestFSMRef(new DataStream)
+      val OptInfoDS = TestFSMRef(new DataStream)
       val sessions = TestFSMRef(new Sessions(FutInfoDS, OptInfoDS), "Sessions")
 
       val underlying = sessions.underlyingActor.asInstanceOf[Sessions]
 
       sessions.setState(SessionsState.Online, TrackingSessions(Map(SessionId(0, 100l) -> self), None))
 
-      val option1 = OptInfo.SessContentsRecord(10881, 20023, 0, 100, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
-      val option2 = OptInfo.SessContentsRecord(10881, 20023, 0, 101, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
+      val option1 = mockOption(100, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
+      val option2 = mockOption(101, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
 
       sessions ! Snapshot(underlying.OptSessContentsRepository, option1 :: option2 :: Nil)
       expectMsg(OptInfoSessionContents(Snapshot(underlying.OptSessContentsRepository, option1 :: Nil)))
     }
   }
-
   def sessionRecord(replID: Long, revId: Long, sessionId: Int, sessionState: SessionState) = {
     import SessionState._
-
-    val begin = "2012/04/12 07:15:00.000"
-    val end = "2012/04/12 14:45:00.000"
-    val interClBegin = "2012/04/12 12:00:00.000"
-    val interClEnd = "2012/04/12 12:05:00.000"
-    val eveBegin = "2012/04/11 15:30:00.000"
-    val eveEnd = "2012/04/11 23:50:00.000"
-    val monBegin = "2012/04/12 07:00:00.000"
-    val monEnd = "2012/04/12 07:15:00.000"
-    val posTransferBegin = "2012/04/12 13:00:00.000"
-    val posTransferEnd = "2012/04/12 13:15:00.000"
+    
+    val buffer = ByteBuffer.allocate(1000)
 
     val stateValue = sessionState match {
       case Assigned => 0
@@ -201,8 +187,16 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec")) with ImplicitSen
       case Canceled => 3
       case Completed => 4
     }
-
-    SessionRecord(replID, revId, 0, sessionId, begin, end, stateValue, 3547, interClBegin, interClEnd, 5136, 1, eveBegin, eveEnd, 1, monBegin, monEnd, posTransferBegin, posTransferEnd)
+    
+    val session = new FutInfo.session(buffer)
+    session.set_replID(replID)
+    session.set_replRev(revId)
+    session.set_replAct(0)
+    session.set_sess_id(sessionId)
+    session.set_begin(0l)
+    session.set_end(0l)
+    session.set_opt_sess_id(OptionSessionId)
+    session.set_state(stateValue)        
+    session   
   }
-
 }

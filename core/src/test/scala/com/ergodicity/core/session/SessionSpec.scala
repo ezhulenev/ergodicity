@@ -6,8 +6,6 @@ import akka.actor.FSM.{CurrentState, Transition, SubscribeTransitionCallBack}
 import SessionState._
 import akka.event.Logging
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
-import com.ergodicity.plaza2.scheme.FutInfo.SessContentsRecord
-import com.ergodicity.plaza2.Repository.Snapshot
 import com.ergodicity.core.AkkaConfigurations._
 import com.ergodicity.core.session.Session.FutInfoSessionContents
 import akka.testkit.{TestActorRef, ImplicitSender, TestFSMRef, TestKit}
@@ -17,6 +15,8 @@ import akka.pattern.ask
 import com.ergodicity.core.common.Isin
 import java.util.concurrent.TimeUnit
 import akka.util.{Duration, Timeout}
+import com.ergodicity.core.Mocking._
+import com.ergodicity.cgate.repository.Repository.Snapshot
 
 class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -90,8 +90,8 @@ class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedL
       val content = SessionContent(100, 101, primaryInterval, None, None, positionTransferInterval)
       val session = TestActorRef(new Session(content, SessionState.Online, IntClearingState.Oncoming), "Session2")
 
-      val future = SessContentsRecord(7477, 47740, 0, 4023, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
-      val repo = SessContentsRecord(7700, 47964, 0, 4023, 170971, "HYDRT0T3", "HYDR-16.04.12R3", "Репо инструмент на ОАО \"ГидроОГК\"", 4965, 2, 1)
+      val future = mockFuture(4023, 166911, "GMKR-6.12", "GMM2", "Фьючерсный контракт GMKR-06.12", 115, 2)
+      val repo = mockFuture(4023, 170971, "HYDR-16.04.12R3", "HYDRT0T3", "Репо инструмент на ОАО \"ГидроОГК\"", 4965, 2, 1)
 
       session ! FutInfoSessionContents(Snapshot(self, repo :: future :: Nil))
 

@@ -3,13 +3,13 @@ package com.ergodicity.core.session
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
-import com.ergodicity.plaza2.Repository.Snapshot
-import com.ergodicity.plaza2.scheme.OptInfo.SessContentsRecord
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.plaza2.scheme.OptInfo
 import akka.actor.ActorSystem
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
 import com.ergodicity.core.common.OptionContract
+import com.ergodicity.core.Mocking._
+import com.ergodicity.cgate.scheme.OptInfo
+import com.ergodicity.cgate.repository.Repository.Snapshot
 
 class StatelessSessionContentsSpec extends TestKit(ActorSystem("StatelessSessionContentsSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
 
@@ -19,12 +19,12 @@ class StatelessSessionContentsSpec extends TestKit(ActorSystem("StatelessSession
     system.shutdown()
   }
 
-  val rtsOption = SessContentsRecord(10881, 20023, 0, 3550, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
+  val rtsOption = mockOption(3550, 160734, "RTS-6.12M150612PA 175000", "RI175000BR2", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
 
   "StatelessSessionContents" must {
 
     "should track session state updates and propagate to instrument state" in {
-      val contents = TestActorRef(new StatelessSessionContents[OptionContract, OptInfo.SessContentsRecord](SessionState.Online), "Options")
+      val contents = TestActorRef(new StatelessSessionContents[OptionContract, OptInfo.opt_sess_contents](SessionState.Online), "Options")
       contents ! TrackSessionState(self)
       expectMsgType[SubscribeTransitionCallBack]
 

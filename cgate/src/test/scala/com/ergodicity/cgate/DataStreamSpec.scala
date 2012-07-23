@@ -7,6 +7,7 @@ import akka.actor.ActorSystem
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.StreamEvent.{ReplState, ClearDeleted, LifeNumChanged, StreamData}
+import com.ergodicity.cgate.DataStream.{DataStreamReplState, SubscribeReplState, BindTable}
 
 class DataStreamSpec extends TestKit(ActorSystem("DataStreamSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = Logging(system, self)

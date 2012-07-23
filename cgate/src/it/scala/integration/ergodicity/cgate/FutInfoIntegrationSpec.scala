@@ -19,6 +19,7 @@ import akka.event.Logging
 import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.Protocol._
 import com.ergodicity.cgate.repository.ReplicaExtractor._
+import com.ergodicity.cgate.DataStream.BindTable
 
 
 class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {

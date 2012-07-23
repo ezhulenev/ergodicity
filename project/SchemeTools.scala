@@ -31,7 +31,7 @@ object SchemeTools {
   }
 
   private def makeCmd(out: File, className: String, ini: File, scheme: String) = {
-    "schemetool makesrc -O java -o %s -Djava-user-package=%s -Djava-class-name=%s %s %s".format(
+    "schemetool makesrc -O java -o %s -Djava-time-format=long -Djava-user-package=%s -Djava-class-name=%s %s %s".format(
       out,
       Package,
       className,

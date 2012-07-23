@@ -5,13 +5,12 @@ import java.io.File
 import org.scalatest.WordSpec
 import plaza2.RequestType.CombinedDynamic
 import plaza2.{TableSet, Connection => P2Connection, DataStream => P2DataStream}
-import akka.testkit.{TestActorRef, TestFSMRef, TestKit}
+import akka.testkit.{TestFSMRef, TestKit}
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.plaza2.Connection.{ProcessMessages, Connect}
 import integration.ergodicity.core.AkkaIntegrationConfigurations._
-import com.ergodicity.core.Sessions
 import com.ergodicity.plaza2.DataStream.{Open, SetLifeNumToIni}
 import com.ergodicity.plaza2.{ConnectionState, Connection, DataStream}
 import com.ergodicity.core.position.Positions.BindPositions
