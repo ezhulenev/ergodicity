@@ -7,6 +7,8 @@ import com.ergodicity.cgate.scheme._
 import com.ergodicity.cgate.repository.Repository
 import com.ergodicity.cgate.DataStream.BindTable
 import com.ergodicity.cgate.DataStreamState
+import com.ergodicity.cgate.Protocol._
+import com.ergodicity.cgate.repository.ReplicaExtractor._
 import com.ergodicity.cgate.repository.Repository.{Snapshot, SubscribeSnapshots}
 import scalaz._
 import Scalaz._

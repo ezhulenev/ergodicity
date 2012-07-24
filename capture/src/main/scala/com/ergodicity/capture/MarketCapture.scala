@@ -8,20 +8,37 @@ import java.net.{ConnectException, Socket}
 import com.twitter.finagle.kestrel.protocol.Kestrel
 import com.twitter.finagle.builder.ClientBuilder
 import com.twitter.finagle.kestrel.Client
-import com.ergodicity.marketdb.model.{OrderPayload, Security => MarketDbSecurity, Market, TradePayload}
-import com.ergodicity.cgate.scheme._
+import com.ergodicity.marketdb.model.{Security => MarketDbSecurity}
 import org.joda.time.DateTime
 import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection}
-import akka.actor.FSM.{Failure => FSMFailure, _}
+import akka.actor.FSM.{Failure => FSMFailure}
 import com.ergodicity.cgate._
 import config.Replication.ReplicationMode.Combined
 import config.Replication.ReplicationParams
-import scalaz.{Failure => _, _}
+import scalaz._
 import Scalaz._
-import com.ergodicity.cgate.Connection.StartMessageProcessing
+import com.ergodicity.capture.MarketDbCapture.ConvertToMarketDb
+import scheme.OrdLog.orders_log
+import akka.actor.FSM.Transition
+import akka.actor.FSM.UnsubscribeTransitionCallBack
+import scala.Some
 import com.ergodicity.cgate.StreamEvent.ReplState
-import com.ergodicity.cgate.DataStream.{DataStreamReplState, SubscribeReplState, BindTable}
-import com.ergodicity.core.common.{FullIsin, Security}
+import com.ergodicity.core.common.FullIsin
+import akka.actor.AllForOneStrategy
+import com.ergodicity.marketdb.model.Market
+import com.ergodicity.cgate.DataStream.DataStreamReplState
+import com.ergodicity.cgate.DataStream.SubscribeReplState
+import com.ergodicity.core.common.Security
+import com.ergodicity.marketdb.model.TradePayload
+import akka.actor.Terminated
+import com.ergodicity.marketdb.model.OrderPayload
+import akka.actor.FSM.SubscribeTransitionCallBack
+import com.ergodicity.cgate.Connection.StartMessageProcessing
+import com.ergodicity.cgate.DataStream.BindTable
+import com.ergodicity.cgate.scheme._
+import com.ergodicity.cgate.Protocol._
+
+
 
 case class MarketCaptureException(msg: String) extends RuntimeException(msg)
 
@@ -69,7 +86,7 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
 
   import CaptureData._
 
-  val Forts = Market("FORTS");
+  val Forts = Market("FORTS")
 
   implicit val revisionTracker = repository
 
@@ -115,6 +132,18 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
     .buildFactory())
 
   // Create captures
+  implicit val ConvertOrder = new ConvertToMarketDb[OrdLog.orders_log, OrderPayload] {
+    def apply(in: orders_log) = convertOrdersLog(in).getOrElse(throw new MarketCaptureException("Can't find isin for " + in))
+  }
+
+  implicit val ConvertFutureDeal = new ConvertToMarketDb[FutTrade.deal, TradePayload] {
+    def apply(in: FutTrade.deal) = convertFuturesDeal(in).getOrElse(throw new MarketCaptureException("Can't find isin for " + in))
+  }
+
+  implicit val ConvertOptionDeal = new ConvertToMarketDb[OptTrade.deal, TradePayload] {
+    def apply(in: OptTrade.deal) = convertOptionsDeal(in).getOrElse(throw new MarketCaptureException("Can't find isin for " + in))
+  }
+
   val orderCapture = context.actorOf(Props(new MarketDbCapture[OrdLog.orders_log, OrderPayload](new OrdersBuncher(client, kestrel.ordersQueue))), "OrdersCapture")
   val futuresCapture = context.actorOf(Props(new MarketDbCapture[FutTrade.deal, TradePayload](new TradesBuncher(client, kestrel.tradesQueue))), "FuturesCapture")
   val optionsCapture = context.actorOf(Props(new MarketDbCapture[OptTrade.deal, TradePayload](new TradesBuncher(client, kestrel.tradesQueue))), "OptionsCapture")
@@ -176,7 +205,7 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
       repository.setReplicationState(replication.futTrade.stream, state)
       stay() using s.copy(futTrade = Some(ReplState(state)))
 
-    case Event(DataStreamReplState(OptTrade, state), s: StreamStates) =>
+    case Event(DataStreamReplState(OptTradeStream, state), s: StreamStates) =>
       repository.setReplicationState(replication.optTrade.stream, state)
       stay() using s.copy(optTrade = Some(ReplState(state)))
 
@@ -222,10 +251,6 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
   }
 
   initialize
-
-  implicit val orderConverter = (record: OrdLog.orders_log) => convertOrdersLog(record).getOrElse(throw new MarketCaptureException("Can't find isin for " + record))
-  implicit val futureDealsConverter = (record: FutTrade.deal) => convertFuturesDeal(record).getOrElse(throw new MarketCaptureException("Can't find isin for " + record))
-  implicit val optionDealsConverter = (record: OptTrade.deal) => convertOptionsDeal(record).getOrElse(throw new MarketCaptureException("Can't find isin for " + record))
 
   private def convertOrdersLog(record: OrdLog.orders_log): Option[OrderPayload] = {
     val isin = safeIsin(record.get_isin_id())

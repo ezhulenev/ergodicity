@@ -10,6 +10,7 @@ import com.ergodicity.marketdb.model.{OrderPayload, TradePayload}
 import akka.actor.{Terminated, Props, FSM, Actor}
 import com.twitter.util.Future
 import com.twitter.concurrent.{Tx, Offer}
+import com.ergodicity.capture.MarketDbCapture.ConvertToMarketDb
 
 sealed trait MarketDbCaptureState
 
@@ -21,8 +22,15 @@ object MarketDbCaptureState {
 
 }
 
+
+object MarketDbCapture {
+  trait ConvertToMarketDb[T, M] {
+    def apply(in: T): M
+  }
+}
+
 class MarketDbCapture[T, M](marketDbBuncher: => MarketDbBuncher[M])
-                           (implicit read: com.ergodicity.cgate.Reads[T], toMarketDbPayload: T => M) extends Actor with FSM[MarketDbCaptureState, Unit] {
+                           (implicit read: com.ergodicity.cgate.Reads[T], writes: ConvertToMarketDb[T, M]) extends Actor with FSM[MarketDbCaptureState, Unit] {
 
   import com.ergodicity.cgate.StreamEvent._
 
@@ -39,14 +47,14 @@ class MarketDbCapture[T, M](marketDbBuncher: => MarketDbBuncher[M])
 
   when(MarketDbCaptureState.InTransaction) {
     case Event(TnCommit, _) =>
-      log.debug("End data");
+      log.debug("End data")
       marketBuncher ! FlushBunch
       goto(MarketDbCaptureState.Idle)
 
     case Event(StreamData(_, data), _) =>
       Stats.incr(self.path + "/DataInserted")
       val record = read(data)
-      marketBuncher ! BunchMarketEvent(toMarketDbPayload(record))
+      marketBuncher ! BunchMarketEvent(writes(record))
       stay()
   }
 

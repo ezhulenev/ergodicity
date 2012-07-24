@@ -5,13 +5,16 @@ import org.slf4j.LoggerFactory
 import com.ergodicity.capture.{SessionRepository, MongoLocal, MarketCaptureRepository}
 import com.ergodicity.core.session.SessionState
 import com.ergodicity.core.session.SessionState._
-import com.ergodicity.plaza2.scheme.FutInfo.SessionRecord
 import com.mongodb.casbah.commons.MongoDBObject
+import java.nio.ByteBuffer
+import com.ergodicity.cgate.scheme.FutInfo
 
-class SessionTrackerSpec extends WordSpec {
-  val log = LoggerFactory.getLogger(classOf[SessionTrackerSpec])
+class SessionRepositorySpec extends WordSpec {
+  val log = LoggerFactory.getLogger(classOf[SessionRepositorySpec])
 
-  val repository = new MarketCaptureRepository(MongoLocal("SessionTrackerSpec")) with SessionRepository
+  val OptSessionId = 3547
+
+  val repository = new MarketCaptureRepository(MongoLocal("SessionRepositorySpec")) with SessionRepository
 
   "MarketCaptureRepository with SessionRepository" must {
     "save session records" in {
@@ -22,7 +25,7 @@ class SessionTrackerSpec extends WordSpec {
       assert(repository.Sessions.count(sessionSpec) == 1)
 
       val optSessionId = repository.Sessions.findOne(sessionSpec).map(obj => obj.get("optionSessionId")).get
-      assert(optSessionId == 3547)
+      assert(optSessionId == OptSessionId)
 
       repository.Sessions.remove(sessionSpec)
       assert(repository.Sessions.count(sessionSpec) == 0)
@@ -33,17 +36,6 @@ class SessionTrackerSpec extends WordSpec {
   def sessionRecord(replID: Long, revId: Long, sessionId: Int, sessionState: SessionState) = {
     import SessionState._
 
-    val begin = "2012/04/12 07:15:00.000"
-    val end = "2012/04/12 14:45:00.000"
-    val interClBegin = "2012/04/12 12:00:00.000"
-    val interClEnd = "2012/04/12 12:05:00.000"
-    val eveBegin = "2012/04/11 15:30:00.000"
-    val eveEnd = "2012/04/11 23:50:00.000"
-    val monBegin = "2012/04/12 07:00:00.000"
-    val monEnd = "2012/04/12 07:15:00.000"
-    val posTransferBegin = "2012/04/12 13:00:00.000"
-    val posTransferEnd = "2012/04/12 13:15:00.000"
-
     val stateValue = sessionState match {
       case Assigned => 0
       case Online => 1
@@ -52,6 +44,13 @@ class SessionTrackerSpec extends WordSpec {
       case Completed => 4
     }
 
-    SessionRecord(replID, revId, 0, sessionId, begin, end, stateValue, 3547, interClBegin, interClEnd, 5136, 1, eveBegin, eveEnd, 1, monBegin, monEnd, posTransferBegin, posTransferEnd)
+    val buff = ByteBuffer.allocate(1000)
+    val session = new FutInfo.session(buff)
+    session.set_replID(replID)
+    session.set_replRev(revId)
+    session.set_sess_id(sessionId)
+    session.set_state(stateValue)
+    session.set_opt_sess_id(OptSessionId)
+    session
   }
 }

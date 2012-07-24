@@ -12,8 +12,8 @@ new CaptureEngineConfig {
     Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme"),
     Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme"),
     Replication("FORTS_ORDLOG_REPL", new File("cgate/scheme/ordLog_trades.ini"), "CustReplScheme"),
-    Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/fut_trade.ini"), "CustReplScheme"),
-    Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/opt_trade.ini"), "CustReplScheme")
+    Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/fut_trades.ini"), "CustReplScheme"),
+    Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/opt_trades.ini"), "CustReplScheme")
   )
 
   val database = MongoLocal("MarketCaptureDev")

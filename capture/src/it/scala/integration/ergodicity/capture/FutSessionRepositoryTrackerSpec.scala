@@ -3,15 +3,15 @@ package integration.ergodicity.capture
 import org.scalatest.WordSpec
 import org.slf4j.LoggerFactory
 import com.ergodicity.capture.{FutSessionContentsRepository, MongoLocal, MarketCaptureRepository}
-import com.ergodicity.plaza2.scheme.FutInfo
 import com.mongodb.casbah.commons.MongoDBObject
+import com.ergodicity.core.Mocking._
 
-class FutSessionContentsTrackerSpec extends WordSpec {
-  val log = LoggerFactory.getLogger(classOf[FutSessionContentsTrackerSpec])
+class FutSessionRepositoryTrackerSpec extends WordSpec {
+  val log = LoggerFactory.getLogger(classOf[FutSessionRepositoryTrackerSpec])
 
-  val repository = new MarketCaptureRepository(MongoLocal("FutSessionContentsTrackerSpec")) with FutSessionContentsRepository
+  val repository = new MarketCaptureRepository(MongoLocal("FutSessionRepositoryTrackerSpec")) with FutSessionContentsRepository
 
-  val gmkFuture = FutInfo.SessContentsRecord(7477, 47740, 0, 4023, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
+  val gmkFuture = mockFuture(4023, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
 
   "MarketCaptureRepository with FutSessionContentsRepository" must {
     "save fut session contents record" in {

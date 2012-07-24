@@ -5,16 +5,20 @@ import org.slf4j.LoggerFactory
 import akka.actor.ActorSystem
 import org.mockito.Mockito._
 import com.twitter.finagle.kestrel.Client
-import com.ergodicity.plaza2.scheme.{OrdLog, FutTrade}
-import com.ergodicity.marketdb.model.{Market, Security, OrderPayload, TradePayload}
+import com.ergodicity.marketdb.model.{Market, Security, OrderPayload}
 import org.joda.time.DateTime
-import akka.testkit.{TestFSMRef, TestActorRef, ImplicitSender, TestKit}
-import com.ergodicity.plaza2.DataStream.{DataEnd, DataInserted, DataBegin, DataDeleted}
+import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import org.mockito.Matchers._
 import com.twitter.concurrent.Offer
 import org.jboss.netty.buffer.ChannelBuffer
 import org.hamcrest.CoreMatchers._
 import com.twitter.util.Promise
+import com.ergodicity.cgate.scheme._
+import com.ergodicity.cgate.StreamEvent.{TnCommit, StreamData, TnBegin}
+import com.ergodicity.cgate.Reads
+import java.nio.ByteBuffer
+import com.ergodicity.capture.MarketDbCapture.ConvertToMarketDb
+import com.ergodicity.cgate.scheme.OrdLog.orders_log
 
 class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketDbCaptureSpec])
@@ -23,69 +27,42 @@ class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) wi
     system.shutdown()
   }
 
+  implicit val dummyOrderConverter = new ConvertToMarketDb[OrdLog.orders_log, OrderPayload] {
+    def apply(in: orders_log) = OrderPayload(Market("RTS"), Security("RIH"), 1l, new DateTime, 100, 1, 1, BigDecimal("100"), 1, 1, None)
+  }
+
+  implicit val dummyReads = new Reads[OrdLog.orders_log] {
+    def read(in: ByteBuffer) = new OrdLog.orders_log()
+  }
+
+  private def orderRecord(rev: Long) = {
+    val buffer = ByteBuffer.allocate(1000)
+    val rec = new OrdLog.orders_log(buffer)
+    rec.set_replRev(rev)
+    rec
+  }
+
   "MarketDbCapture" must {
-
-    "fail on DataDeleted event" in {
-      val revisionTracker = mock(classOf[StreamReplicationStateTracker])
-      lazy val marketDbBuncher = new TradesBuncher(mock(classOf[Client]), "Trades")
-
-      val capture = TestActorRef(new MarketDbCapture(revisionTracker, marketDbBuncher)(mock(classOf[(FutTrade.DealRecord) => TradePayload])))
-      intercept[MarketCaptureException] {
-        capture.receive(DataDeleted("table", 1))
-      }
-    }
-
-    "flush market events and revisions on DataEnd" in {
-      val revisionTracker = mock(classOf[StreamReplicationStateTracker])
+    "flush market events on TnCommit" in {
       val client = mock(classOf[Client])
       when(client.write(argThat(is("Orders")), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]])))
         .thenReturn(new Promise[Throwable]())
 
       lazy val ordersBuncher = new OrdersBuncher(client, "Orders")
-      val capture = TestFSMRef(new MarketDbCapture(revisionTracker, ordersBuncher)(orderConverter _), "MarketDbCapture")
+      val capture = TestFSMRef(new MarketDbCapture[OrdLog.orders_log, OrderPayload](ordersBuncher), "MarketDbCapture")
 
-      val record = mock(classOf[OrdLog.OrdersLogRecord])
-      when(record.replRev).thenReturn(100)
+      val record = orderRecord(100)
 
-      capture ! DataBegin
+      capture ! TnBegin
       assert(capture.stateName == MarketDbCaptureState.InTransaction)
 
-      capture ! DataInserted("orders_log", record)
-      capture ! DataEnd
+      capture ! StreamData(0, record.getData)
+      capture ! TnCommit
       assert(capture.stateName == MarketDbCaptureState.Idle)
 
       Thread.sleep(100)
 
       verify(client).write(argThat(is("Orders")), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]]))
-      verify(revisionTracker).setState("orders_log", 100)
-    }
-
-    "flush market revisions on market events flushed" in {
-      val revisionTracker = mock(classOf[StreamReplicationStateTracker])
-      val client = mock(classOf[Client])
-      when(client.write(argThat(is("Orders")), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]])))
-        .thenReturn(new Promise[Throwable]())
-
-      lazy val ordersBuncher = new OrdersBuncher(client, "Orders")
-      val capture = TestFSMRef(new MarketDbCapture(revisionTracker, ordersBuncher)(orderConverter _), "MarketDbCapture")
-
-      val record = mock(classOf[OrdLog.OrdersLogRecord])
-      when(record.replRev).thenReturn(100)
-
-      capture ! DataBegin
-      capture ! DataInserted("orders_log", record)
-
-      val underlying = capture.underlyingActor.asInstanceOf[MarketDbCapture[OrdLog.OrdersLogRecord, OrderPayload]]
-      underlying.marketBuncher ! FlushBunch
-
-      capture ! DataEnd
-
-      Thread.sleep(100)
-
-      verify(client).write(argThat(is("Orders")), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]]))
-      verify(revisionTracker).setState("orders_log", 100)
     }
   }
-
-  def orderConverter(order: OrdLog.OrdersLogRecord) = OrderPayload(Market("RTS"), Security("RIH"), 1l, new DateTime, 100, 1, 1, BigDecimal("100"), 1, 1, None)
 }

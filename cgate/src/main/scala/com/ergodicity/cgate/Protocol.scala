@@ -39,4 +39,12 @@ object Protocol {
     def read(in: ByteBuffer) = new FutTrade.deal(in)
   }
 
+  implicit val ReadsOptTradeOrders = new Reads[OptTrade.orders_log] {
+    def read(in: ByteBuffer) = new OptTrade.orders_log(in)
+  }
+
+  implicit val ReadsOptTradeDeals = new Reads[OptTrade.deal] {
+    def read(in: ByteBuffer) = new OptTrade.deal(in)
+  }
+
 }

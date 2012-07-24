@@ -3,14 +3,18 @@ package com.ergodicity.capture
 import org.mockito.Mockito._
 import org.scalatest.{WordSpec, BeforeAndAfterAll}
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
-import plaza2.{Connection => P2Connection}
-import org.slf4j.LoggerFactory
-import com.ergodicity.plaza2.Repository.Snapshot
-import com.ergodicity.plaza2.scheme.{OptInfo, FutInfo}
+import org.slf4j.{Logger, LoggerFactory}
 import akka.actor.ActorSystem
 import com.ergodicity.core.session.SessionState
 import com.ergodicity.core.session.SessionState._
-import com.ergodicity.plaza2.scheme.FutInfo.SessionRecord
+import com.ergodicity.cgate.config.Replication
+import java.io.File
+import com.ergodicity.cgate.DataStream
+import java.nio.ByteBuffer
+import com.ergodicity.cgate.scheme.FutInfo
+import com.ergodicity.core.Mocking._
+import com.mongodb.casbah.Imports._
+import com.ergodicity.cgate.repository.Repository.Snapshot
 
 class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketContentsCaptureSpec])
@@ -19,74 +23,72 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
     system.shutdown()
   }
 
-  val scheme = Plaza2Scheme(
-    "capture/scheme/FutInfoSessionsAndContents.ini",
-    "capture/scheme/OptInfoSessionContents.ini",
-    "capture/scheme/OrdLog.ini",
-    "capture/scheme/FutTradeDeal.ini",
-    "capture/scheme/OptTradeDeal.ini"
+  val replication = ReplicationScheme(
+    Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme"),
+    Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme"),
+    Replication("FORTS_ORDLOG_REPL", new File("cgate/scheme/ordLog_trades.ini"), "CustReplScheme"),
+    Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/fut_trades.ini"), "CustReplScheme"),
+    Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/opt_trades.ini"), "CustReplScheme")
   )
 
-  val sessionTracker = mock(classOf[SessionRepository])
-  val futSessionTracker = mock(classOf[FutSessionContentsRepository])
-  val optSessionTracker = mock(classOf[OptSessionContentsRepository])
+  trait Repo extends SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository {
+    def log: Logger = null
+    def mongo: MongoDB = null
+  }
+
+  val repository = mock(classOf[Repo])
 
   "MarketContentsCapture" must {
 
     "save session data" in {
-      val p2 = mock(classOf[P2Connection])
-      val capture = TestFSMRef(new MarketContentsCapture(p2, scheme, sessionTracker, futSessionTracker, optSessionTracker), "MarketContentsCapture")
+      val FutInfoStream = TestFSMRef(new DataStream, "FutInfoStream")
+      val OptInfoStream = TestFSMRef(new DataStream, "OptInfoStream")
+
+      val capture = TestFSMRef(new MarketContentsCapture(FutInfoStream, OptInfoStream, repository), "MarketContentsCapture")
       val underlying = capture.underlyingActor.asInstanceOf[MarketContentsCapture]
 
       val record = sessionRecord(1000, 1000, 12345, Assigned)
-      capture ! Snapshot(underlying.sessionsRepository, record :: Nil)
+      capture ! Snapshot(underlying.SessionsRepository, record :: Nil)
 
-      verify(sessionTracker).saveSession(record)
+      verify(repository).saveSession(record)
     }
 
     "initialize with Future session content" in {
-      val gmkFuture = FutInfo.SessContentsRecord(7477, 47740, 0, 4023, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
+      val gmkFuture = mockFuture(4023, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
 
-      val p2 = mock(classOf[P2Connection])
-      val capture = TestFSMRef(new MarketContentsCapture(p2, scheme, sessionTracker, futSessionTracker, optSessionTracker), "MarketContentsCapture")
+      val FutInfoStream = TestFSMRef(new DataStream, "FutInfoStream")
+      val OptInfoStream = TestFSMRef(new DataStream, "OptInfoStream")
+
+      val capture = TestFSMRef(new MarketContentsCapture(FutInfoStream, OptInfoStream, repository), "MarketContentsCapture")
       val underlying = capture.underlyingActor.asInstanceOf[MarketContentsCapture]
 
       capture ! SubscribeMarketContents(self)
-      capture ! Snapshot(underlying.futSessContentsRepository, gmkFuture :: Nil)
+      capture ! Snapshot(underlying.FutSessContentsRepository, gmkFuture :: Nil)
 
-      expectMsg(FuturesContents(Map(gmkFuture.isinId -> com.ergodicity.core.session.BasicFutInfoConverter(gmkFuture))))
+      expectMsg(FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.FutureConverter(gmkFuture))))
 
-      verify(futSessionTracker).saveSessionContents(gmkFuture)
+      verify(repository).saveSessionContents(gmkFuture)
     }
 
     "initialize with Option session content" in {
-      val rtsOption = OptInfo.SessContentsRecord(10881, 20023, 0, 3550, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
+      val rtsOption = mockOption(3550, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
 
-      val p2 = mock(classOf[P2Connection])
-      val capture = TestFSMRef(new MarketContentsCapture(p2, scheme, sessionTracker, futSessionTracker, optSessionTracker), "MarketContentsCapture")
+      val FutInfoStream = TestFSMRef(new DataStream, "FutInfoStream")
+      val OptInfoStream = TestFSMRef(new DataStream, "OptInfoStream")
+
+      val capture = TestFSMRef(new MarketContentsCapture(FutInfoStream, OptInfoStream, repository), "MarketContentsCapture")
       val underlying = capture.underlyingActor.asInstanceOf[MarketContentsCapture]
 
       capture ! SubscribeMarketContents(self)
-      capture ! Snapshot(underlying.optSessContentsRepository, rtsOption :: Nil)
+      capture ! Snapshot(underlying.OptSessContentsRepository, rtsOption :: Nil)
 
-      expectMsg(OptionsContents(Map(rtsOption.isinId -> com.ergodicity.core.session.BasicOptInfoConverter(rtsOption))))
-      verify(optSessionTracker).saveSessionContents(rtsOption)
+      expectMsg(OptionsContents(Map(rtsOption.get_isin_id() -> com.ergodicity.core.session.OptionConverter(rtsOption))))
+      verify(repository).saveSessionContents(rtsOption)
     }
   }
 
   def sessionRecord(replID: Long, revId: Long, sessionId: Int, sessionState: SessionState) = {
     import SessionState._
-
-    val begin = "2012/04/12 07:15:00.000"
-    val end = "2012/04/12 14:45:00.000"
-    val interClBegin = "2012/04/12 12:00:00.000"
-    val interClEnd = "2012/04/12 12:05:00.000"
-    val eveBegin = "2012/04/11 15:30:00.000"
-    val eveEnd = "2012/04/11 23:50:00.000"
-    val monBegin = "2012/04/12 07:00:00.000"
-    val monEnd = "2012/04/12 07:15:00.000"
-    val posTransferBegin = "2012/04/12 13:00:00.000"
-    val posTransferEnd = "2012/04/12 13:15:00.000"
 
     val stateValue = sessionState match {
       case Assigned => 0
@@ -96,7 +98,13 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
       case Completed => 4
     }
 
-    SessionRecord(replID, revId, 0, sessionId, begin, end, stateValue, 3547, interClBegin, interClEnd, 5136, 1, eveBegin, eveEnd, 1, monBegin, monEnd, posTransferBegin, posTransferEnd)
+    val buff = ByteBuffer.allocate(1000)
+    val session = new FutInfo.session(buff)
+    session.set_replID(replID)
+    session.set_replRev(revId)
+    session.set_sess_id(sessionId)
+    session.set_state(stateValue)
+    session
   }
 
 }
