@@ -1,13 +1,15 @@
 package com.ergodicity.core.order
 
 import akka.event.Logging
-import com.ergodicity.plaza2.DataStream._
-import com.ergodicity.plaza2.scheme.common.OrderLogRecord
 import com.ergodicity.core.common._
 import com.ergodicity.core.order.FutureOrders.BindFutTradeRepl
-import com.ergodicity.plaza2.scheme.Deserializer
 import akka.actor._
 import akka.actor.FSM.Failure
+import com.ergodicity.cgate.scheme.FutTrade
+import com.ergodicity.cgate.DataStream._
+import com.ergodicity.cgate.Protocol.ReadsFutTradeOrders
+import com.ergodicity.cgate.StreamEvent._
+import com.ergodicity.cgate.Reads
 
 object FutureOrders {
 
@@ -30,11 +32,13 @@ class FutureOrders extends Actor with FSM[FutureOrdersState, Map[Int, ActorRef]]
 
   import FutureOrdersState._
 
+  val read = implicitly[Reads[FutTrade.orders_log]]
+
   startWith(Idle, Map())
 
   when(Idle) {
     case Event(BindFutTradeRepl(dataStream), _) =>
-      dataStream ! BindTable("orders_log", self, implicitly[Deserializer[OrderLogRecord]])
+      dataStream ! BindTable(FutTrade.orders_log.TABLE_INDEX, self)
       goto(Binded)
   }
 
@@ -43,20 +47,22 @@ class FutureOrders extends Actor with FSM[FutureOrdersState, Map[Int, ActorRef]]
   }
 
   private def handleDataStreamEvents: StateFunction = {
-    case Event(DataBegin, _) => stay()
+    case Event(TnBegin, _) => stay()
 
-    case Event(DataEnd, _) => stay()
+    case Event(TnCommit, _) => stay()
 
-    case Event(e@DatumDeleted("orders_log", replRev), _) => stay()
+    case Event(e@ClearDeleted(FutTrade.orders_log.TABLE_INDEX, replRev), _) => stay()
 
-    case Event(e@DataDeleted("orders_log", replId), _) => stop(Failure("Illegal event: " + e))
+    case Event(e@StreamData(FutTrade.orders_log.TABLE_INDEX, data), _) if (read(data).get_replAct() != 0) => stop(Failure("Illegal event: " + e))
 
-    case Event(DataInserted("orders_log", record: OrderLogRecord), _) if (stateData.contains(record.sess_id)) =>
-      stateData(record.sess_id) ! record
+    case Event(StreamData(FutTrade.orders_log.TABLE_INDEX, data), _) if (stateData.contains(read(data).get_sess_id())) =>
+      val record = read(data)
+      stateData(record.get_sess_id()) ! record
       stay()
 
-    case Event(DataInserted("orders_log", record: OrderLogRecord), sessions) if (!stateData.contains(record.sess_id)) =>
-      val sessionId = record.sess_id
+    case Event(StreamData(FutTrade.orders_log.TABLE_INDEX, data), sessions) if (!stateData.contains(read(data).get_sess_id())) =>
+      val record = read(data)
+      val sessionId = record.get_sess_id()
       log.debug("Create session orders for: " + sessionId)
       val actor = context.actorOf(Props(new FutureSessionOrders(sessionId)), "Session-" + sessionId)
       actor ! record
@@ -90,28 +96,28 @@ class FutureSessionOrders(sessionId: Int) extends Actor with WhenUnhandled {
   protected def receive = handleCreateOrder orElse handleDeleteOrder orElse handleFillOrder orElse whenUnhandled
 
   private def handleCreateOrder: Receive = {
-    case record: OrderLogRecord if (Action(record) == Create && !orderExists(record) && matchSession(record)) =>
-      val orderId = record.id_ord
+    case record: FutTrade.orders_log if (Action(record) == Create && !orderExists(record) && matchSession(record)) =>
+      val orderId = record.get_id_ord()
       log.debug("Create new order, id = " + orderId)
       val order = context.actorOf(Props(new Order(record)), "Order-" + orderId)
       orders = orders + (orderId -> order)
   }
 
   private def handleDeleteOrder: Receive = {
-    case record: OrderLogRecord if (Action(record) == Delete && orderExists(record) && matchSession(record)) =>
-      val orderId = record.id_ord
+    case record: FutTrade.orders_log if (Action(record) == Delete && orderExists(record) && matchSession(record)) =>
+      val orderId = record.get_id_ord()
       log.debug("Cancel order, id = " + orderId)
       orders(orderId) ! CancelOrder(record.amount)
   }
 
   private def handleFillOrder: Receive = {
-    case record: OrderLogRecord if (Action(record) == Fill && orderExists(record) && matchSession(record)) =>
-      val orderId = record.id_ord
-      log.debug("Fill order, id = " + orderId + ", amount = " + record.amount + ", rest = " + record.amount_rest + ", deal id = " + record.id_deal)
+    case record: FutTrade.orders_log if (Action(record) == Fill && orderExists(record) && matchSession(record)) =>
+      val orderId = record.get_id_ord()
+      log.debug("Fill order, id = " + orderId + ", amount = " + record.amount + ", rest = " + record.get_amount_rest() + ", deal id = " + record.get_id_deal())
       orders(orderId) ! FillOrder(record.price, record.amount)
   }
 
-  private def matchSession(record: OrderLogRecord) = record.sess_id == sessionId
+  private def matchSession(record: FutTrade.orders_log) = record.get_sess_id() == sessionId
 
-  private def orderExists(record: OrderLogRecord) = orders.contains(record.id_ord)
+  private def orderExists(record: FutTrade.orders_log) = orders.contains(record.get_id_ord())
 }

@@ -1,14 +1,16 @@
 package com.ergodicity.core.position
 
-import com.ergodicity.plaza2.scheme.Pos.PositionRecord
-import com.ergodicity.plaza2.Repository.{Snapshot, SubscribeSnapshots}
 import com.ergodicity.core.common.IsinId
-import com.ergodicity.plaza2.{DataStreamState, Repository}
 import akka.actor.{FSM, Props, ActorRef, Actor}
 import com.ergodicity.core.position.Positions.BindPositions
-import com.ergodicity.plaza2.DataStream.BindTable
-import com.ergodicity.plaza2.scheme.{Pos, Deserializer}
 import akka.actor.FSM.{Transition, CurrentState, UnsubscribeTransitionCallBack, SubscribeTransitionCallBack}
+import com.ergodicity.cgate.repository.Repository
+import com.ergodicity.cgate.scheme.Pos
+import com.ergodicity.cgate.DataStreamState
+import com.ergodicity.cgate.DataStream.BindTable
+import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, Snapshot}
+import com.ergodicity.cgate.Protocol.ReadsPosPositions
+import com.ergodicity.cgate.repository.ReplicaExtractor.PosPositionsExtractor
 
 object Positions {
   def apply(PosStream: ActorRef) = new Positions(PosStream)
@@ -47,7 +49,7 @@ class Positions(PosStream: ActorRef) extends Actor with FSM[PositionsState, Posi
   import PositionsData._
 
   // Repositories
-  protected[position] val PositionsRepository = context.actorOf(Props(Repository[PositionRecord]), "PositionsRepository")
+  protected[position] val PositionsRepository = context.actorOf(Props(Repository[Pos.position]), "PositionsRepository")
 
   startWith(Idle, Blank)
 
@@ -72,21 +74,27 @@ class Positions(PosStream: ActorRef) extends Actor with FSM[PositionsState, Posi
       stay() using TrackingPositions(positions + (isin -> position))
 
     case Event(s@Snapshot(PositionsRepository, _), TrackingPositions(positions)) =>
-      val snapshot = s.asInstanceOf[Snapshot[PositionRecord]]
+      val snapshot = s.asInstanceOf[Snapshot[Pos.position]]
       log.debug("Got positions repository snapshot, size = " + snapshot.data.size)
 
       // First terminate old positions
       val (alive, terminated) = positions.partition {
         case key =>
-          snapshot.data.find(_.isin_id == key._1.id).isDefined
+          snapshot.data.find(_.get_isin_id() == key._1.id).isDefined
       }
       terminated.values.foreach(_ ! TerminatePosition)
 
       // Update alive positions and open new one
       val updatedAlive = snapshot.data.map {
         case position =>
-          val id = IsinId(position.isin_id)
-          val data = PositionData(position.open_qty, position.buys_qty, position.sells_qty, position.pos, position.net_volume_rur, position.last_deal_id)
+          val id = IsinId(position.get_isin_id())
+          val data = PositionData(position.get_open_qty(),
+            position.get_buys_qty(),
+            position.get_sells_qty(),
+            position.get_pos(),
+            position.get_net_volume_rur(),
+            position.get_last_deal_id()
+          )
           val positionActor = alive.get(id) getOrElse {
             // Start new position actor for given IsinId
             context.actorOf(Props(new Position(id)), id.id.toString)
@@ -103,7 +111,7 @@ class Positions(PosStream: ActorRef) extends Actor with FSM[PositionsState, Posi
       log.debug("Bind to Pos data stream")
 
       // Bind to tables
-      PosStream ! BindTable("position", PositionsRepository, implicitly[Deserializer[Pos.PositionRecord]])
+      PosStream ! BindTable(Pos.position.TABLE_INDEX, PositionsRepository)
 
       // Track Data Stream states
       PosStream ! SubscribeTransitionCallBack(self)

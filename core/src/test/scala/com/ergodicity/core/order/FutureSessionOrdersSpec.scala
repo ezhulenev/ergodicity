@@ -5,9 +5,11 @@ import akka.event.Logging
 import com.ergodicity.core.AkkaConfigurations
 import AkkaConfigurations._
 import akka.actor.ActorSystem
-import com.ergodicity.plaza2.scheme.common.OrderLogRecord
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
+import java.nio.ByteBuffer
+import com.ergodicity.cgate.scheme.FutTrade
+import java.math.BigDecimal
 
 class FutureSessionOrdersSpec extends TestKit(ActorSystem("FutureSessionOrdersSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -17,10 +19,42 @@ class FutureSessionOrdersSpec extends TestKit(ActorSystem("FutureSessionOrdersSp
   }
 
   val orderId = 2876875842l;
-  val create = OrderLogRecord(1264067720l, 1264067720l, 0, orderId, 4072, "FZ00533", "2012/06/27 13:24:38.461", 1025, 1, 167566, 1, BigDecimal("130000.00000"), 3, 3, 0, "", "1900/01/01 00:00:00.000", 0, 0, BigDecimal("0.00000"))
-  val fill1 = OrderLogRecord(1264067721l, 1264067721l, 0, orderId, 4072, "FZ00533", "2012/06/27 13:24:38.461", 4097, 2, 167566, 1, BigDecimal("130000.00000"), 1, 2, 0, "", "1900/01/01 00:00:00.000", 0, 28261086, BigDecimal("128695.00000"))
-  val fill2 = OrderLogRecord(1264067721l, 1264067721l, 0, orderId, 4072, "FZ00533", "2012/06/27 13:24:38.461", 4097, 2, 167566, 1, BigDecimal("130000.00000"), 2, 0, 0, "", "1900/01/01 00:00:00.000", 0, 28261087, BigDecimal("128695.00000"))
-  val cancel = OrderLogRecord(1264067721l, 1264067721l, 0, orderId, 4072, "FZ00533", "2012/06/27 13:24:38.461", 4097, 0, 167566, 1, BigDecimal("130000.00000"), 3, 0, 0, "", "1900/01/01 00:00:00.000", 0, 0, BigDecimal("0"))
+  val create = {
+    val ord = baseOrder()
+    ord.set_status(1025)
+    ord.set_action(1)
+    ord.set_amount(3)
+    ord.set_amount_rest(3)
+    ord
+  }
+  val fill1 = {
+    val ord = baseOrder()
+    ord.set_status(4097)
+    ord.set_action(2)
+    ord.set_amount(1)
+    ord.set_amount_rest(2)
+    ord.set_id_deal(28261086)
+    ord.set_deal_price(new BigDecimal("128690.00000"))
+    ord
+  }
+  val fill2 = {
+    val ord = baseOrder()
+    ord.set_status(4097)
+    ord.set_action(2)
+    ord.set_amount(2)
+    ord.set_amount_rest(0)
+    ord.set_id_deal(28261087)
+    ord.set_deal_price(new BigDecimal("128695.00000"))
+    ord
+  }
+  val cancel = {
+    val ord = baseOrder()
+    ord.set_status(4097)
+    ord.set_action(0)
+    ord.set_amount(3)
+    ord.set_amount_rest(0)
+    ord
+  }
 
   "FutureSessionOrders" must {
     "skip record with other session" in {
@@ -67,5 +101,16 @@ class FutureSessionOrdersSpec extends TestKit(ActorSystem("FutureSessionOrdersSp
 
       expectMsg(Transition(order, OrderState.Active, OrderState.Filled))
     }
+  }
+
+  private def baseOrder() = {
+    val buff = ByteBuffer.allocate(1000)
+    val ord = new FutTrade.orders_log(buff)
+    ord.set_id_ord(orderId)
+    ord.set_sess_id(4072)
+    ord.set_isin_id(167566)
+    ord.set_dir(1)
+    ord.set_price(new BigDecimal("130000.00000"))
+    ord
   }
 }

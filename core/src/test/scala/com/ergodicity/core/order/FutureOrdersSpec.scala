@@ -5,12 +5,13 @@ import akka.event.Logging
 import com.ergodicity.core.AkkaConfigurations
 import AkkaConfigurations._
 import akka.actor.{ActorRef, ActorSystem}
-import org.mockito.Mockito._
-import com.ergodicity.plaza2.scheme.common.OrderLogRecord
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import com.ergodicity.core.order.FutureOrders.BindFutTradeRepl
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.plaza2.DataStream.{BindTable, DataInserted}
+import com.ergodicity.cgate.DataStream.BindTable
+import com.ergodicity.cgate.scheme.FutTrade
+import java.nio.ByteBuffer
+import com.ergodicity.cgate.StreamEvent.StreamData
 
 class FutureOrdersSpec extends TestKit(ActorSystem("FutureOrdersSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -30,7 +31,7 @@ class FutureOrdersSpec extends TestKit(ActorSystem("FutureOrdersSpec", ConfigWit
 
       futOrders ! BindFutTradeRepl(self)
 
-      expectMsgType[BindTable[OrderLogRecord]]
+      expectMsgType[BindTable]
       expectMsg(Transition(futOrders, FutureOrdersState.Idle, FutureOrdersState.Binded))
     }
 
@@ -55,16 +56,18 @@ class FutureOrdersSpec extends TestKit(ActorSystem("FutureOrdersSpec", ConfigWit
     }
 
     "handle DataInserted event" in {
+
       val records = (1 to 10).toList.map {case i =>
-        val record = mock(classOf[OrderLogRecord])
-        when(record.sess_id).thenReturn(100+i)
-        record
+        val buff = ByteBuffer.allocate(100)
+        val record = new FutTrade.orders_log(buff)
+        record.set_sess_id(100+i)
+        record.getData
       }
 
       val futOrders = TestFSMRef(new FutureOrders, "FutureOrders")
       futOrders.setState(FutureOrdersState.Binded)
 
-      records.foreach(futOrders ! DataInserted("orders_log", _))
+      records.foreach(futOrders ! StreamData(FutTrade.orders_log.TABLE_INDEX, _))
 
       assert(futOrders.stateData.size == 10)
     }

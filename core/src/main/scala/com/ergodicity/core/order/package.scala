@@ -1,10 +1,10 @@
 package com.ergodicity.core
 
-import com.ergodicity.plaza2.scheme.common.OrderLogRecord
 import common._
+import com.ergodicity.cgate.scheme.{FutTrade}
 
 package object order {
-  implicit def toOrderProps(record: OrderLogRecord) = {
+  implicit def toOrderProps(record: FutTrade.orders_log) = {
 
     def mapOrderType(orderType: Int) = orderType match {
       case t if ((t & 0x01) > 0) => OrderType.GoodTillCancelled
@@ -17,13 +17,13 @@ package object order {
       case _ => throw new IllegalArgumentException("Illegal order direction: " + direction)
     }
 
-    OrderProps(record.id_ord,
-      record.sess_id,
-      IsinId(record.isin_id),
-      mapOrderType(record.status),
-      mapOrderDirection(record.dir),
-      record.price,
-      record.amount
+    OrderProps(record.get_id_ord(),
+      record.get_sess_id(),
+      IsinId(record.get_isin_id()),
+      mapOrderType(record.get_status()),
+      mapOrderDirection(record.get_dir()),
+      record.get_price(),
+      record.get_amount()
     )
   }
 
@@ -42,11 +42,11 @@ package object order {
   case object Fill
 
   object Action {
-    def apply(record: OrderLogRecord) = record.action match {
+    def apply(record: FutTrade.orders_log) = record.get_action() match {
       case 0 => Delete
       case 1 => Create
       case 2 => Fill
-      case _ => throw new IllegalArgumentException("Illegal 'orders_log' action: " + record.action)
+      case _ => throw new IllegalArgumentException("Illegal 'orders_log' action: " + record.get_action())
     }
   }
 
