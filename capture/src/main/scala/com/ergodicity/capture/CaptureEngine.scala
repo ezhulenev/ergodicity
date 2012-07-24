@@ -3,8 +3,9 @@ package com.ergodicity.capture
 import org.slf4j.LoggerFactory
 import akka.actor._
 import com.twitter.ostrich.admin.{RuntimeEnvironment, Service}
-import plaza2.{Connection => P2Connection}
 import com.typesafe.config.ConfigFactory
+import ru.micexrts.cgate.{Connection => CGConnection}
+import com.ergodicity.cgate.config.ConnectionType
 
 object CaptureEngine {
   val log = LoggerFactory.getLogger(getClass.getName)
@@ -25,7 +26,7 @@ object CaptureEngine {
   }
 }
 
-class CaptureEngine(connectionProperties: ConnectionProperties, scheme: Plaza2Scheme, database: CaptureDatabase, kestrel: KestrelConfig) extends Service {
+class CaptureEngine(connectionType: ConnectionType, replication: ReplicationScheme, database: CaptureDatabase, kestrel: KestrelConfig) extends Service {
   val log = LoggerFactory.getLogger(classOf[CaptureEngine])
 
   val ConfigWithDetailedLogging = ConfigFactory.parseString("""
@@ -43,11 +44,11 @@ class CaptureEngine(connectionProperties: ConnectionProperties, scheme: Plaza2Sc
   def start() {
     log.info("Start CaptureEngine")
 
-    val connection = P2Connection()
-    val repo = new MarketCaptureRepository(database) with RevisionTracker with SessionTracker with FutSessionContentsTracker with OptSessionContentsTracker
-    marketCapture = system.actorOf(Props(new MarketCapture(connection, scheme, repo, kestrel)), "MarketCapture")
+    val connection = new CGConnection(connectionType())
+    val repo = new MarketCaptureRepository(database) with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
+    marketCapture = system.actorOf(Props(new MarketCapture(connection, replication, repo, kestrel)), "MarketCapture")
 
-    val watcher = system.actorOf(Props(new Actor {
+    system.actorOf(Props(new Actor {
       context.watch(marketCapture)
 
       protected def receive = {
@@ -55,7 +56,7 @@ class CaptureEngine(connectionProperties: ConnectionProperties, scheme: Plaza2Sc
       }
     }), "Watcher")
 
-    marketCapture ! Connect(connectionProperties)
+    marketCapture ! Capture
   }
 
   def shutdown() {

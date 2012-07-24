@@ -2,7 +2,7 @@ package integration.ergodicity.capture
 
 import org.scalatest.WordSpec
 import org.slf4j.LoggerFactory
-import com.ergodicity.capture.{SessionTracker, MongoLocal, MarketCaptureRepository}
+import com.ergodicity.capture.{SessionRepository, MongoLocal, MarketCaptureRepository}
 import com.ergodicity.core.session.SessionState
 import com.ergodicity.core.session.SessionState._
 import com.ergodicity.plaza2.scheme.FutInfo.SessionRecord
@@ -11,9 +11,9 @@ import com.mongodb.casbah.commons.MongoDBObject
 class SessionTrackerSpec extends WordSpec {
   val log = LoggerFactory.getLogger(classOf[SessionTrackerSpec])
 
-  val repository = new MarketCaptureRepository(MongoLocal("SessionTrackerSpec")) with SessionTracker
+  val repository = new MarketCaptureRepository(MongoLocal("SessionTrackerSpec")) with SessionRepository
 
-  "MarketCaptureRepository with SessionTracker" must {
+  "MarketCaptureRepository with SessionRepository" must {
     "save session records" in {
       val sessionSpec = MongoDBObject("sessionId" -> 12345)
 

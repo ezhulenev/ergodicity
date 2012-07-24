@@ -26,7 +26,7 @@ class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) wi
   "MarketDbCapture" must {
 
     "fail on DataDeleted event" in {
-      val revisionTracker = mock(classOf[StreamRevisionTracker])
+      val revisionTracker = mock(classOf[StreamReplicationStateTracker])
       lazy val marketDbBuncher = new TradesBuncher(mock(classOf[Client]), "Trades")
 
       val capture = TestActorRef(new MarketDbCapture(revisionTracker, marketDbBuncher)(mock(classOf[(FutTrade.DealRecord) => TradePayload])))
@@ -36,7 +36,7 @@ class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) wi
     }
 
     "flush market events and revisions on DataEnd" in {
-      val revisionTracker = mock(classOf[StreamRevisionTracker])
+      val revisionTracker = mock(classOf[StreamReplicationStateTracker])
       val client = mock(classOf[Client])
       when(client.write(argThat(is("Orders")), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]])))
         .thenReturn(new Promise[Throwable]())
@@ -57,11 +57,11 @@ class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) wi
       Thread.sleep(100)
 
       verify(client).write(argThat(is("Orders")), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]]))
-      verify(revisionTracker).setRevision("orders_log", 100)
+      verify(revisionTracker).setState("orders_log", 100)
     }
 
     "flush market revisions on market events flushed" in {
-      val revisionTracker = mock(classOf[StreamRevisionTracker])
+      val revisionTracker = mock(classOf[StreamReplicationStateTracker])
       val client = mock(classOf[Client])
       when(client.write(argThat(is("Orders")), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]])))
         .thenReturn(new Promise[Throwable]())
@@ -83,7 +83,7 @@ class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) wi
       Thread.sleep(100)
 
       verify(client).write(argThat(is("Orders")), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]]))
-      verify(revisionTracker).setRevision("orders_log", 100)
+      verify(revisionTracker).setState("orders_log", 100)
     }
   }
 

@@ -32,7 +32,7 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
   )
   
   val repository = mock(classOf[MarketDbRepository])
-  when(repository.revision(any(), any())).thenReturn(None)
+  when(repository.replicationState(any(), any())).thenReturn(None)
 
   val kestrel = KestrelConfig("localhost", 22133, "trades", "orders", 30)
 
@@ -78,10 +78,10 @@ class MarketCaptureSpec  extends TestKit(ActorSystem("MarketCaptureSpec")) with 
       expectMsg(Terminated(marketCapture))
     }
 
-    "reset stream revision on LifeNum changed" in {
+    "reset stream replicationState on LifeNum changed" in {
       val p2 = mock(classOf[P2Connection])
       val repository = mock(classOf[MarketDbRepository])
-      when(repository.revision(any(), any())).thenReturn(None)
+      when(repository.replicationState(any(), any())).thenReturn(None)
 
       val marketCapture = TestFSMRef(new MarketCapture(p2, scheme, repository, kestrel), "MarketCapture")
       val underlying = marketCapture.underlyingActor.asInstanceOf[MarketCapture]

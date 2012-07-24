@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory
 import com.twitter.ostrich.admin.RuntimeEnvironment
 import com.mongodb.casbah.TypeImports._
 import com.mongodb.casbah.MongoConnection
+import com.ergodicity.cgate.config.{ConnectionType, Replication}
 
 sealed trait CaptureDatabase {
   def db: MongoDB
@@ -18,9 +19,7 @@ case class MongoRemote(address: String, database: String) extends CaptureDatabas
   lazy val db = MongoConnection(address)(database)
 }
 
-case class Plaza2Scheme(futInfo: String, optInfo: String, ordLog: String, futTrade: String, optTrade: String)
-
-case class ConnectionProperties(host: String, port: Int, appName: String)
+case class ReplicationScheme(futInfo: Replication,  optInfo: Replication, ordLog: Replication, futTrade: Replication, optTrade: Replication)
 
 case class KestrelConfig(host: String, port: Int, tradesQueue: String, ordersQueue: String, hostConnectionLimit: Int)
 
@@ -28,13 +27,13 @@ case class KestrelConfig(host: String, port: Int, tradesQueue: String, ordersQue
 trait CaptureEngineConfig extends ServerConfig[CaptureEngine] {
   val log = LoggerFactory.getLogger(classOf[CaptureEngineConfig])
 
-  def connectionProperties: ConnectionProperties
+  def connectionType: ConnectionType
 
-  def scheme: Plaza2Scheme
+  def replication: ReplicationScheme
 
   def database: CaptureDatabase
 
   def kestrel: KestrelConfig
 
-  def apply(runtime: RuntimeEnvironment) = new CaptureEngine(connectionProperties, scheme, database, kestrel)
+  def apply(runtime: RuntimeEnvironment) = new CaptureEngine(connectionType, replication, database, kestrel)
 }

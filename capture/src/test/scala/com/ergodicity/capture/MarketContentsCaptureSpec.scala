@@ -27,9 +27,9 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
     "capture/scheme/OptTradeDeal.ini"
   )
 
-  val sessionTracker = mock(classOf[SessionTracker])
-  val futSessionTracker = mock(classOf[FutSessionContentsTracker])
-  val optSessionTracker = mock(classOf[OptSessionContentsTracker])
+  val sessionTracker = mock(classOf[SessionRepository])
+  val futSessionTracker = mock(classOf[FutSessionContentsRepository])
+  val optSessionTracker = mock(classOf[OptSessionContentsRepository])
 
   "MarketContentsCapture" must {
 

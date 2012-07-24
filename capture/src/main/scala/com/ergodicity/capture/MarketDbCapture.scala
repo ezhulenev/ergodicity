@@ -1,7 +1,5 @@
 package com.ergodicity.capture
 
-import com.ergodicity.plaza2.DataStream._
-import com.ergodicity.plaza2.scheme.Record
 import com.twitter.ostrich.stats.Stats
 import com.twitter.finagle.kestrel.Client
 import java.util.concurrent.atomic.AtomicReference
@@ -23,10 +21,11 @@ object MarketDbCaptureState {
 
 }
 
-class MarketDbCapture[T <: Record, M](revisionTracker: StreamRevisionTracker, marketDbBuncher: => MarketDbBuncher[M], initialRevision: Option[Long] = None)
-                                     (implicit toMarketDbPayload: T => M) extends Actor with FSM[MarketDbCaptureState, Unit] {
+class MarketDbCapture[T, M](marketDbBuncher: => MarketDbBuncher[M])
+                           (implicit read: com.ergodicity.cgate.Reads[T], toMarketDbPayload: T => M) extends Actor with FSM[MarketDbCaptureState, Unit] {
 
-  val revisionBuncher = context.actorOf(Props(new RevisionBuncher(revisionTracker)), "RevisionBuncher")
+  import com.ergodicity.cgate.StreamEvent._
+
   val marketBuncher = context.actorOf(Props(marketDbBuncher), "KestrelBuncher")
 
   // Watch child bunchers
@@ -35,35 +34,24 @@ class MarketDbCapture[T <: Record, M](revisionTracker: StreamRevisionTracker, ma
   startWith(MarketDbCaptureState.Idle, ())
 
   when(MarketDbCaptureState.Idle) {
-    case Event(DataBegin, _) => log.debug("Begin data"); goto(MarketDbCaptureState.InTransaction)
+    case Event(TnBegin, _) => log.debug("Begin data"); goto(MarketDbCaptureState.InTransaction)
   }
 
   when(MarketDbCaptureState.InTransaction) {
-    case Event(DataEnd, _) =>
+    case Event(TnCommit, _) =>
       log.debug("End data");
       marketBuncher ! FlushBunch
-      revisionBuncher ! FlushBunch
       goto(MarketDbCaptureState.Idle)
 
-    case Event(DataInserted(table, record), _) =>
+    case Event(StreamData(_, data), _) =>
       Stats.incr(self.path + "/DataInserted")
-      revisionBuncher ! BunchRevision(table, record.replRev)
-      marketBuncher ! BunchMarketEvent(toMarketDbPayload(record.asInstanceOf[T]))
-
+      val record = read(data)
+      marketBuncher ! BunchMarketEvent(toMarketDbPayload(record))
       stay()
   }
 
   whenUnhandled {
     case Event(Terminated(child), _) => throw new MarketCaptureException("Terminated child buncher = " + child)
-
-    case Event(e@DatumDeleted(_, rev), _) => initialRevision.map {
-      initialRevision =>
-        if (initialRevision < rev)
-          log.error("Missed some data! Initial revision = " + initialRevision + "; Got datum deleted rev = " + rev);
-    }
-    stay()
-
-    case Event(e@DataDeleted(_, replId), _) => throw MarketCaptureException("Unexpected DataDeleted event: " + e);
   }
 
   initialize
@@ -79,33 +67,6 @@ object BuncherState {
 
   case object Accumulating extends BuncherState
 
-}
-
-case class BunchRevision(table: String, revision: Long)
-
-class RevisionBuncher(revisionTracker: StreamRevisionTracker) extends Actor with FSM[BuncherState, Option[Map[String, Long]]] {
-
-  startWith(BuncherState.Idle, None)
-
-  when(BuncherState.Idle) {
-    case Event(BunchRevision(table, revision), None) => goto(BuncherState.Accumulating) using Some(Map(table -> revision))
-  }
-
-  when(BuncherState.Accumulating) {
-    case Event(BunchRevision(table, revision), None) => stay() using Some(Map(table -> revision))
-    case Event(BunchRevision(table, revision), Some(revisions)) => stay() using Some(revisions + (table -> revision))
-
-    case Event(FlushBunch, Some(revisions)) => flushRevision(revisions); goto(BuncherState.Idle) using None
-  }
-
-  initialize
-
-  def flushRevision(revisions: Map[String, Long]) {
-    log.info("Flush revisions: " + revisions)
-    revisions.foreach {
-      case (table, revision) => revisionTracker.setRevision(table, revision)
-    }
-  }
 }
 
 case class BunchMarketEvent[T](payload: T)
@@ -147,11 +108,13 @@ sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List
     def apply[A](value: A): Offer[A] = new Offer[A] {
       val ref = new AtomicReference[Option[A]](Some(value))
 
-      def prepare() = ref.getAndSet(None) map {value =>
-        Future.value(Tx.const(value))
+      def prepare() = ref.getAndSet(None) map {
+        value =>
+          Future.value(Tx.const(value))
       } getOrElse Future.never
     }
   }
+
 }
 
 class TradesBuncher(val client: Client, val queue: String) extends MarketDbBuncher[TradePayload] {

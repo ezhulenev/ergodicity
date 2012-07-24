@@ -2,7 +2,7 @@ package com.ergodicity.capture
 
 import org.slf4j.{Logger, LoggerFactory}
 import com.mongodb.casbah.Imports._
-import com.ergodicity.plaza2.scheme.{OptInfo, FutInfo}
+import com.ergodicity.cgate.scheme._
 
 
 class MarketCaptureRepository(database: CaptureDatabase) {
@@ -11,18 +11,18 @@ class MarketCaptureRepository(database: CaptureDatabase) {
   val mongo = database.db
 }
 
-class MarketDbRepository(database: CaptureDatabase) extends MarketCaptureRepository(database) with RevisionTracker with SessionTracker with FutSessionContentsTracker with OptSessionContentsTracker
+class MarketDbRepository(database: CaptureDatabase) extends MarketCaptureRepository(database) with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
 
-trait SessionTracker {
+trait SessionRepository {
   this: {def log: Logger; def mongo: MongoDB} =>
 
   val Sessions = mongo("Sessions")
   Sessions.ensureIndex(MongoDBObject("sessionId" -> 1), "sessionIdIndex", false)
 
-  def saveSession(record: FutInfo.SessionRecord) {
+  def saveSession(record: FutInfo.session) {
     log.trace("Save session = " + record)
 
-    Sessions.findOne(MongoDBObject("sessionId" -> record.sessionId)) map {
+    Sessions.findOne(MongoDBObject("sessionId" -> record.get_sess_id())) map {
       _ => () /* do nothing */
     } getOrElse {
       /* create new one */
@@ -31,34 +31,34 @@ trait SessionTracker {
     }
   }
 
-  def convert(record: FutInfo.SessionRecord) = MongoDBObject(
-    "sessionId" -> record.sessionId,
-    "begin" -> record.begin,
-    "end" -> record.end,
-    "optionSessionId" -> record.optionsSessionId,
-    "interClBegin" -> record.interClBegin,
-    "interClEnd" -> record.interClEnd,
-    "eveOn" -> record.eveOn,
-    "eveBegin" -> record.eveBegin,
-    "eveEnd" -> record.eveEnd,
-    "monOn" -> record.monOn,
-    "monBegin" -> record.monBegin,
-    "monEnd" -> record.monEnd,
-    "posTransferBegin" -> record.posTransferBegin,
-    "posTransferEnd" -> record.posTransferEnd
+  def convert(record: FutInfo.session) = MongoDBObject(
+    "sessionId" -> record.get_sess_id(),
+    "begin" -> record.get_begin(),
+    "end" -> record.get_end(),
+    "optionSessionId" -> record.get_opt_sess_id(),
+    "interClBegin" -> record.get_inter_cl_begin(),
+    "interClEnd" -> record.get_inter_cl_end(),
+    "eveOn" -> record.get_eve_on(),
+    "eveBegin" -> record.get_eve_begin(),
+    "eveEnd" -> record.get_eve_end(),
+    "monOn" -> record.get_mon_on(),
+    "monBegin" -> record.get_mon_begin(),
+    "monEnd" -> record.get_mon_end(),
+    "posTransferBegin" -> record.get_pos_transfer_begin(),
+    "posTransferEnd" -> record.get_pos_transfer_end()
   )
 }
 
-trait FutSessionContentsTracker {
+trait FutSessionContentsRepository {
   this: {def log: Logger; def mongo: MongoDB} =>
 
   val FutContents = mongo("FutSessionContents")
   FutContents.ensureIndex(MongoDBObject("sessionId" -> 1, "isinId" -> 1, "isin" -> 1), "futSessionContentsIdx", false)
 
-  def saveSessionContents(record: FutInfo.SessContentsRecord) {
+  def saveSessionContents(record: FutInfo.fut_sess_contents) {
     log.trace("Save fut session content = " + record)
 
-    FutContents.findOne(MongoDBObject("sessionId" -> record.sessionId, "isinId" -> record.isinId)) map {
+    FutContents.findOne(MongoDBObject("sessionId" -> record.get_sess_id(), "isinId" -> record.get_isin_id())) map {
       _ => () /* do nothing */
     } getOrElse {
       /* create new one */
@@ -67,27 +67,27 @@ trait FutSessionContentsTracker {
     }
   }
 
-  def convert(record: FutInfo.SessContentsRecord) = MongoDBObject(
-    "sessionId" -> record.sessionId,
-    "isinId" -> record.isinId,
-    "shortIsin" -> record.shortIsin,
-    "isin" -> record.isin,
-    "name" -> record.name,
-    "signs" -> record.signs,
-    "multileg_type" -> record.multileg_type
+  def convert(record: FutInfo.fut_sess_contents) = MongoDBObject(
+    "sessionId" -> record.get_sess_id(),
+    "isinId" -> record.get_isin_id(),
+    "shortIsin" -> record.get_short_isin(),
+    "isin" -> record.get_isin(),
+    "name" -> record.get_name(),
+    "signs" -> record.get_signs(),
+    "multileg_type" -> record.get_multileg_type()
   )
 }
 
-trait OptSessionContentsTracker {
+trait OptSessionContentsRepository {
   this: {def log: Logger; def mongo: MongoDB} =>
 
   val OptContents = mongo("OptSessionContents")
   OptContents.ensureIndex(MongoDBObject("sessionId" -> 1, "isinId" -> 1, "isin" -> 1), "optSessionContentsIdx", false)
 
-  def saveSessionContents(record: OptInfo.SessContentsRecord) {
+  def saveSessionContents(record: OptInfo.opt_sess_contents) {
     log.trace("Save opt session content = " + record)
 
-    OptContents.findOne(MongoDBObject("sessionId" -> record.sessionId, "isinId" -> record.isinId)) map {
+    OptContents.findOne(MongoDBObject("sessionId" -> record.get_sess_id(), "isinId" -> record.get_isin_id())) map {
       _ => () /* do nothing */
     } getOrElse {
       /* create new one */
@@ -96,56 +96,40 @@ trait OptSessionContentsTracker {
     }
   }
 
-  def convert(record: OptInfo.SessContentsRecord) = MongoDBObject(
-    "sessionId" -> record.sessionId,
-    "isinId" -> record.isinId,
-    "shortIsin" -> record.shortIsin,
-    "isin" -> record.isin,
-    "name" -> record.name,
-    "signs" -> record.signs
+  def convert(record: OptInfo.opt_sess_contents) = MongoDBObject(
+    "sessionId" -> record.get_sess_id(),
+    "isinId" -> record.get_isin_id(),
+    "shortIsin" -> record.get_short_isin(),
+    "isin" -> record.get_isin(),
+    "name" -> record.get_name(),
+    "signs" -> record.get_signs()
   )
 }
 
 
-trait RevisionTracker {
+trait ReplicationStateRepository {
   this: {def log: Logger; def mongo: MongoDB} =>
 
-  val Revisions = mongo("Revisions")
+  val ReplicationStates = mongo("ReplicationStates")
 
-  def setRevision(stream: String, table: String, rev: Long) {
-    log.trace("Set revision = " + rev + "; [" + stream + ", " + table + "]")
-    Revisions.findOne(MongoDBObject("stream" -> stream, "table" -> table)) map {
+  def setReplicationState(stream: String, state: String) {
+    log.trace("Set replication state for stream = " + stream + "; Value = " + state)
+    ReplicationStates.findOne(MongoDBObject("stream" -> stream)) map {
       obj =>
-        Revisions.update(obj, $set("revision" -> rev))
+        ReplicationStates.update(obj, $set("state" -> state))
     } getOrElse {
-      val revision = MongoDBObject("stream" -> stream, "table" -> table, "revision" -> rev)
-      Revisions += revision
+      val replicationState = MongoDBObject("stream" -> stream, "state" -> state)
+      ReplicationStates += replicationState
     }
   }
 
   def reset(stream: String) {
-    Revisions.remove(MongoDBObject("stream" -> stream))
+    ReplicationStates.remove(MongoDBObject("stream" -> stream))
   }
 
-  def revision(stream: String, table: String): Option[Long] = {
-    log.trace("Get revision; Stream = " + stream + "; table = " + table)
-    Revisions.findOne(MongoDBObject("stream" -> stream, "table" -> table)).flatMap(_.getAs[Long]("revision"))
+  def replicationState(stream: String): Option[String] = {
+    log.trace("Get replicationState; Stream = " + stream)
+    ReplicationStates.findOne(MongoDBObject("stream" -> stream)).flatMap(_.getAs[String]("state"))
   }
 
-}
-
-object StreamRevisionTracker {
-  def apply(stream: String)(implicit revisionTracker: RevisionTracker) = new StreamRevisionTracker(revisionTracker, stream)
-}
-
-class StreamRevisionTracker(revisionTracker: RevisionTracker, stream: String) {
-  def setRevision(table: String, rev: Long) {
-    revisionTracker.setRevision(stream, table, rev)
-  }
-}
-
-class TableRevisionTracker(revisionTracker: RevisionTracker, stream: String, table: String) {
-  def setRevision(rev: Long) {
-    revisionTracker.setRevision(stream, table, rev)
-  }
 }

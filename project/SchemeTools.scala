@@ -13,6 +13,7 @@ object SchemeTools {
     SchemeProps("fut_info.ini", "FutInfo", "CustReplScheme"),
     SchemeProps("opt_info.ini", "OptInfo", "CustReplScheme"),
     SchemeProps("fut_trades.ini", "FutTrade", "CustReplScheme"),
+    SchemeProps("opt_trades.ini", "OptTrade", "CustReplScheme"),
     SchemeProps("pos.ini", "Pos", "CustReplScheme"),
     SchemeProps("ordLog_trades.ini", "OrdLog", "CustReplScheme")
   )

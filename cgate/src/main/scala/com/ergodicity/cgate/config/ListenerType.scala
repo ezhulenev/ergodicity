@@ -1,9 +1,11 @@
 package com.ergodicity.cgate.config
 
 import java.io.File
+import com.ergodicity.cgate.StreamEvent.ReplState
 
 sealed trait ListenerType {
   def config: String
+
   def apply(): String = config
 }
 
@@ -12,7 +14,7 @@ sealed trait ListenerOpenParams {
 }
 
 case class Replication(stream: String, ini: File, scheme: String) extends ListenerType {
-  if (!ini.exists()) throw new IllegalArgumentException("Scheme ini file doesn't exists")
+  if (!ini.exists()) throw new IllegalArgumentException("Scheme ini file doesn't exists = " + ini)
 
   val prefix = "p2repl://"
 
@@ -41,9 +43,9 @@ object Replication {
 
   }
 
-  case class ReplicationParams(mode: ReplicationMode, state: Option[String] = None) extends ListenerOpenParams {
+  case class ReplicationParams(mode: ReplicationMode, state: Option[ReplState] = None) extends ListenerOpenParams {
     private val modeParam = "mode=" + mode.name
-    val config = state.map(modeParam + ";replstate=" + _).getOrElse(modeParam)
+    val config = state.map(modeParam + ";replstate=" + _.state).getOrElse(modeParam)
   }
 
 }
