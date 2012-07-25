@@ -6,6 +6,7 @@ import com.twitter.ostrich.admin.{RuntimeEnvironment, Service}
 import com.typesafe.config.ConfigFactory
 import ru.micexrts.cgate.{Connection => CGConnection}
 import com.ergodicity.cgate.config.ConnectionType
+import java.util.concurrent.TimeUnit
 
 object CaptureEngine {
   val log = LoggerFactory.getLogger(getClass.getName)
@@ -48,6 +49,10 @@ class CaptureEngine(connectionType: ConnectionType, replication: ReplicationSche
     val repo = new MarketCaptureRepository(database) with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
     marketCapture = system.actorOf(Props(new MarketCapture(connection, replication, repo, kestrel)), "MarketCapture")
 
+    // Let all actors to activate and perform all activities
+    Thread.sleep(TimeUnit.SECONDS.toMillis(5))
+
+    // Watch for Market Capture is working
     system.actorOf(Props(new Actor {
       context.watch(marketCapture)
 

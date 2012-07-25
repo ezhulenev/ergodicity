@@ -3,10 +3,8 @@ package com.ergodicity.capture
 import akka.util.duration._
 import akka.actor._
 import SupervisorStrategy._
-import com.jacob.com.ComFailException
 import com.ergodicity.marketdb.model.{Security => MarketDbSecurity}
 import org.joda.time.DateTime
-import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection}
 import akka.actor.FSM.{Failure => FSMFailure}
 import com.ergodicity.cgate._
 import config.Replication.ReplicationMode.Combined
@@ -32,6 +30,7 @@ import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate.scheme._
 import com.ergodicity.cgate.Protocol._
+import ru.micexrts.cgate.{CGateException, Listener => CGListener, Connection => CGConnection}
 
 
 case class MarketCaptureException(msg: String) extends RuntimeException(msg)
@@ -146,7 +145,7 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
 
   // Supervisor
   override val supervisorStrategy = AllForOneStrategy() {
-    case _: ComFailException => Stop
+    case _: CGateException => Stop
     case _: MarketCaptureException => Stop
   }
 
