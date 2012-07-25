@@ -8,7 +8,7 @@ import akka.actor.{FSM, Terminated, ActorSystem}
 import com.ergodicity.cgate.config.{CGateConfig, Replication}
 import java.io.File
 import ru.micexrts.cgate.{Connection => CGConnection, CGate, CGateException}
-import com.ergodicity.core.Mocking._
+import com.ergodicity.capture.Mocking._
 import com.ergodicity.capture.CaptureData.Contents
 import com.ergodicity.cgate.config.ConnectionType.Tcp
 import com.twitter.finagle.kestrel.Client

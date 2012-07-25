@@ -1,6 +1,6 @@
 package com.ergodicity.core
 
-import common.{BasicSecurity, FullIsin, FutureContract, OptionContract}
+import common.{FullIsin, FutureContract, OptionContract}
 import com.ergodicity.cgate._
 import scheme.{OptInfo, FutInfo}
 

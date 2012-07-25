@@ -4,7 +4,7 @@ import org.scalatest.WordSpec
 import org.slf4j.LoggerFactory
 import com.mongodb.casbah.commons.MongoDBObject
 import com.ergodicity.capture.{OptSessionContentsRepository, MongoLocal, MarketCaptureRepository}
-import com.ergodicity.core.Mocking._
+import com.ergodicity.capture.Mocking._
 
 class OptSessionContentsRepositorySpec extends WordSpec {
   val log = LoggerFactory.getLogger(classOf[OptSessionContentsRepositorySpec])

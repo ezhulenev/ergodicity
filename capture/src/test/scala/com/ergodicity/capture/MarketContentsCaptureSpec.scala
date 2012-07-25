@@ -12,7 +12,7 @@ import java.io.File
 import com.ergodicity.cgate.DataStream
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.scheme.FutInfo
-import com.ergodicity.core.Mocking._
+import com.ergodicity.capture.Mocking._
 import com.mongodb.casbah.Imports._
 import com.ergodicity.cgate.repository.Repository.Snapshot
 
