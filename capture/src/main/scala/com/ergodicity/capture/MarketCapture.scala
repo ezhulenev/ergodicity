@@ -4,10 +4,6 @@ import akka.util.duration._
 import akka.actor._
 import SupervisorStrategy._
 import com.jacob.com.ComFailException
-import java.net.{ConnectException, Socket}
-import com.twitter.finagle.kestrel.protocol.Kestrel
-import com.twitter.finagle.builder.ClientBuilder
-import com.twitter.finagle.kestrel.Client
 import com.ergodicity.marketdb.model.{Security => MarketDbSecurity}
 import org.joda.time.DateTime
 import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection}
@@ -37,7 +33,6 @@ import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate.DataStream.BindTable
 import com.ergodicity.cgate.scheme._
 import com.ergodicity.cgate.Protocol._
-
 
 
 case class MarketCaptureException(msg: String) extends RuntimeException(msg)
@@ -77,7 +72,7 @@ object CaptureData {
 }
 
 class MarketCapture(underlyingConnection: CGConnection, replication: ReplicationScheme,
-                    repository: MarketCaptureRepository with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository,
+                    repository: ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository,
                     kestrel: KestrelConfig) extends Actor with FSM[CaptureState, CaptureData] {
 
   implicit def SecuritySemigroup: Semigroup[Security] = semigroup {
@@ -90,8 +85,10 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
 
   implicit val revisionTracker = repository
 
-  assertKestrelRunning()
+  // Kestrel client
+  val client = kestrel()
 
+  // CGAte connection
   val connection = context.actorOf(Props(Connection(underlyingConnection)), "Connection")
   context.watch(connection)
 
@@ -123,13 +120,6 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
   val OrdLogListener = context.actorOf(Props(new Listener(underlyingOrdLogListener)), "OrdLogListener")
 
   val cgListeners = (FutInfoListener :: OptInfoListener :: FutTradeListener :: OptTradeListener :: OrdLogListener :: Nil)
-
-  // Kestrel client
-  lazy val client = Client(ClientBuilder()
-    .codec(Kestrel())
-    .hosts(kestrel.host + ":" + kestrel.port)
-    .hostConnectionLimit(kestrel.hostConnectionLimit)
-    .buildFactory())
 
   // Create captures
   implicit val ConvertOrder = new ConvertToMarketDb[OrdLog.orders_log, OrderPayload] {
@@ -195,23 +185,23 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
   when(CaptureState.ShuttingDown) {
     case Event(DataStreamReplState(FutInfoStream, state), s: StreamStates) =>
       repository.setReplicationState(replication.futInfo.stream, state)
-      stay() using s.copy(futInfo = Some(ReplState(state)))
+      handleStreamState(s.copy(futInfo = Some(ReplState(state))))
 
     case Event(DataStreamReplState(OptInfoStream, state), s: StreamStates) =>
       repository.setReplicationState(replication.optInfo.stream, state)
-      stay() using s.copy(optInfo = Some(ReplState(state)))
+      handleStreamState(s.copy(optInfo = Some(ReplState(state))))
 
     case Event(DataStreamReplState(FutTradeStream, state), s: StreamStates) =>
       repository.setReplicationState(replication.futTrade.stream, state)
-      stay() using s.copy(futTrade = Some(ReplState(state)))
+      handleStreamState(s.copy(futTrade = Some(ReplState(state))))
 
     case Event(DataStreamReplState(OptTradeStream, state), s: StreamStates) =>
       repository.setReplicationState(replication.optTrade.stream, state)
-      stay() using s.copy(optTrade = Some(ReplState(state)))
+      handleStreamState(s.copy(optTrade = Some(ReplState(state))))
 
     case Event(DataStreamReplState(OrdLogStream, state), s: StreamStates) =>
       repository.setReplicationState(replication.ordLog.stream, state)
-      stay() using s.copy(ordLog = Some(ReplState(state)))
+      handleStreamState(s.copy(ordLog = Some(ReplState(state))))
   }
 
   onTransition {
@@ -299,18 +289,9 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
         connection ! Connection.Close
         connection ! Connection.Dispose
         stop(akka.actor.FSM.Shutdown)
-      case _ => stay() using state
-    }
-  }
-
-  private def assertKestrelRunning() {
-    try {
-      new Socket(kestrel.host, kestrel.port)
-      kestrel
-    } catch {
-      case e: ConnectException =>
-        println("Error: Kestrel must be running on host " + kestrel.host + "; port " + kestrel.port)
-        System.exit(1)
+      case _ =>
+        log.debug("Waiting for all streams closed in state = " + state)
+        stay() using state
     }
   }
 }

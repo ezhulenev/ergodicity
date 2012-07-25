@@ -8,7 +8,7 @@ import com.ergodicity.cgate.scheme._
 class MarketCaptureRepository(database: CaptureDatabase) {
   val log = LoggerFactory.getLogger(classOf[MarketCaptureRepository])
 
-  val mongo = database.db
+  val mongo = database()
 }
 
 class MarketDbRepository(database: CaptureDatabase) extends MarketCaptureRepository(database) with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
