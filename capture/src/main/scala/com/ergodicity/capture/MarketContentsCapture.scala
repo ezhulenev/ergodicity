@@ -116,7 +116,7 @@ class MarketContentsCapture(FutInfoStream: ActorRef, OptInfoStream: ActorRef,
 
   initialize
 
-  // Bind to DataStreans
+  // Bind to DataStreams
   FutInfoStream ! BindTable(FutInfo.fut_sess_contents.TABLE_INDEX, FutSessContentsRepository)
   OptInfoStream ! BindTable(OptInfo.opt_sess_contents.TABLE_INDEX, OptSessContentsRepository)
 

@@ -30,7 +30,6 @@ import akka.actor.Terminated
 import com.ergodicity.marketdb.model.OrderPayload
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.Connection.StartMessageProcessing
-import com.ergodicity.cgate.DataStream.BindTable
 import com.ergodicity.cgate.scheme._
 import com.ergodicity.cgate.Protocol._
 
@@ -134,14 +133,12 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
     def apply(in: OptTrade.deal) = convertOptionsDeal(in).getOrElse(throw new MarketCaptureException("Can't find isin for " + in))
   }
 
-  val orderCapture = context.actorOf(Props(new MarketDbCapture[OrdLog.orders_log, OrderPayload](new OrdersBuncher(client, kestrel.ordersQueue))), "OrdersCapture")
-  val futuresCapture = context.actorOf(Props(new MarketDbCapture[FutTrade.deal, TradePayload](new TradesBuncher(client, kestrel.tradesQueue))), "FuturesCapture")
-  val optionsCapture = context.actorOf(Props(new MarketDbCapture[OptTrade.deal, TradePayload](new TradesBuncher(client, kestrel.tradesQueue))), "OptionsCapture")
-
-  // Bind Them All
-  OrdLogStream ! BindTable(OrdLog.orders_log.TABLE_INDEX, orderCapture)
-  FutTradeStream ! BindTable(FutTrade.deal.TABLE_INDEX, futuresCapture)
-  OptTradeStream ! BindTable(OptTrade.deal.TABLE_INDEX, optionsCapture)
+  lazy val ordersBuncher = new OrdersBuncher(client, kestrel.ordersQueue)
+  lazy val futureDealsBuncher = new TradesBuncher(client, kestrel.tradesQueue)
+  lazy val optionDealsBuncher = new TradesBuncher(client, kestrel.tradesQueue)
+  val orderCapture = context.actorOf(Props(new MarketDbCapture[OrdLog.orders_log, OrderPayload](OrdLog.orders_log.TABLE_INDEX, OrdLogStream)(ordersBuncher)), "OrdersCapture")
+  val futuresCapture = context.actorOf(Props(new MarketDbCapture[FutTrade.deal, TradePayload](FutTrade.deal.TABLE_INDEX, FutTradeStream)(futureDealsBuncher)), "FuturesCapture")
+  val optionsCapture = context.actorOf(Props(new MarketDbCapture[OptTrade.deal, TradePayload](OptTrade.deal.TABLE_INDEX, OptTradeStream)(optionDealsBuncher)), "OptionsCapture")
 
   // Market Contents capture
   val marketContentsCapture = context.actorOf(Props(new MarketContentsCapture(FutInfoStream, OptInfoStream, repository)), "MarketContentsCapture")
@@ -211,6 +208,8 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
     case CaptureState.Connecting -> CaptureState.InitializingMarketContents =>
       log.info("Initialize Market contents")
       connection ! StartMessageProcessing(100)
+      FutInfoListener ! Listener.Open(ReplicationParams(Combined))
+      OptInfoListener ! Listener.Open(ReplicationParams(Combined))
 
     case CaptureState.InitializingMarketContents -> CaptureState.Capturing =>
       log.info("Begin capturing Market data")
@@ -288,7 +287,7 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
         cgListeners.foreach(_ ! Listener.Dispose)
         connection ! Connection.Close
         connection ! Connection.Dispose
-        stop(akka.actor.FSM.Shutdown)
+        stay()
       case _ =>
         log.debug("Waiting for all streams closed in state = " + state)
         stay() using state

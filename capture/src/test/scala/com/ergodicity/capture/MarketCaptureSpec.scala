@@ -80,6 +80,8 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       val marketCapture = TestFSMRef(new MarketCapture(conn, replication, repository, KestrelMock), "MarketCapture")
       val connection = marketCapture.underlyingActor.asInstanceOf[MarketCapture].connection
 
+      Thread.sleep(300)
+
       watch(marketCapture)
       marketCapture ! Terminated(connection)
       expectMsg(Terminated(marketCapture))
@@ -91,6 +93,8 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       val repository = mock(classOf[Repo])
       val conn = spy(new CGConnection(RouterConnection()))
       val marketCapture = TestFSMRef(new MarketCapture(conn, replication, repository, KestrelMock), "MarketCapture")
+
+      Thread.sleep(300)
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
       marketCapture ! FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.FutureConverter(gmkFuture)))
@@ -105,6 +109,8 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       val repository = mock(classOf[Repo])
       val conn = spy(new CGConnection(RouterConnection()))
       val marketCapture = TestFSMRef(new MarketCapture(conn, replication, repository, KestrelMock), "MarketCapture")
+      
+      Thread.sleep(300)
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
       marketCapture ! OptionsContents(Map(rtsOption.get_isin_id() -> com.ergodicity.core.session.OptionConverter(rtsOption)))
@@ -121,6 +127,8 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       val repository = mock(classOf[Repo])
       val conn = spy(new CGConnection(RouterConnection()))
       val marketCapture = TestFSMRef(new MarketCapture(conn, replication, repository, KestrelMock), "MarketCapture")
+      
+      Thread.sleep(300)
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
       marketCapture ! FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.FutureConverter(gmkFuture)))
@@ -140,6 +148,8 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       val repository = mock(classOf[Repo])
       val conn = spy(new CGConnection(RouterConnection()))
       val marketCapture = TestFSMRef(new MarketCapture(conn, replication, repository, KestrelMock), "MarketCapture")
+
+      Thread.sleep(300)
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
 
@@ -177,7 +187,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       verify(repository).setReplicationState("FORTS_ORDLOG_REPL", "OrdLogState")
 
       expectMsg(Terminated(marketCapture))
-
+      
       verify(conn).close()
       verify(conn).dispose()
     }

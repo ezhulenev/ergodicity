@@ -7,10 +7,11 @@ import sbinary._
 import Operations._
 import org.jboss.netty.buffer.ChannelBuffers
 import com.ergodicity.marketdb.model.{OrderPayload, TradePayload}
-import akka.actor.{Terminated, Props, FSM, Actor}
 import com.twitter.util.Future
 import com.twitter.concurrent.{Tx, Offer}
 import com.ergodicity.capture.MarketDbCapture.ConvertToMarketDb
+import akka.actor._
+import com.ergodicity.cgate.DataStream.BindTable
 
 sealed trait MarketDbCaptureState
 
@@ -29,7 +30,7 @@ object MarketDbCapture {
   }
 }
 
-class MarketDbCapture[T, M](marketDbBuncher: => MarketDbBuncher[M])
+class MarketDbCapture[T, M](tableIndex: Int, dataStream: ActorRef)(marketDbBuncher: => MarketDbBuncher[M])
                            (implicit read: com.ergodicity.cgate.Reads[T], writes: ConvertToMarketDb[T, M]) extends Actor with FSM[MarketDbCaptureState, Unit] {
 
   import com.ergodicity.cgate.StreamEvent._
@@ -38,6 +39,9 @@ class MarketDbCapture[T, M](marketDbBuncher: => MarketDbBuncher[M])
 
   // Watch child bunchers
   context.watch(marketBuncher)
+
+  // Bind Data Stream
+  dataStream ! BindTable(tableIndex, self)
 
   startWith(MarketDbCaptureState.Idle, ())
 

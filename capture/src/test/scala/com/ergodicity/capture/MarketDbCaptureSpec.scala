@@ -7,7 +7,6 @@ import org.mockito.Mockito._
 import com.twitter.finagle.kestrel.Client
 import com.ergodicity.marketdb.model.{Market, Security, OrderPayload}
 import org.joda.time.DateTime
-import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import org.mockito.Matchers._
 import com.twitter.concurrent.Offer
 import org.jboss.netty.buffer.ChannelBuffer
@@ -15,10 +14,12 @@ import org.hamcrest.CoreMatchers._
 import com.twitter.util.Promise
 import com.ergodicity.cgate.scheme._
 import com.ergodicity.cgate.StreamEvent.{TnCommit, StreamData, TnBegin}
-import com.ergodicity.cgate.Reads
 import java.nio.ByteBuffer
 import com.ergodicity.capture.MarketDbCapture.ConvertToMarketDb
 import com.ergodicity.cgate.scheme.OrdLog.orders_log
+import com.ergodicity.cgate.Reads
+import akka.testkit.{TestProbe, TestFSMRef, ImplicitSender, TestKit}
+import com.ergodicity.cgate.DataStream.BindTable
 
 class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketDbCaptureSpec])
@@ -49,7 +50,13 @@ class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) wi
         .thenReturn(new Promise[Throwable]())
 
       lazy val ordersBuncher = new OrdersBuncher(client, "Orders")
-      val capture = TestFSMRef(new MarketDbCapture[OrdLog.orders_log, OrderPayload](ordersBuncher), "MarketDbCapture")
+      val tableIndex = 0
+      val dataStream = TestProbe()
+      val capture = TestFSMRef(new MarketDbCapture[OrdLog.orders_log, OrderPayload](tableIndex, dataStream.ref)(ordersBuncher), "MarketDbCapture")
+
+      // Expect binding to data stream
+      Thread.sleep(100)
+      dataStream.expectMsg(BindTable(0, capture))
 
       val record = orderRecord(100)
 
