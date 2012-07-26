@@ -62,7 +62,6 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
       val optInfoListener = TestFSMRef(new Listener(underlyingOptInfoListener), "OptInfoListener")
 
       val sessions = TestActorRef(new Sessions(FutInfoDataStream, OptInfoDataStream), "Sessions")
-      sessions ! Sessions.BindSessions
 
       Thread.sleep(1000)
 

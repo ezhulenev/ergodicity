@@ -5,13 +5,12 @@ import akka.event.Logging
 import com.ergodicity.core.AkkaConfigurations
 import AkkaConfigurations._
 import akka.actor.{ActorRef, ActorSystem}
-import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
-import com.ergodicity.core.order.FutureOrders.BindFutTradeRepl
-import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.cgate.DataStream.BindTable
 import com.ergodicity.cgate.scheme.FutTrade
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.StreamEvent.StreamData
+import com.ergodicity.cgate.DataStream
+import akka.testkit.{TestProbe, TestFSMRef, ImplicitSender, TestKit}
+import com.ergodicity.cgate.DataStream.{BindingSucceed, BindTable}
 
 class FutureOrdersSpec extends TestKit(ActorSystem("FutureOrdersSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -24,19 +23,14 @@ class FutureOrdersSpec extends TestKit(ActorSystem("FutureOrdersSpec", ConfigWit
   "Future Orders" must {
 
     "bind data stream" in {
-      val futOrders = TestFSMRef(new FutureOrders, "FutureOrders")
-
-      futOrders ! SubscribeTransitionCallBack(self)
-      expectMsg(CurrentState(futOrders, FutureOrdersState.Idle))
-
-      futOrders ! BindFutTradeRepl(self)
-
-      expectMsgType[BindTable]
-      expectMsg(Transition(futOrders, FutureOrdersState.Idle, FutureOrdersState.Binded))
+      val ds = TestFSMRef(new DataStream)
+      val futOrders = TestFSMRef(new FutureOrders(ds), "FutureOrders")
+      assert(futOrders.stateName == FutureOrdersState.Binded)
     }
 
     "create new session orders on request" in {
-      val futOrders = TestFSMRef(new FutureOrders, "FutureOrders")
+      val ds = TestFSMRef(new DataStream)
+      val futOrders = TestFSMRef(new FutureOrders(ds), "FutureOrders")
       futOrders.setState(FutureOrdersState.Binded)
 
       futOrders ! TrackSession(100)
@@ -46,7 +40,8 @@ class FutureOrdersSpec extends TestKit(ActorSystem("FutureOrdersSpec", ConfigWit
     }
 
     "drop session orders" in {
-      val futOrders = TestFSMRef(new FutureOrders, "FutureOrders")
+      val ds = TestFSMRef(new DataStream)
+      val futOrders = TestFSMRef(new FutureOrders(ds), "FutureOrders")
       futOrders.setState(FutureOrdersState.Binded)
 
       futOrders ! TrackSession(100)
@@ -64,7 +59,8 @@ class FutureOrdersSpec extends TestKit(ActorSystem("FutureOrdersSpec", ConfigWit
         record.getData
       }
 
-      val futOrders = TestFSMRef(new FutureOrders, "FutureOrders")
+      val ds = TestFSMRef(new DataStream)
+      val futOrders = TestFSMRef(new FutureOrders(ds), "FutureOrders")
       futOrders.setState(FutureOrdersState.Binded)
 
       records.foreach(futOrders ! StreamData(FutTrade.orders_log.TABLE_INDEX, _))

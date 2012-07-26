@@ -6,15 +6,14 @@ import akka.actor._
 import akka.util.duration._
 import com.ergodicity.core.{SessionsState, Sessions}
 import com.ergodicity.core.position.{Positions, PositionsState}
-import com.ergodicity.core.position.Positions.BindPositions
 import component._
-import akka.actor.FSM.{UnsubscribeTransitionCallBack, Transition, SubscribeTransitionCallBack, Failure => FSMFailure}
 import akka.util.Timeout
-import com.ergodicity.core.Sessions.{CurrentOngoingSession, OngoingSessionTransition, SubscribeOngoingSessions, BindSessions}
+import com.ergodicity.core.Sessions.{CurrentOngoingSession, OngoingSessionTransition, SubscribeOngoingSessions}
 import com.ergodicity.cgate._
 import config.Replication.ReplicationMode.Combined
 import config.Replication.ReplicationParams
 import com.ergodicity.cgate.Connection.StartMessageProcessing
+import akka.actor.FSM.{CurrentState, UnsubscribeTransitionCallBack, Transition, SubscribeTransitionCallBack, Failure => FSMFailure}
 
 object TradingEngine {
   implicit val timeout = Timeout(5 seconds)
@@ -105,8 +104,14 @@ class TradingEngine(processMessagesTimeout: Int) extends Actor with FSM[TradingE
   }
 
   when(Initializing) {
+    case Event(CurrentState(Sessions, state:SessionsState ), initializing: InitializationState) =>
+      handleInitializationState(initializing.copy(sessions = Some(state)))
+
     case Event(Transition(Sessions, _, state: SessionsState), initializing: InitializationState) =>
       handleInitializationState(initializing.copy(sessions = Some(state)))
+
+    case Event(CurrentState(Positions, state: PositionsState), initializing: InitializationState) =>
+      handleInitializationState(initializing.copy(positions = Some(state)))
 
     case Event(Transition(Positions, _, state: PositionsState), initializing: InitializationState) =>
       handleInitializationState(initializing.copy(positions = Some(state)))
@@ -134,14 +139,8 @@ class TradingEngine(processMessagesTimeout: Int) extends Actor with FSM[TradingE
 
     case Connecting -> Initializing =>
       log.debug("Initializing Trading Engine")
-
-      // Bind sessions tracker to data streams
       Sessions ! SubscribeTransitionCallBack(self)
-      Sessions ! BindSessions
-
-      // Bind positions
       Positions ! SubscribeTransitionCallBack(self)
-      Positions ! BindPositions
 
     case Initializing -> WaitingOngoingSession =>
       log.debug("Initialization finished, subscribe for ongoing sessions!")

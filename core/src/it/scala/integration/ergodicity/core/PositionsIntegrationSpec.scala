@@ -5,7 +5,6 @@ import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import integration.ergodicity.core.AkkaIntegrationConfigurations._
-import com.ergodicity.core.position.Positions.BindPositions
 import com.ergodicity.core.position.Positions
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import ru.micexrts.cgate.{CGate, Connection => CGConnection, Listener => CGListener}
@@ -57,7 +56,6 @@ class PositionsIntegrationSpec extends TestKit(ActorSystem("PositionsIntegration
 
       // Create Positions actor
       val positions = TestFSMRef(new Positions(dataStream), "Positions")
-      positions ! BindPositions
 
       Thread.sleep(1000)
 

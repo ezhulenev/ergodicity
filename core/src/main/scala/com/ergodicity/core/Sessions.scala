@@ -15,7 +15,7 @@ import com.ergodicity.cgate.Protocol._
 import com.ergodicity.cgate.DataStream._
 import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, Snapshot}
 import com.ergodicity.cgate.scheme.{FutInfo, OptInfo}
-import akka.dispatch.{Future, Await}
+import akka.dispatch.Await
 import akka.util.Timeout
 
 
@@ -23,8 +23,6 @@ protected[core] case class SessionId(id: Long, optionSessionId: Long)
 
 object Sessions {
   def apply(FutInfoStream: ActorRef, OptInfoStream: ActorRef) = new Sessions(FutInfoStream, OptInfoStream)
-
-  case object BindSessions
 
   // Tracking ongoing sessions
 

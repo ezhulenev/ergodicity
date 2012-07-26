@@ -2,48 +2,62 @@ package com.ergodicity.core.order
 
 import akka.event.Logging
 import com.ergodicity.core.common._
-import com.ergodicity.core.order.FutureOrders.BindFutTradeRepl
 import akka.actor._
-import akka.actor.FSM.Failure
-import com.ergodicity.cgate.scheme.FutTrade
+import akka.util.duration._
+import akka.pattern.ask
 import com.ergodicity.cgate.DataStream._
 import com.ergodicity.cgate.Protocol.ReadsFutTradeOrders
 import com.ergodicity.cgate.StreamEvent._
-import com.ergodicity.cgate.Reads
-
-object FutureOrders {
-
-  case class BindFutTradeRepl(dataStream: ActorRef)
-
-}
+import com.ergodicity.cgate.scheme.FutTrade
+import akka.dispatch.Await
+import com.ergodicity.cgate.{DataStreamState, Reads}
+import akka.actor.FSM._
+import akka.util.Timeout
 
 private[order] sealed trait FutureOrdersState
 
 private[order] object FutureOrdersState {
 
-  case object Idle extends FutureOrdersState
-
   case object Binded extends FutureOrdersState
+
+  case object Online extends FutureOrdersState
 
 }
 
 
-class FutureOrders extends Actor with FSM[FutureOrdersState, Map[Int, ActorRef]] {
+class FutureOrders(FutTradeStream: ActorRef) extends Actor with FSM[FutureOrdersState, Map[Int, ActorRef]] {
 
   import FutureOrdersState._
 
+  implicit val timeout = Timeout(1.second)
   val read = implicitly[Reads[FutTrade.orders_log]]
 
-  startWith(Idle, Map())
+  log.debug("Bind to FutTrade data stream")
 
-  when(Idle) {
-    case Event(BindFutTradeRepl(dataStream), _) =>
-      dataStream ! BindTable(FutTrade.orders_log.TABLE_INDEX, self)
-      goto(Binded)
+  // Bind to tables
+  val bindingResult = (FutTradeStream ? BindTable(FutTrade.orders_log.TABLE_INDEX, self)).mapTo[BindingResult]
+  Await.result(bindingResult, 1.second) match {
+    case BindingSucceed(_, _) =>
+    case BindingFailed(_, _) => throw new IllegalStateException("FutTrade data stream in invalid state")
   }
 
-  when(Binded) {
+  // Track Data Stream state
+  FutTradeStream ! SubscribeTransitionCallBack(self)
+
+  startWith(Binded, Map())
+
+  when(Binded)(handleDataStreamEvents orElse trackSession orElse dropSession orElse {
+    case Event(CurrentState(FutTradeStream, DataStreamState.Online), _) => goto(Online)
+    case Event(Transition(FutTradeStream, _, DataStreamState.Online), _) => goto(Online)
+
+  })
+
+  when(Online) {
     handleDataStreamEvents orElse trackSession orElse dropSession
+  }
+
+  onTransition {
+    case Binded -> Online => FutTradeStream ! UnsubscribeTransitionCallBack(self)
   }
 
   private def handleDataStreamEvents: StateFunction = {
