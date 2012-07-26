@@ -4,7 +4,7 @@ import java.io.File
 import integration._
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{CGate, Connection => CGConnection, Listener => CGListener}
-import com.ergodicity.cgate.config.ConnectionType.Tcp
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.cgate.Connection.StartMessageProcessing

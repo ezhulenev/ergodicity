@@ -7,9 +7,9 @@ import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import org.mockito.Mockito._
 import TradingEngineState._
 import akka.actor.{Terminated, ActorSystem}
-import com.ergodicity.plaza2.ConnectionState
 import akka.actor.FSM.Transition
-import plaza2.{MessageFactory, Connection => P2Connection, DataStream => P2DataStream}
+import com.ergodicity.cgate.{Opening, Active}
+import ru.micexrts.cgate.{ISubscriber, Connection => CGConnection, Listener => CGListener}
 
 class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -30,14 +30,14 @@ class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigW
     }
 
     "connect on StartTradingEngine" in {
-      val p2 = mock(classOf[P2Connection])
+      val p2 = mock(classOf[CGConnection])
       val engine = buildEngine(p2)
-      engine ! StartTradingEngine(ConnectionProperties(Host, Port, AppName))
+      engine ! StartTradingEngine
 
       // Let message be propagated to Connection actor
       Thread.sleep(100)
 
-      verify(p2).connect()
+      verify(p2).open("")
 
       assert(engine.stateName == TradingEngineState.Connecting)
     }
@@ -59,27 +59,24 @@ class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigW
 
       engine.setState(Connecting)
 
-      engine ! Transition(underlying.Connection, ConnectionState.Connecting, ConnectionState.Connected)
+      engine ! Transition(underlying.Connection, Opening, Active)
       assert(engine.stateName == TradingEngineState.Initializing)
     }
   }
 
-  def buildEngine(conn: P2Connection = mock(classOf[P2Connection]),
-                  futInfo: P2DataStream = mock(classOf[P2DataStream]),
-                  optInfo: P2DataStream = mock(classOf[P2DataStream]),
-                  pos: P2DataStream = mock(classOf[P2DataStream]),
-                  mf: MessageFactory = mock(classOf[MessageFactory])) = TestFSMRef(new TradingEngine("000", 100) with ConnectionComponent
-    with FutInfoDataStreamComponent with OptInfoDataStreamComponent with PosDataStreamComponent with MessageFactoryComponent {
+  def buildEngine(conn: CGConnection = mock(classOf[CGConnection]),
+                  futInfo: CGListener = mock(classOf[CGListener]),
+                  optInfo: CGListener = mock(classOf[CGListener]),
+                  pos: CGListener = mock(classOf[CGListener])) = TestFSMRef(new TradingEngine(100) with ConnectionComponent
+    with FutInfoListenerComponent with OptInfoListenerComponent with PosListenerComponent {
 
     lazy val underlyingConnection = conn
 
-    lazy val underlyingFutInfo = futInfo
+    lazy val underlyingFutInfoListener = (_:ISubscriber) => futInfo
 
-    lazy val underlyingOptInfo = optInfo
+    lazy val underlyingOptInfoListener = (_:ISubscriber) => optInfo
 
-    lazy val underlyingPos = pos
-
-    implicit lazy val messageFactory = mf
-
-  }, "Engine")
+    lazy val underlyingPosListener = (_:ISubscriber) => pos
+    
+    }, "Engine")
 }

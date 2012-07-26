@@ -67,7 +67,7 @@ class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) wi
       capture ! TnCommit
       assert(capture.stateName == MarketDbCaptureState.Idle)
 
-      Thread.sleep(100)
+      Thread.sleep(300)
 
       verify(client).write(argThat(is("Orders")), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]]))
     }

@@ -9,7 +9,7 @@ import com.ergodicity.core.Sessions
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
-import com.ergodicity.cgate.config.ConnectionType.Tcp
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import ru.micexrts.cgate.{CGate, Connection => CGConnection, Listener => CGListener}
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate.config.Replication._

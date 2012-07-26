@@ -1,7 +1,14 @@
 package com.ergodicity.engine.component
 
-import plaza2.{Connection => P2Connection}
+import ru.micexrts.cgate.{Connection => CGConnection}
+import com.ergodicity.cgate.config.ConnectionConfig
 
 trait ConnectionComponent {
-  def underlyingConnection: P2Connection
+  def underlyingConnection: CGConnection
+}
+
+trait CGateConnection extends ConnectionComponent {
+  def connectionConfig: ConnectionConfig
+
+  lazy val underlyingConnection = new CGConnection(connectionConfig())
 }

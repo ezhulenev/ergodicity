@@ -10,7 +10,7 @@ import java.io.File
 import ru.micexrts.cgate.{Connection => CGConnection, CGate, CGateException}
 import com.ergodicity.capture.Mocking._
 import com.ergodicity.capture.CaptureData.Contents
-import com.ergodicity.cgate.config.ConnectionType.Tcp
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.twitter.finagle.kestrel.Client
 import com.ergodicity.cgate.DataStream.DataStreamReplState
 import org.slf4j.{Logger, LoggerFactory}

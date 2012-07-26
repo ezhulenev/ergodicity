@@ -10,8 +10,6 @@ import akka.testkit._
 import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack}
 import com.ergodicity.core.SessionsState
 import com.ergodicity.core.Sessions.{OngoingSessionTransition, CurrentOngoingSession, SubscribeOngoingSessions}
-import java.security.Security
-import com.ergodicity.core.common._
 
 
 class InstrumentTrackerSpec extends TestKit(ActorSystem("InstrumentTrackerSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {

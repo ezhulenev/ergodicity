@@ -59,6 +59,8 @@ class MarketDbBuncherSpec extends TestKit(ActorSystem("MarketDbBuncherSpec")) wi
 
       buncher ! FlushBunch
 
+      Thread.sleep(300)
+
       verify(client).write(argThat(is(Queue)), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]]))
       assert(buncher.stateName == BuncherState.Idle)
     }

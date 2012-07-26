@@ -5,11 +5,11 @@ import org.slf4j.LoggerFactory
 import com.twitter.ostrich.admin.RuntimeEnvironment
 import com.mongodb.casbah.TypeImports._
 import com.mongodb.casbah.MongoConnection
-import com.ergodicity.cgate.config.{ConnectionType, Replication}
 import java.net.{ConnectException, Socket}
 import com.twitter.finagle.kestrel.protocol.{Kestrel => KestrelProtocol}
 import com.twitter.finagle.builder.ClientBuilder
 import com.twitter.finagle.kestrel.Client
+import com.ergodicity.cgate.config.{CGateConfig, ConnectionConfig, Replication}
 
 sealed trait CaptureDatabase {
   def apply(): MongoDB
@@ -65,7 +65,9 @@ case class Kestrel(host: String, port: Int, tradesQueue: String, ordersQueue: St
 trait CaptureEngineConfig extends ServerConfig[CaptureEngine] {
   val log = LoggerFactory.getLogger(classOf[CaptureEngineConfig])
 
-  def connectionType: ConnectionType
+  def cgateConfig: CGateConfig
+
+  def connectionConfig: ConnectionConfig
 
   def replication: ReplicationScheme
 
@@ -73,5 +75,5 @@ trait CaptureEngineConfig extends ServerConfig[CaptureEngine] {
 
   def kestrel: KestrelConfig
 
-  def apply(runtime: RuntimeEnvironment) = new CaptureEngine(connectionType, replication, database, kestrel)
+  def apply(runtime: RuntimeEnvironment) = new CaptureEngine(cgateConfig, connectionConfig, replication, database, kestrel)
 }

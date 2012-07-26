@@ -8,7 +8,7 @@ import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 import java.util.concurrent.TimeUnit
 import com.ergodicity.core.order.FutureOrders
 import com.ergodicity.core.order.FutureOrders.BindFutTradeRepl
-import com.ergodicity.cgate.config.ConnectionType.Tcp
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import ru.micexrts.cgate.{CGate, Connection => CGConnection, Listener => CGListener}
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate.config.Replication._

@@ -1,12 +1,15 @@
 import com.ergodicity.capture._
-import com.ergodicity.cgate.config.ConnectionType.Tcp
-import com.ergodicity.cgate.config.Replication
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
+import com.ergodicity.cgate.config.{CGateConfig, Replication}
 import java.io.File
 
 new CaptureEngineConfig {
   admin.httpPort = 19000
 
-  val connectionType = Tcp("localhost", 4001, "CaptureEngineDev")
+  val connectionConfig = Tcp("localhost", 4001, "CaptureEngineDev")
+
+
+  val cgateConfig = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
 
   val replication = ReplicationScheme(
     Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme"),
@@ -18,5 +21,5 @@ new CaptureEngineConfig {
 
   val database = MongoLocal("MarketCaptureDev")
   
-  val kestrel = KestrelConfig("localhost", 22133, "trades", "orders", 30)
+  val kestrel = Kestrel("localhost", 22133, "trades", "orders", 30)
 }

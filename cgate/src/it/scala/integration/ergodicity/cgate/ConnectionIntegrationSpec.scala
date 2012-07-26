@@ -9,7 +9,7 @@ import com.ergodicity.cgate.Connection._
 import config.CGateConfig
 import ru.micexrts.cgate.{CGate, Connection => CGConnection}
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
-import com.ergodicity.cgate.config.ConnectionType.Tcp
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import java.io.File
 
 

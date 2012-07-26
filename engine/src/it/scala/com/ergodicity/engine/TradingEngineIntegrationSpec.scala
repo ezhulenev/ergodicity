@@ -1,13 +1,12 @@
 package com.ergodicity.engine
 
-import component._
 import akka.event.Logging
 import akka.actor.ActorSystem
 import akka.testkit.{TestFSMRef, TestKit}
 import java.util.concurrent.TimeUnit
 import java.io.File
-import plaza2.{Connection => P2Connection}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import com.ergodicity.cgate.config.Replication
 
 class TradingEngineIntegrationSpec extends TestKit(ActorSystem("TradingEngineIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll {
 
@@ -18,35 +17,23 @@ class TradingEngineIntegrationSpec extends TestKit(ActorSystem("TradingEngineInt
   }
 
   val actorSystem = system
-  val config = new TradingEngineConfig {
-    clientCode = "533"
 
-    system = specified(actorSystem)
-    optInfo = specified(new File("engine/schema/OptInfo.ini"))
-    futInfo = specified(new File("engine/schema/FutInfo.ini"))
-    pos = specified(new File("engine/schema/Pos.ini"))
-    messages = specified(new File("engine/schema/Messages.ini"))
+  val config = new CGateTradingEngineConfig {
+    system = actorSystem
 
-    def apply() = new TradingEngine(clientCode, processMessagesTimeout) with ConnectionComponent with FutInfoDataStream with OptInfoDataStream with PosDataStream with MessagesFromScheme {
+    replicationScheme = ReplicationScheme(
+      Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme"),
+      Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme"),
+      Replication("FORTS_POS_REPL", new File("cgate/scheme/pos.ini"), "CustReplScheme")
+    )
 
-      lazy val underlyingConnection = P2Connection()
-
-
-      def messagesScheme = messages
-
-      override def optInfoIni = Some(optInfo)
-
-      override def futInfoIni = Some(futInfo)
-
-      override def posIni = Some(pos)
-    }
   }
 
   "Trading engine" must {
     "be constructed from config" in {
       val engine = TestFSMRef(config(), "TradeEngine")
 
-      engine ! StartTradingEngine(config.connectionProperties)
+      engine ! StartTradingEngine
 
       Thread.sleep(TimeUnit.DAYS.toMillis(45))
     }

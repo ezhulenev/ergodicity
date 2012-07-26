@@ -4,9 +4,9 @@ import org.slf4j.LoggerFactory
 import akka.actor._
 import com.twitter.ostrich.admin.{RuntimeEnvironment, Service}
 import com.typesafe.config.ConfigFactory
-import ru.micexrts.cgate.{Connection => CGConnection}
-import com.ergodicity.cgate.config.ConnectionType
 import java.util.concurrent.TimeUnit
+import com.ergodicity.cgate.config.{CGateConfig, ConnectionConfig}
+import ru.micexrts.cgate.{CGate, Connection => CGConnection}
 
 object CaptureEngine {
   val log = LoggerFactory.getLogger(getClass.getName)
@@ -19,6 +19,17 @@ object CaptureEngine {
       runtime = RuntimeEnvironment(this, args)
       marketCapture = runtime.loadRuntimeConfig[CaptureEngine]()
       marketCapture.start()
+
+      // Add shutdown hook
+      Runtime.getRuntime.addShutdownHook(new Thread() {
+        override def run() {
+          marketCapture.marketCapture ! ShutDown
+          while (!marketCapture.system.isTerminated) {
+            Thread.sleep(TimeUnit.SECONDS.toMillis(1))
+          }
+        }
+      });
+
     } catch {
       case e =>
         log.error("Exception during startup; exiting!", e)
@@ -27,7 +38,7 @@ object CaptureEngine {
   }
 }
 
-class CaptureEngine(connectionType: ConnectionType, replication: ReplicationScheme, database: CaptureDatabase, kestrel: KestrelConfig) extends Service {
+class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig, replication: ReplicationScheme, database: CaptureDatabase, kestrel: KestrelConfig) extends Service {
   val log = LoggerFactory.getLogger(classOf[CaptureEngine])
 
   val ConfigWithDetailedLogging = ConfigFactory.parseString("""
@@ -45,7 +56,11 @@ class CaptureEngine(connectionType: ConnectionType, replication: ReplicationSche
   def start() {
     log.info("Start CaptureEngine")
 
-    val connection = new CGConnection(connectionType())
+    // Prepare CGate
+    CGate.open(cgateConfig())
+
+    // Create Market Capture system
+    val connection = new CGConnection(connectionConfig())
     val repo = new MarketCaptureRepository(database) with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
     marketCapture = system.actorOf(Props(new MarketCapture(connection, replication, repo, kestrel)), "MarketCapture")
 
@@ -68,6 +83,7 @@ class CaptureEngine(connectionType: ConnectionType, replication: ReplicationSche
     log.info("Shutdown CaptureEngine")
     system.shutdown()
     Thread.sleep(1000)
+    CGate.close()
     System.exit(1)
   }
 }

@@ -1,6 +1,6 @@
 package com.ergodicity.cgate.config
 
-sealed trait ConnectionType {
+sealed trait ConnectionConfig {
   def protocol: String
 
   def host: String
@@ -14,13 +14,13 @@ sealed trait ConnectionType {
   def apply() = config
 }
 
-object ConnectionType {
+object ConnectionConfig {
 
-  case class Tcp(host: String, port: Int, appName: String) extends ConnectionType {
+  case class Tcp(host: String, port: Int, appName: String) extends ConnectionConfig {
     def protocol = "p2tcp"
   }
 
-  case class Lrpcq(host: String, port: Int, appName: String) extends ConnectionType {
+  case class Lrpcq(host: String, port: Int, appName: String) extends ConnectionConfig {
     def protocol = "p2lrpcq"
   }
 }
