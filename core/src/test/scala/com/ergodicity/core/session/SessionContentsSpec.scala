@@ -4,8 +4,6 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.pattern.ask
 import akka.util.duration._
-import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
-import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
 import com.ergodicity.core.common.{FullIsin, FutureContract}
 import akka.actor.{ActorRef, ActorSystem}
@@ -14,6 +12,9 @@ import akka.util.Timeout
 import com.ergodicity.cgate.scheme.FutInfo
 import com.ergodicity.cgate.repository.Repository.Snapshot
 import com.ergodicity.core.Mocking._
+import akka.testkit._
+import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack}
+import com.ergodicity.core.session.SessionContentsState.TrackingSession
 
 
 class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -30,17 +31,24 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
   "StatefulSessionContents" must {
 
     "return None if no instument found" in {
-      val contents = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](SessionState.Online), "Futures")
+      val session = TestProbe()
+      val contents = TestFSMRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](session.ref), "Futures")
+      assert(contents.stateName == SessionContentsState.Binding)
       val future = (contents ? GetSessionInstrument(FullIsin(100, "BadCode", "BadShortCode"))).mapTo[Option[ActorRef]]
       assert(Await.result(future, 1.second) == None)
     }
 
     "return instument reference if found" in {
-      val contents = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](SessionState.Online), "Futures")
-      contents ! TrackSessionState(self)
-      expectMsgType[SubscribeTransitionCallBack]
+      val session = TestProbe()
+      val contents = TestFSMRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](session.ref), "Futures")
+
+      session.expectMsgType[SubscribeTransitionCallBack]
+      contents ! CurrentState(session.ref, SessionState.Online)
+
+      assert(contents.stateName == SessionContentsState.TrackingSession)
+
       contents ! Snapshot(self, gmkFuture :: Nil)
-      Thread.sleep(1000)
+      Thread.sleep(100)
       val gmk = system.actorFor("user/Futures/GMKR-6.12")
       val future = (contents ? GetSessionInstrument(FullIsin(166911, "GMKR-6.12", "GMM2"))).mapTo[Option[ActorRef]]
       assert(Await.result(future, 1.second) == Some(gmk))

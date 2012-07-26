@@ -2,7 +2,6 @@ package com.ergodicity.core.session
 
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
-import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
 import com.ergodicity.core.common.FutureContract
@@ -10,6 +9,8 @@ import akka.actor.ActorSystem
 import com.ergodicity.core.Mocking._
 import com.ergodicity.cgate.scheme.FutInfo
 import com.ergodicity.cgate.repository.Repository.Snapshot
+import akka.testkit.TestProbe._
+import akka.testkit.{TestProbe, TestActorRef, ImplicitSender, TestKit}
 
 class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionContentsSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -27,9 +28,11 @@ class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionCo
   "StatefulSessionContents" must {
 
     "should track record updates merging with session state" in {
-      val contents = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](SessionState.Online), "Futures")
-      contents ! TrackSessionState(self)
-      expectMsgType[SubscribeTransitionCallBack]
+      val session = TestProbe()
+      val contents = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](session.ref), "Futures")
+
+      session.expectMsgType[SubscribeTransitionCallBack]
+      contents ! CurrentState(session.ref, SessionState.Online)
 
       contents ! Snapshot(self, gmkFuture(SUSPENDED) :: Nil)
 
@@ -42,17 +45,18 @@ class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionCo
       expectMsg(Transition(instrument, InstrumentState.Suspended, InstrumentState.Online))
 
       // Session suspended
-      contents ! Transition(self, SessionState.Online, SessionState.Suspended)
+      contents ! Transition(session.ref, SessionState.Online, SessionState.Suspended)
       expectMsg(Transition(instrument, InstrumentState.Online, InstrumentState.Suspended))
 
       // Instrument goes Assigned and session Online
       contents ! Snapshot(self, gmkFuture(ASSIGNED) :: Nil)
-      contents ! Transition(self, SessionState.Suspended, SessionState.Online)
+      contents ! Transition(session.ref, SessionState.Suspended, SessionState.Online)
       expectMsg(Transition(instrument, InstrumentState.Suspended, InstrumentState.Assigned))
     }
 
     "merge session and instrument states" in {
-      val contents = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](SessionState.Online), "Futures")
+      val session = TestProbe()
+      val contents = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](session.ref), "Futures")
       val underlying = contents.underlyingActor
 
       assert(underlying.mergeStates(SessionState.Canceled, InstrumentState.Online) == InstrumentState.Canceled)

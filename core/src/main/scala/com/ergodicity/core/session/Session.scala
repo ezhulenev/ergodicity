@@ -48,12 +48,9 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
 
   val intClearing = context.actorOf(Props(new IntClearing(intClearingState)), "IntClearing")
 
-  val futures = context.actorOf(Props(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](state)), "Futures")
-  futures ! TrackSessionState(self)
-
-  val options = context.actorOf(Props(new StatelessSessionContents[OptionContract, OptInfo.opt_sess_contents](state)), "Options")
-  options ! TrackSessionState(self)
-
+  // Session contents
+  val futures = context.actorOf(Props(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](self)), "Futures")
+  val options = context.actorOf(Props(new StatelessSessionContents[OptionContract, OptInfo.opt_sess_contents](self)), "Options")
 
   startWith(state, intClearing)
 
