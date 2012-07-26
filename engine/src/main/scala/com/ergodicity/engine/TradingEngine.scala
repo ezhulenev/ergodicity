@@ -142,6 +142,14 @@ class TradingEngine(processMessagesTimeout: Int) extends Actor with FSM[TradingE
       Sessions ! SubscribeTransitionCallBack(self)
       Positions ! SubscribeTransitionCallBack(self)
 
+      log.debug("Open Sessions & Positions underlying streams")
+      FutInfoListener ! Listener.Open(ReplicationParams(Combined))
+      FutInfoListener ! Listener.Open(ReplicationParams(Combined))
+      PosListener ! Listener.Open(ReplicationParams(Combined))
+
+      // Start message processing
+      Connection ! StartMessageProcessing(processMessagesTimeout);
+
     case Initializing -> WaitingOngoingSession =>
       log.debug("Initialization finished, subscribe for ongoing sessions!")
       Sessions ! UnsubscribeTransitionCallBack(self)
@@ -156,24 +164,8 @@ class TradingEngine(processMessagesTimeout: Int) extends Actor with FSM[TradingE
     import scalaz._
     import Scalaz._
 
-    (initialization.sessions |@| initialization.positions) {
-      (_, _)
-    } match {
-      case Some((SessionsState.Binded, PositionsState.Binded)) =>
-        log.debug("Open Sessions & Positions underlying streams")
-        // Open data streams when binded to all of them
-        FutInfoListener ! Listener.Open(ReplicationParams(Combined))
-        FutInfoListener ! Listener.Open(ReplicationParams(Combined))
-        PosListener ! Listener.Open(ReplicationParams(Combined))
-
-        // Start message processing
-        Connection ! StartMessageProcessing(processMessagesTimeout);
-
-        stay() using initialization
-
-      case Some((SessionsState.Online, PositionsState.Online)) =>
-        goto(WaitingOngoingSession) using Blank
-
+    (initialization.sessions |@| initialization.positions) {(_, _)} match {
+      case Some((SessionsState.Online, PositionsState.Online)) => goto(WaitingOngoingSession) using Blank
       case _ => stay() using initialization
     }
   }
