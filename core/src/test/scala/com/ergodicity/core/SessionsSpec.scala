@@ -13,7 +13,7 @@ import Mocking._
 import com.ergodicity.cgate.repository.Repository.Snapshot
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.{DataStream, DataStreamState}
-import akka.actor.{Kill, Terminated, ActorSystem}
+import akka.actor.{Terminated, ActorSystem}
 
 class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -26,9 +26,9 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
 
   "Sessions" must {
 
-    "initialized in Idle state" in {
+    "initialized in Binded state" in {
       val sessions = TestFSMRef(new Sessions(TestFSMRef(new DataStream()), TestFSMRef(new DataStream())), "Sessions")
-      assert(sessions.stateName == SessionsState.Idle)
+      assert(sessions.stateName == SessionsState.Binded)
     }
 
     "track sessions state" in {
@@ -40,15 +40,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
       val underlying = sessions.underlyingActor.asInstanceOf[Sessions]
       val sessionRepository = underlying.SessionRepository
 
-      // Kill child repositories
-      underlying.SessionRepository ! Kill
-      underlying.FutSessContentsRepository ! Kill
-      underlying.OptSessContentsRepository ! Kill
-
-      when("BindSessions received")
-      sessions ! BindSessions
-      
-      then("should go to Binded state")
+      then("should initialized in Binded state")
       assert(sessions.stateName == SessionsState.Binded)
       
       when("both data Streams goes online")
@@ -175,6 +167,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
       expectMsg(OptInfoSessionContents(Snapshot(underlying.OptSessContentsRepository, option1 :: Nil)))
     }
   }
+
   def sessionRecord(replID: Long, revId: Long, sessionId: Int, sessionState: SessionState) = {
     import SessionState._
     

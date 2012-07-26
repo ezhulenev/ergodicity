@@ -9,6 +9,8 @@ sealed trait RepositoryState
 
 object RepositoryState {
 
+  case object Empty extends RepositoryState
+
   case object Consistent extends RepositoryState
 
   case object Synchronizing extends RepositoryState
@@ -34,7 +36,15 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
 
   var snapshotSubscribers: Set[ActorRef] = Set()
 
-  startWith(Consistent, Map())
+  startWith(Empty, Map())
+
+  when(Empty) {
+    case Event(SubscribeSnapshots(ref), _) =>
+      snapshotSubscribers = snapshotSubscribers + ref
+      stay()
+
+    case Event(TnBegin, _) => goto(Synchronizing)
+  }
 
   when(Consistent) {
     case Event(SubscribeSnapshots(ref), _) =>

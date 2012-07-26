@@ -2,33 +2,29 @@ package com.ergodicity.core.position
 
 import com.ergodicity.core.common.IsinId
 import akka.actor.{FSM, Props, ActorRef, Actor}
-import com.ergodicity.core.position.Positions.BindPositions
 import akka.actor.FSM.{Transition, CurrentState, UnsubscribeTransitionCallBack, SubscribeTransitionCallBack}
+import akka.pattern.ask
+import akka.util.duration._
 import com.ergodicity.cgate.repository.Repository
 import com.ergodicity.cgate.scheme.Pos
 import com.ergodicity.cgate.DataStreamState
-import com.ergodicity.cgate.DataStream.BindTable
 import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, Snapshot}
 import com.ergodicity.cgate.Protocol.ReadsPosPositions
 import com.ergodicity.cgate.repository.ReplicaExtractor.PosPositionsExtractor
+import akka.util.Timeout
+import akka.dispatch.Await
+import com.ergodicity.cgate.DataStream.{BindingFailed, BindingSucceed, BindingResult, BindTable}
 
 object Positions {
   def apply(PosStream: ActorRef) = new Positions(PosStream)
-
-  case object BindPositions
-
 }
 
 sealed trait PositionsState
 
 object PositionsState {
-
-  case object Idle extends PositionsState
-
   case object Binded extends PositionsState
 
   case object Online extends PositionsState
-
 }
 
 sealed trait PositionsData
@@ -48,14 +44,24 @@ class Positions(PosStream: ActorRef) extends Actor with FSM[PositionsState, Posi
   import PositionsState._
   import PositionsData._
 
+  implicit val timeout = Timeout(1.second)
+
   // Repositories
   protected[position] val PositionsRepository = context.actorOf(Props(Repository[Pos.position]), "PositionsRepository")
 
-  startWith(Idle, Blank)
+  log.debug("Bind to Pos data stream")
 
-  when(Idle) {
-    case Event(BindPositions, Blank) => goto(Binded)
+  // Bind to tables
+  val bindingResult = (PosStream ? BindTable(Pos.position.TABLE_INDEX, PositionsRepository)).mapTo[BindingResult]
+  Await.result(bindingResult, 1.second) match {
+    case BindingSucceed(_, _) =>
+    case BindingFailed(_, _) => throw new IllegalStateException("Positions data stream in invalid state")
   }
+
+  // Track Data Stream state
+  PosStream ! SubscribeTransitionCallBack(self)
+
+  startWith(Binded, Blank)
 
   when(Binded) {
     case Event(CurrentState(PosStream, DataStreamState.Online), Blank) => goto(Online) using TrackingPositions()
@@ -107,15 +113,6 @@ class Positions(PosStream: ActorRef) extends Actor with FSM[PositionsState, Posi
   }
 
   onTransition {
-    case Idle -> Binded =>
-      log.debug("Bind to Pos data stream")
-
-      // Bind to tables
-      PosStream ! BindTable(Pos.position.TABLE_INDEX, PositionsRepository)
-
-      // Track Data Stream states
-      PosStream ! SubscribeTransitionCallBack(self)
-
     case Binded -> Online =>
       log.debug("Positions goes online")
 

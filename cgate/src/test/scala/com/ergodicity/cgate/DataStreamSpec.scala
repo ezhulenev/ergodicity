@@ -5,16 +5,18 @@ import akka.event.Logging
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.actor.ActorSystem
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
+import akka.pattern.ask
+import akka.util.duration._
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.StreamEvent.{ReplState, ClearDeleted, LifeNumChanged, StreamData}
-import com.ergodicity.cgate.DataStream.{DataStreamReplState, SubscribeReplState, BindTable}
+import akka.dispatch.Await
+import akka.util.Timeout
+import com.ergodicity.cgate.DataStream._
 
 class DataStreamSpec extends TestKit(ActorSystem("DataStreamSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = Logging(system, self)
 
-  val Host = "host"
-  val Port = 4001
-  val AppName = "ConnectionSpec"
+  implicit val timeout = Timeout(1.second)
 
   override def afterAll() {
     system.shutdown()
@@ -28,13 +30,30 @@ class DataStreamSpec extends TestKit(ActorSystem("DataStreamSpec", AkkaConfigura
 
     "bind tables" in {
       val dataStream = TestFSMRef(new DataStream, "DataStream")
-      dataStream ! BindTable(0, self)
-      dataStream ! BindTable(1, self)
-      dataStream ! BindTable(1, self)
+      dataStream ? BindTable(0, self)
+      dataStream ? BindTable(1, self)
+      dataStream ? BindTable(1, self)
 
       assert(dataStream.stateData.size == 2)
       assert(dataStream.stateData(0).size == 1)
       assert(dataStream.stateData(1).size == 2)
+    }
+
+    "binding succeed in Closed state" in {
+      val dataStream = TestFSMRef(new DataStream, "DataStream")
+      val resp = (dataStream ? BindTable(0, self)).mapTo[BindingResult]
+      val res = Await.result(resp, 1.second)
+
+      assert(res == BindingSucceed(dataStream, 0))
+    }
+
+    "binding failed in Closed state" in {
+      val dataStream = TestFSMRef(new DataStream, "DataStream")
+      dataStream.setState(DataStreamState.Opened)
+      val resp = (dataStream ? BindTable(0, self)).mapTo[BindingResult]
+      val res = Await.result(resp, 1.second)
+
+      assert(res == BindingFailed(dataStream, 0))
     }
 
     "follow Closed -> Opened -> Online -> Closed states" in {
@@ -53,8 +72,8 @@ class DataStreamSpec extends TestKit(ActorSystem("DataStreamSpec", AkkaConfigura
 
     "forward stream events" in {
       val dataStream = TestFSMRef(new DataStream, "DataStream")
-      dataStream ! BindTable(0, self)
-      
+      dataStream ? BindTable(0, self)
+
       dataStream ! StreamEvent.Open
 
       dataStream ! StreamEvent.TnBegin
@@ -78,7 +97,7 @@ class DataStreamSpec extends TestKit(ActorSystem("DataStreamSpec", AkkaConfigura
     
     "forward stream data" in {
       val dataStream = TestFSMRef(new DataStream, "DataStream")
-      dataStream ! BindTable(0, self)
+      dataStream ? BindTable(0, self)
 
       dataStream ! StreamEvent.Open
       

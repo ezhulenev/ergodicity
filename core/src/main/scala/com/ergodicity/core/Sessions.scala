@@ -3,6 +3,8 @@ package com.ergodicity.core
 import session.Session.{OptInfoSessionContents, FutInfoSessionContents}
 import session.{Session, SessionState, IntClearingState, SessionContent}
 import akka.actor._
+import akka.util.duration._
+import akka.pattern.ask
 import scalaz._
 import Scalaz._
 import akka.actor.FSM.{UnsubscribeTransitionCallBack, Transition, CurrentState, SubscribeTransitionCallBack}
@@ -10,10 +12,11 @@ import com.ergodicity.cgate.DataStreamState
 import com.ergodicity.cgate.repository.Repository
 import com.ergodicity.cgate.repository.ReplicaExtractor._
 import com.ergodicity.cgate.Protocol._
-import com.ergodicity.cgate.scheme.FutInfo
-import com.ergodicity.cgate.scheme.OptInfo
 import com.ergodicity.cgate.DataStream._
 import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, Snapshot}
+import com.ergodicity.cgate.scheme.{FutInfo, OptInfo}
+import akka.dispatch.{Future, Await}
+import akka.util.Timeout
 
 
 protected[core] case class SessionId(id: Long, optionSessionId: Long)
@@ -36,8 +39,6 @@ sealed trait SessionsState
 
 object SessionsState {
 
-  case object Idle extends SessionsState
-
   case object Binded extends SessionsState
 
   case object LoadingSessions extends SessionsState
@@ -56,7 +57,7 @@ object SessionsData {
 
   case object Blank extends SessionsData
 
-  case class BindingStates(futures: Option[DataStreamState], options: Option[DataStreamState]) extends SessionsData
+  case class StreamState(futures: Option[DataStreamState], options: Option[DataStreamState]) extends SessionsData
 
   case class TrackingSessions(sessions: Map[SessionId, ActorRef], ongoing: Option[ActorRef]) extends SessionsData {
     def updateWith(records: Iterable[FutInfo.session])(implicit context: ActorContext): TrackingSessions = {
@@ -111,6 +112,8 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   import Sessions._
   import SessionsState._
   import SessionsData._
+
+  implicit val timeout = Timeout(1.second)
   
   // Subscribers for ongoing sessions
   var subscribers: List[ActorRef] = Nil
@@ -120,25 +123,43 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   val FutSessContentsRepository = context.actorOf(Props(Repository[FutInfo.fut_sess_contents]), "FutSessContentsRepository")
   val OptSessContentsRepository = context.actorOf(Props(Repository[OptInfo.opt_sess_contents]), "OptSessContentsRepository")
 
-  startWith(Idle, Blank)
-  
-  when(Idle) {
-    case Event(BindSessions, Blank) => goto(Binded) using BindingStates(None, None)
+  log.debug("Bind to FutInfo and OptInfo data streams")
+
+  // Bind to tables
+  val sessionsBindingResult = (FutInfoStream ? BindTable(FutInfo.session.TABLE_INDEX, SessionRepository)).mapTo[BindingResult]
+  val futuresBindingResult = (FutInfoStream ? BindTable(FutInfo.fut_sess_contents.TABLE_INDEX, FutSessContentsRepository)).mapTo[BindingResult]
+  val optionsBindingResult = (OptInfoStream ? BindTable(OptInfo.opt_sess_contents.TABLE_INDEX, OptSessContentsRepository)).mapTo[BindingResult]
+
+  val bindingResult = for {
+    sess <- sessionsBindingResult
+    fut <- futuresBindingResult
+    opt <- optionsBindingResult
+  } yield (sess, fut, opt)
+
+  Await.result(bindingResult, 1.second) match {
+    case (BindingSucceed(_, _), BindingSucceed(_, _), BindingSucceed(_, _)) =>
+    case _ => throw new IllegalStateException("Failed Bind to data streams")
   }
+
+  // Track Data Stream states
+  FutInfoStream ! SubscribeTransitionCallBack(self)
+  OptInfoStream ! SubscribeTransitionCallBack(self)
+
+  startWith(Binded, StreamState(None, None))
 
   when(Binded) {
     // Handle FutInfo and OptInfo data streams state updates
-    case Event(CurrentState(FutInfoStream, state: DataStreamState), binding: BindingStates) =>
-      handleBindingState(binding.copy(futures = Some(state)))
+    case Event(CurrentState(FutInfoStream, state: DataStreamState), states: StreamState) =>
+      handleBindingState(states.copy(futures = Some(state)))
 
-    case Event(CurrentState(OptInfoStream, state: DataStreamState), binding: BindingStates) =>
-      handleBindingState(binding.copy(options = Some(state)))
+    case Event(CurrentState(OptInfoStream, state: DataStreamState), states: StreamState) =>
+      handleBindingState(states.copy(options = Some(state)))
 
-    case Event(Transition(FutInfoStream, _, state: DataStreamState), binding: BindingStates) =>
-      handleBindingState(binding.copy(futures = Some(state)))
+    case Event(Transition(FutInfoStream, _, state: DataStreamState), states: StreamState) =>
+      handleBindingState(states.copy(futures = Some(state)))
 
-    case Event(Transition(OptInfoStream, _, state: DataStreamState), binding: BindingStates) =>
-      handleBindingState(binding.copy(options = Some(state)))
+    case Event(Transition(OptInfoStream, _, state: DataStreamState), states: StreamState) =>
+      handleBindingState(states.copy(options = Some(state)))
   }
 
   when(LoadingSessions) {
@@ -186,18 +207,6 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   }
 
   onTransition {
-    case Idle -> Binded =>
-      log.debug("Bind to FutInfo and OptInfo data streams")
-
-      // Bind to tables
-      FutInfoStream ! BindTable(FutInfo.session.TABLE_INDEX, SessionRepository)
-      FutInfoStream ! BindTable(FutInfo.fut_sess_contents.TABLE_INDEX, FutSessContentsRepository)
-      OptInfoStream ! BindTable(OptInfo.opt_sess_contents.TABLE_INDEX, OptSessContentsRepository)
-
-      // Track Data Stream states
-      FutInfoStream ! SubscribeTransitionCallBack(self)
-      OptInfoStream ! SubscribeTransitionCallBack(self)
-
     case Binded -> LoadingSessions =>
       log.debug("Loading sessions")
       // Unsubscribe from updates
@@ -234,7 +243,7 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
     }
   }
 
-  protected def handleBindingState(state: BindingStates): State = {
+  protected def handleBindingState(state: StreamState): State = {
     (state.futures <**> state.options) {(_, _)} match {
       case Some((DataStreamState.Online, DataStreamState.Online)) => goto(LoadingSessions) using TrackingSessions(Map(), None)
       case _ => stay() using state

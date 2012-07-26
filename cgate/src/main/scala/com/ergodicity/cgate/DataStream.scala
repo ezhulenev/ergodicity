@@ -92,6 +92,12 @@ object DataStream {
   case class SubscribeReplState(ref: ActorRef)
 
   case class DataStreamReplState(stream: ActorRef, state: String)
+
+  sealed trait BindingResult
+
+  case class BindingFailed(ds: ActorRef, tableIndex: Int) extends BindingResult
+
+  case class BindingSucceed(ds: ActorRef, tableIndex: Int) extends BindingResult
 }
 
 class DataStream extends Actor with FSM[DataStreamState, Map[Int, Seq[ActorRef]]] {
@@ -107,7 +113,9 @@ class DataStream extends Actor with FSM[DataStreamState, Map[Int, Seq[ActorRef]]
   when(Closed) {
     case Event(Open, _) => goto(Opened)
 
-    case Event(BindTable(idx, ref), subscribers) => stay() using (subscribers <+> Map(idx -> Seq(ref)))
+    case Event(BindTable(idx, ref), subscribers) =>
+      sender ! BindingSucceed(self, idx)
+      stay() using (subscribers <+> Map(idx -> Seq(ref)))
 
     case Event(SubscribeReplState(ref), _) =>
       replStateSubscribers = ref +: replStateSubscribers
@@ -123,6 +131,12 @@ class DataStream extends Actor with FSM[DataStreamState, Map[Int, Seq[ActorRef]]
   when(Online)(handleStreamEvents orElse {
     case Event(Close, _) => goto(Closed)
   })
+
+  whenUnhandled {
+    case Event(BindTable(idx, _), _) =>
+      sender ! BindingFailed(self, idx)
+      stay()
+  }
 
   private def handleStreamEvents: StateFunction = {
     case Event(e@(TnBegin | TnCommit), subscribers) =>

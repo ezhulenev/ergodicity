@@ -44,7 +44,7 @@ class RepositorySpec extends TestKit(ActorSystem("RepositorySpec", AkkaConfigura
 
     "be initialized in Consistent state" in {
       val repository = TestFSMRef(Repository[FutInfo.session](), "Repository")
-      assert(repository.stateName == RepositoryState.Consistent)
+      assert(repository.stateName == RepositoryState.Empty)
     }
 
     "receive snapshot immediately in Consistent state" in {
@@ -77,7 +77,6 @@ class RepositorySpec extends TestKit(ActorSystem("RepositorySpec", AkkaConfigura
       val repository = TestFSMRef(Repository[FutInfo.session](), "Repository")
 
       repository ! SubscribeSnapshots(self)
-      expectMsgType[Snapshot[FutInfo.session]]
 
       repository ! TnBegin
       assert(repository.stateName == RepositoryState.Synchronizing)
