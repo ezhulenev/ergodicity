@@ -10,6 +10,7 @@ import akka.actor.{Terminated, ActorSystem}
 import akka.actor.FSM.Transition
 import com.ergodicity.cgate.{Opening, Active}
 import ru.micexrts.cgate.{ISubscriber, Connection => CGConnection, Listener => CGListener}
+import com.ergodicity.engine.config.ListenersComponent
 
 class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -70,7 +71,7 @@ class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigW
                   futInfo: CGListener = mock(classOf[CGListener]),
                   optInfo: CGListener = mock(classOf[CGListener]),
                   pos: CGListener = mock(classOf[CGListener])) = TestFSMRef(new TradingEngine(100) with ConnectionComponent
-    with FutInfoListenerComponent with OptInfoListenerComponent with PosListenerComponent {
+    with ListenersComponent {
 
     lazy val underlyingConnection = conn
 

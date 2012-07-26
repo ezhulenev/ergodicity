@@ -83,7 +83,7 @@ class TradingEngine(processMessagesTimeout: Int) extends Actor with FSM[TradingE
   val OptInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener(new DataStreamSubscriber(OptInfoStream)))), "OptInfoListener")
   val PosListener = context.actorOf(Props(new Listener(underlyingPosListener(new DataStreamSubscriber(PosStream)))), "PosListener")
 
-  // Sessions tracking
+  // SessionsService tracking
   val Sessions = context.actorOf(Props(new Sessions(FutInfoStream, OptInfoStream)), "Sessions")
 
   // Positions tracking

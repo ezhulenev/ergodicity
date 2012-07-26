@@ -6,6 +6,7 @@ import com.ergodicity.cgate.config.{ConnectionConfig, Replication}
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import component.{ConnectionComponent}
 import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener}
+import com.ergodicity.engine.config.ListenersComponent
 
 case class ReplicationScheme(futInfo: Replication, optInfo: Replication, pos: Replication)
 
@@ -21,7 +22,7 @@ trait CGateTradingEngineConfig extends TradingEngineConfig {
 
   var replicationScheme = required[ReplicationScheme]
 
-  def apply() = new TradingEngine(processMessagesTimeout) with ConnectionComponent with FutInfoListenerComponent with OptInfoListenerComponent with PosListenerComponent {
+  def apply() = new TradingEngine(processMessagesTimeout) with ConnectionComponent with ListenersComponent {
     val underlyingConnection = new CGConnection(connectionConfig())
 
     def underlyingFutInfoListener = listener => new CGListener(underlyingConnection, replicationScheme.futInfo(), listener)
