@@ -10,10 +10,11 @@ import component._
 import akka.util.Timeout
 import com.ergodicity.core.Sessions.{CurrentOngoingSession, OngoingSessionTransition, SubscribeOngoingSessions}
 import com.ergodicity.cgate._
-import config.Replication.ReplicationMode.Combined
-import config.Replication.ReplicationParams
+import config.ListenersComponent
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import akka.actor.FSM.{CurrentState, UnsubscribeTransitionCallBack, Transition, SubscribeTransitionCallBack, Failure => FSMFailure}
+import com.ergodicity.cgate.config.Replication.ReplicationParams
+import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
 
 object TradingEngine {
   implicit val timeout = Timeout(5 seconds)
@@ -53,8 +54,7 @@ case object StartTradingEngine
 case object ShutDownTradingEngine
 
 class TradingEngine(processMessagesTimeout: Int) extends Actor with FSM[TradingEngineState, TradingEngineData] {
-  this: Actor with FSM[TradingEngineState, TradingEngineData] with ConnectionComponent
-    with FutInfoListenerComponent with OptInfoListenerComponent with PosListenerComponent =>
+  this: Actor with FSM[TradingEngineState, TradingEngineData] with ConnectionComponent with ListenersComponent =>
 
   import TradingEngineState._
   import TradingEngineData._

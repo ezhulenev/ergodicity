@@ -4,7 +4,7 @@ import com.twitter.util.Config
 import akka.actor.ActorSystem
 import com.ergodicity.cgate.config.{ConnectionConfig, Replication}
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import component.{PosListenerComponent, OptInfoListenerComponent, FutInfoListenerComponent, ConnectionComponent}
+import component.{ConnectionComponent}
 import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener}
 
 case class ReplicationScheme(futInfo: Replication, optInfo: Replication, pos: Replication)
