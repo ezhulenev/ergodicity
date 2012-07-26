@@ -1,4 +1,4 @@
-package com.ergodicity.engine
+package integration.ergodicity.engine
 
 import akka.event.Logging
 import akka.actor.ActorSystem
@@ -7,8 +7,9 @@ import java.util.concurrent.TimeUnit
 import java.io.File
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import com.ergodicity.cgate.config.Replication
+import com.ergodicity.engine.{ReplicationScheme, StartTradingEngine, CGateTradingEngineConfig}
 
-class TradingEngineIntegrationSpec extends TestKit(ActorSystem("TradingEngineIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll {
+class TradingEngineIntegrationSpec extends TestKit(ActorSystem("TradingEngineIntegrationSpec", com.ergodicity.engine.ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll {
 
   val log = Logging(system, "TradingEngineIntegrationSpec")
 

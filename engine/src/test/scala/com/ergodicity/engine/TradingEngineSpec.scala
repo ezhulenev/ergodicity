@@ -48,6 +48,8 @@ class TradingEngineSpec extends TestKit(ActorSystem("TradingEngineSpec", ConfigW
 
       engine.setState(Connecting)
       watch(engine)
+      
+      Thread.sleep(100)
 
       engine ! Terminated(underlying.Connection)
       expectMsg(Terminated(engine))
