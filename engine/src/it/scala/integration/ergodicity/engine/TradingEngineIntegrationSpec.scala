@@ -2,12 +2,8 @@ package integration.ergodicity.engine
 
 import akka.event.Logging
 import akka.actor.ActorSystem
-import akka.testkit.{TestFSMRef, TestKit}
-import java.util.concurrent.TimeUnit
-import java.io.File
+import akka.testkit.TestKit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
-import com.ergodicity.cgate.config.Replication
-import com.ergodicity.engine.{ReplicationScheme, StartTradingEngine, CGateTradingEngineConfig}
 
 class TradingEngineIntegrationSpec extends TestKit(ActorSystem("TradingEngineIntegrationSpec", com.ergodicity.engine.ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll {
 
@@ -18,27 +14,6 @@ class TradingEngineIntegrationSpec extends TestKit(ActorSystem("TradingEngineInt
   }
 
   val actorSystem = system
-
-  val config = new CGateTradingEngineConfig {
-    system = actorSystem
-
-    replicationScheme = ReplicationScheme(
-      Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme"),
-      Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme"),
-      Replication("FORTS_POS_REPL", new File("cgate/scheme/pos.ini"), "CustReplScheme")
-    )
-
-  }
-
-  "Trading engine" must {
-    "be constructed from config" in {
-      val engine = TestFSMRef(config(), "TradeEngine")
-
-      engine ! StartTradingEngine
-
-      Thread.sleep(TimeUnit.DAYS.toMillis(45))
-    }
-  }
 
 }
 
