@@ -40,13 +40,6 @@ class PositionsIntegrationSpec extends TestKit(ActorSystem("PositionsIntegration
       val underlyingConnection = new CGConnection(RouterConnection())
 
       val connection = TestFSMRef(new Connection(underlyingConnection), "Connection")
-      connection ! Connection.Open
-
-      connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
-        protected def receive = {
-          case Transition(_, _, Active) => connection ! StartMessageProcessing(100.millis);
-        }
-      })))
 
       val dataStream = TestFSMRef(new DataStream, "PositionsDataStream")
 
@@ -60,8 +53,21 @@ class PositionsIntegrationSpec extends TestKit(ActorSystem("PositionsIntegration
 
       Thread.sleep(1000)
 
-      // Open Listener in Combined mode
-      listener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
+      // On connection Activated open listeners etc
+      connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
+        protected def receive = {
+          case Transition(_, _, Active) =>
+            // Open Listener in Combined mode
+            listener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
+
+            // Process messages
+            connection ! StartMessageProcessing(500.millis);
+        }
+      })))
+
+      // Open connections and track it's status
+      connection ! Connection.Open
+      connection ! TrackUnderlyingStatus(500.millis)
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }

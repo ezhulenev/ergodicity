@@ -14,7 +14,6 @@ import com.ergodicity.cgate.repository.Repository.Snapshot
 import com.ergodicity.core.Mocking._
 import akka.testkit._
 import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.core.session.SessionContentsState.TrackingSession
 
 
 class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -31,8 +30,7 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
   "StatefulSessionContents" must {
 
     "return None if no instument found" in {
-      val session = TestProbe()
-      val contents = TestFSMRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](session.ref), "Futures")
+      val contents = TestFSMRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents], "Futures")
       assert(contents.stateName == SessionContentsState.Binding)
       val future = (contents ? GetSessionInstrument(FullIsin(100, "BadCode", "BadShortCode"))).mapTo[Option[ActorRef]]
       assert(Await.result(future, 1.second) == None)
@@ -40,7 +38,7 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
 
     "return instument reference if found" in {
       val session = TestProbe()
-      val contents = TestFSMRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents](session.ref), "Futures")
+      val contents = TestFSMRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents], "Futures")
 
       session.expectMsgType[SubscribeTransitionCallBack]
       contents ! CurrentState(session.ref, SessionState.Online)

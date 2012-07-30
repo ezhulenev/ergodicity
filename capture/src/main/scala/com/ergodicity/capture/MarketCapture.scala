@@ -1,6 +1,5 @@
 package com.ergodicity.capture
 
-import akka.util.duration._
 import akka.actor._
 import SupervisorStrategy._
 import com.ergodicity.marketdb.model.{Security => MarketDbSecurity}
@@ -158,6 +157,7 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
     case Event(Capture, _) =>
       connection ! SubscribeTransitionCallBack(self)
       connection ! Connection.Open
+      connection ! TrackUnderlyingStatus(100.millis)
       goto(CaptureState.Connecting)
   }
 

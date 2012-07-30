@@ -11,11 +11,11 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import ru.micexrts.cgate.{CGate, Connection => CGConnection, Listener => CGListener}
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate.config.Replication._
 import com.ergodicity.cgate._
 import config.{Replication, CGateConfig}
+import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
 
 
 class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -29,6 +29,7 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
   override def beforeAll() {
     val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
     CGate.open(props())
+    P2TypeParser.setCharset("windows-1251")
   }
 
   override def afterAll() {
@@ -41,14 +42,6 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
       val underlyingConnection = new CGConnection(RouterConnection())
 
       val connection = TestFSMRef(new Connection(underlyingConnection), "Connection")
-      connection ! Connection.Open
-
-      connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
-        protected def receive = {
-          case Transition(_, _, Active) => connection ! StartMessageProcessing(100.millis);
-        }
-      })))
-
 
       val FutInfoDataStream = TestFSMRef(new DataStream, "FutInfoDataStream")
       val OptInfoDataStream = TestFSMRef(new DataStream, "OptInfoDataStream")
@@ -66,9 +59,22 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
 
       Thread.sleep(1000)
 
-      // Open Listener in Combined mode
-      futInfoListener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
-      optInfoListener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
+      // On connection Activated open listeners etc
+      connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
+        protected def receive = {
+          case Transition(_, _, Active) =>
+            // Open Listeners in Combined mode
+            futInfoListener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
+            optInfoListener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
+
+            // Process messages
+            connection ! StartMessageProcessing(500.millis);
+        }
+      })))
+
+      // Open connections and track it's status
+      connection ! Connection.Open
+      connection ! TrackUnderlyingStatus(500.millis)
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }

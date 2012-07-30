@@ -85,7 +85,7 @@ trait OptSessionContentsRepository {
   OptContents.ensureIndex(MongoDBObject("sessionId" -> 1, "isinId" -> 1, "isin" -> 1), "optSessionContentsIdx", false)
 
   def saveSessionContents(record: OptInfo.opt_sess_contents) {
-    log.trace("Save opt session content = " + record)
+    log.trace("Save opt session content = " + record.get_isin()+", name = "+record.get_name())
 
     OptContents.findOne(MongoDBObject("sessionId" -> record.get_sess_id(), "isinId" -> record.get_isin_id())) map {
       _ => () /* do nothing */

@@ -25,7 +25,7 @@ class StatelessSessionContentsSpec extends TestKit(ActorSystem("StatelessSession
 
     "should track session state updates and propagate to instrument state" in {
       val session = TestProbe()
-      val contents = TestActorRef(new StatelessSessionContents[OptionContract, OptInfo.opt_sess_contents](session.ref), "Options")
+      val contents = TestActorRef(new StatelessSessionContents[OptionContract, OptInfo.opt_sess_contents], "Options")
 
       session.expectMsgType[SubscribeTransitionCallBack]
       contents ! CurrentState(session.ref, SessionState.Online)

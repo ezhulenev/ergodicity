@@ -6,7 +6,7 @@ import com.twitter.ostrich.admin.{RuntimeEnvironment, Service}
 import com.typesafe.config.ConfigFactory
 import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.config.{CGateConfig, ConnectionConfig}
-import ru.micexrts.cgate.{CGate, Connection => CGConnection}
+import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection}
 
 object CaptureEngine {
   val log = LoggerFactory.getLogger(getClass.getName)
@@ -23,10 +23,9 @@ object CaptureEngine {
       // Add shutdown hook
       Runtime.getRuntime.addShutdownHook(new Thread() {
         override def run() {
+          import akka.util.duration._
           marketCapture.marketCapture ! ShutDown
-          while (!marketCapture.system.isTerminated) {
-            Thread.sleep(TimeUnit.SECONDS.toMillis(1))
-          }
+          marketCapture.system.awaitTermination(1.second)
         }
       });
 
@@ -58,6 +57,7 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
 
     // Prepare CGate
     CGate.open(cgateConfig())
+    P2TypeParser.setCharset("windows-1251")
 
     // Create Market Capture system
     val connection = new CGConnection(connectionConfig())
@@ -82,7 +82,7 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
   def shutdown() {
     log.info("Shutdown CaptureEngine")
     system.shutdown()
-    Thread.sleep(1000)
+    Thread.sleep(TimeUnit.SECONDS.toMillis(1))
     CGate.close()
     System.exit(1)
   }

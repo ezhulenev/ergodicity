@@ -19,23 +19,18 @@ trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[S
 
   import SessionContentsState._
 
-  def SessionRef: ActorRef
-
   def converter: R => S
 
   protected[core] var instruments: Map[FullIsin, ActorRef] = Map()
 
-  // Subscribe for session states
-  SessionRef ! SubscribeTransitionCallBack(self)
-
   startWith(Binding, None)
 
   when(Binding) {
-    case Event(CurrentState(ref, state: SessionState), _) if (ref == SessionRef) => goto(TrackingSession) using Some(state)
+    case Event(CurrentState(_, state: SessionState), _) => goto(TrackingSession) using Some(state)
   }
 
   when(TrackingSession) {
-    case Event(Transition(ref, _, to: SessionState), _) if (ref == SessionRef) => handleSessionState(to); stay() using Some(to)
+    case Event(Transition(_, _, to: SessionState), _) => handleSessionState(to); stay() using Some(to)
     case Event(Snapshot(_, data), _) => handleSessionContentsRecord(data.asInstanceOf[Iterable[R]]); stay()
   }
 
@@ -56,7 +51,7 @@ trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[S
   def conformIsinToActorName(isin: FullIsin): String = conformIsinToActorName(isin.isin)
 }
 
-case class StatefulSessionContents[S <: Security, R <: StatefulSessContents](SessionRef: ActorRef)(implicit val converter: R => S) extends SessionContents[S, R] {
+case class StatefulSessionContents[S <: Security, R <: StatefulSessContents](implicit val converter: R => S) extends SessionContents[S, R] {
 
   private var originalInstrumentState: Map[FullIsin, InstrumentState] = Map()
 
@@ -100,7 +95,7 @@ case class StatefulSessionContents[S <: Security, R <: StatefulSessContents](Ses
   }
 }
 
-case class StatelessSessionContents[S <: Security, R <: StatelessSessContents](SessionRef: ActorRef)(implicit val converter: R => S) extends SessionContents[S, R] {
+case class StatelessSessionContents[S <: Security, R <: StatelessSessContents](implicit val converter: R => S) extends SessionContents[S, R] {
   protected def handleSessionState(state: SessionState) {
     instruments.foreach {
       case (isin, ref) => ref ! InstrumentState(state)
