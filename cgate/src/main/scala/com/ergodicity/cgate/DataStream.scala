@@ -1,11 +1,12 @@
 package com.ergodicity.cgate
 
-import java.nio.ByteBuffer
 import akka.actor.{ActorRef, Actor, FSM}
 import ru.micexrts.cgate.{ErrorCode, MessageType}
 import ru.micexrts.cgate.messages._
 import scalaz._
 import Scalaz._
+import java.nio.{ByteOrder, ByteBuffer}
+
 
 sealed trait DataStreamState
 
@@ -47,7 +48,6 @@ object StreamEvent {
 }
 
 class DataStreamSubscriber(dataStream: ActorRef) extends Subscriber {
-
   import StreamEvent._
 
   private def decode(msg: Message) = msg.getType match {
@@ -80,13 +80,12 @@ class DataStreamSubscriber(dataStream: ActorRef) extends Subscriber {
     case _ => UnsupportedMessage(msg)
   }
 
-  private def clone(original: ByteBuffer) = {
-    val cloned = ByteBuffer.allocate(original.capacity())
+  def clone(original: ByteBuffer) = {
+    val clone = ByteBuffer.allocate(original.capacity());
+    clone.order(ByteOrder.nativeOrder())
     original.rewind()
-    cloned.put(original)
-    original.rewind()
-    cloned.flip()
-    cloned
+    clone.put(original)
+    clone
   }
 
   def handleMessage(msg: Message) = {
@@ -96,6 +95,7 @@ class DataStreamSubscriber(dataStream: ActorRef) extends Subscriber {
 }
 
 object DataStream {
+
   case class BindTable(tableIndex: Int, ref: ActorRef)
 
   case class SubscribeReplState(ref: ActorRef)
@@ -107,6 +107,7 @@ object DataStream {
   case class BindingFailed(ds: ActorRef, tableIndex: Int) extends BindingResult
 
   case class BindingSucceed(ds: ActorRef, tableIndex: Int) extends BindingResult
+
 }
 
 class DataStream extends Actor with FSM[DataStreamState, Map[Int, Seq[ActorRef]]] {

@@ -80,7 +80,7 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
             log.info("Got Futures Contents snapshot, size = " + snapshot.data.size)
             snapshot.data foreach {
               rec =>
-                log.info("ContentsRecord; Future isin = " + rec.get_isin() + ", name = " + rec.get_name() + ", state = " + rec.get_state())
+                log.info("ContentsRecord; Future isin = " + rec.get_isin() + ", name = " + rec.get_name() + ", session = "+rec.get_sess_id()+", state = " + rec.get_state())
             }
         }
       }))
