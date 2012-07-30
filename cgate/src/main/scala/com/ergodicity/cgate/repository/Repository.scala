@@ -43,6 +43,10 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
       snapshotSubscribers = snapshotSubscribers + ref
       stay()
 
+    case Event(LifeNumChanged(_), _) => stay()
+
+    case Event(ClearDeleted(_, _), _) => stay()
+
     case Event(TnBegin, _) => goto(Synchronizing)
   }
 
@@ -83,7 +87,7 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
   }
 
   whenUnhandled {
-    case Event(e, _) => stop(Failure("Unexpected event = " + e))
+    case Event(e, _) => stop(Failure("Unexpected event = " + e + " in state = " + stateName))
   }
 
   onTransition {

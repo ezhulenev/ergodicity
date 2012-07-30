@@ -3,6 +3,7 @@ package integration.ergodicity.core
 import java.io.File
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
+import akka.util.duration._
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import integration.ergodicity.core.AkkaIntegrationConfigurations._
 import com.ergodicity.core.position.Positions
@@ -43,7 +44,7 @@ class PositionsIntegrationSpec extends TestKit(ActorSystem("PositionsIntegration
 
       connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
         protected def receive = {
-          case Transition(_, _, Active) => connection ! StartMessageProcessing(100);
+          case Transition(_, _, Active) => connection ! StartMessageProcessing(100.millis);
         }
       })))
 

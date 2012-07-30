@@ -2,6 +2,7 @@ package integration.ergodicity.cgate
 
 import integration._
 import akka.actor.ActorSystem
+import akka.util.duration._
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import com.ergodicity.cgate._
@@ -37,9 +38,11 @@ class ConnectionIntegrationSpec extends TestKit(ActorSystem("ConnectionIntegrati
       val connection = TestFSMRef(new Connection(underlying), "Connection")
 
       connection ! Open
+      connection ! TrackUnderlyingStatus(100.millis)
 
       Thread.sleep(1000)
 
+      log.info("Connection state = " + connection.stateName)
       assert(connection.stateName == Active)
     }
   }

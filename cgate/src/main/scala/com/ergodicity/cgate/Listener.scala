@@ -40,6 +40,8 @@ class Listener(underlying: CGListener) extends Actor with FSM[State, Option[List
   when(Active) {
     case Event(Close, _) =>
       log.info("Close Listener")
+      statusTracker.foreach(_.cancel())
+      statusTracker = None
       underlying.close()
       goto(Closed) using None
   }
@@ -66,6 +68,8 @@ class Listener(underlying: CGListener) extends Actor with FSM[State, Option[List
 
     case Event(Dispose, _) =>
       log.info("Dispose listener")
+      statusTracker.foreach(_.cancel())
+      statusTracker = None
       underlying.dispose()
       stop(Failure("Disposed"))
   }

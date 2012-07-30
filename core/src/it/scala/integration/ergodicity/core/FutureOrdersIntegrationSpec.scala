@@ -5,6 +5,7 @@ import akka.actor.{Actor, Props, ActorSystem}
 import AkkaIntegrationConfigurations._
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
+import akka.util.duration._
 import java.util.concurrent.TimeUnit
 import com.ergodicity.core.order.FutureOrders
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
@@ -44,7 +45,7 @@ class FutureOrdersIntegrationSpec extends TestKit(ActorSystem("FutureOrdersInteg
 
       connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
         protected def receive = {
-          case Transition(_, _, Active) => connection ! StartMessageProcessing(100);
+          case Transition(_, _, Active) => connection ! StartMessageProcessing(100.millis);
         }
       })))
 

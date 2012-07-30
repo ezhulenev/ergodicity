@@ -4,6 +4,7 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
+import akka.util.duration._
 import integration.ergodicity.core.AkkaIntegrationConfigurations._
 import com.ergodicity.core.Sessions
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
@@ -44,7 +45,7 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
 
       connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
         protected def receive = {
-          case Transition(_, _, Active) => connection ! StartMessageProcessing(100);
+          case Transition(_, _, Active) => connection ! StartMessageProcessing(100.millis);
         }
       })))
 

@@ -63,7 +63,7 @@ class DataStreamSubscriber(dataStream: ActorRef) extends Subscriber {
 
     case MessageType.MSG_STREAM_DATA =>
       val dataMsg = msg.asInstanceOf[StreamDataMessage]
-      StreamData(dataMsg.getMsgIndex, dataMsg.getData)
+      StreamData(dataMsg.getMsgIndex, clone(dataMsg.getData))
 
     case MessageType.MSG_P2REPL_LIFENUM =>
       val lifeNumMsg = msg.asInstanceOf[P2ReplLifeNumMessage]
@@ -78,6 +78,15 @@ class DataStreamSubscriber(dataStream: ActorRef) extends Subscriber {
       ReplState(replStateMsg.getReplState)
 
     case _ => UnsupportedMessage(msg)
+  }
+
+  private def clone(original: ByteBuffer) = {
+    val cloned = ByteBuffer.allocate(original.capacity())
+    original.rewind()
+    cloned.put(original)
+    original.rewind()
+    cloned.flip()
+    cloned
   }
 
   def handleMessage(msg: Message) = {
@@ -133,6 +142,10 @@ class DataStream extends Actor with FSM[DataStreamState, Map[Int, Seq[ActorRef]]
   })
 
   whenUnhandled {
+    case Event(e@LifeNumChanged(_), subscribers) =>
+      subscribers.values.foreach(_.foreach(_ ! e))
+      stay()
+
     case Event(BindTable(idx, _), _) =>
       sender ! BindingFailed(self, idx)
       stay()
@@ -146,10 +159,6 @@ class DataStream extends Actor with FSM[DataStreamState, Map[Int, Seq[ActorRef]]
     case Event(e@StreamData(idx, _), subscribers) =>
       subscribers.get(idx).foreach(_.foreach(_ ! e))
       stay()
-
-    case Event(e@LifeNumChanged(_), subscribers) =>
-      subscribers.values.foreach(_.foreach(_ ! e))
-      goto(Opened)
 
     case Event(e@ClearDeleted(idx, _), subscribers) =>
       subscribers.get(idx).foreach(_.foreach(_ ! e))

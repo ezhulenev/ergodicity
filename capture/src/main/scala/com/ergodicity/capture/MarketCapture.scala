@@ -6,6 +6,7 @@ import SupervisorStrategy._
 import com.ergodicity.marketdb.model.{Security => MarketDbSecurity}
 import org.joda.time.DateTime
 import akka.actor.FSM.{Failure => FSMFailure}
+import akka.util.duration._
 import com.ergodicity.cgate._
 import config.Replication.ReplicationMode.Combined
 import config.Replication.ReplicationParams
@@ -206,7 +207,7 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
 
     case CaptureState.Connecting -> CaptureState.InitializingMarketContents =>
       log.info("Initialize Market contents")
-      connection ! StartMessageProcessing(100)
+      connection ! StartMessageProcessing(100.millis)
       FutInfoListener ! Listener.Open(ReplicationParams(Combined))
       OptInfoListener ! Listener.Open(ReplicationParams(Combined))
 
