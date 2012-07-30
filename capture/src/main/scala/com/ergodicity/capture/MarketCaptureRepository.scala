@@ -56,8 +56,6 @@ trait FutSessionContentsRepository {
   FutContents.ensureIndex(MongoDBObject("sessionId" -> 1, "isinId" -> 1, "isin" -> 1), "futSessionContentsIdx", false)
 
   def saveSessionContents(record: FutInfo.fut_sess_contents) {
-    log.trace("Save fut session content = " + record)
-
     FutContents.findOne(MongoDBObject("sessionId" -> record.get_sess_id(), "isinId" -> record.get_isin_id())) map {
       _ => () /* do nothing */
     } getOrElse {
@@ -85,8 +83,6 @@ trait OptSessionContentsRepository {
   OptContents.ensureIndex(MongoDBObject("sessionId" -> 1, "isinId" -> 1, "isin" -> 1), "optSessionContentsIdx", false)
 
   def saveSessionContents(record: OptInfo.opt_sess_contents) {
-    log.trace("Save opt session content = " + record.get_isin()+", name = "+record.get_name())
-
     OptContents.findOne(MongoDBObject("sessionId" -> record.get_sess_id(), "isinId" -> record.get_isin_id())) map {
       _ => () /* do nothing */
     } getOrElse {
@@ -113,7 +109,7 @@ trait ReplicationStateRepository {
   val ReplicationStates = mongo("ReplicationStates")
 
   def setReplicationState(stream: String, state: String) {
-    log.trace("Set replication state for stream = " + stream + "; Value = " + state)
+    log.info("Set replication state for stream = " + stream + "; Value = " + state)
     ReplicationStates.findOne(MongoDBObject("stream" -> stream)) map {
       obj =>
         ReplicationStates.update(obj, $set("state" -> state))

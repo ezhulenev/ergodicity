@@ -12,7 +12,7 @@ import com.ergodicity.cgate._
 import config.{Replication, CGateConfig}
 import repository.Repository
 import repository.Repository.{Snapshot, SubscribeSnapshots}
-import scheme.FutInfo
+import scheme.OptInfo
 import com.ergodicity.cgate.config.Replication._
 import akka.testkit.{TestActorRef, TestFSMRef, ImplicitSender, TestKit}
 import akka.event.Logging
@@ -23,7 +23,7 @@ import com.ergodicity.cgate.DataStream.BindTable
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
 
 
-class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   val Host = "localhost"
@@ -42,45 +42,30 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
     CGate.close()
   }
 
-  "FutInfo DataStream" must {
+  "OptInfo DataStream" must {
     "load contents to Reportitory" in {
       val underlyingConnection = new CGConnection(RouterConnection())
 
       val connection = TestFSMRef(new Connection(underlyingConnection), "Connection")
 
-      val FutInfoDataStream = TestFSMRef(new DataStream, "FutInfoDataStream")
+      val OptInfoDataStream = TestFSMRef(new DataStream, "OptInfoDataStream")
 
       // Listener
-      val listenerConfig = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
-      val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(FutInfoDataStream))
+      val listenerConfig = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")
+      val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(OptInfoDataStream))
       val listener = TestFSMRef(new Listener(underlyingListener), "Listener")
 
-      // Repository
-      val sessionsRepository = TestFSMRef(Repository[FutInfo.session], "SessionsRepository")
-      FutInfoDataStream ! BindTable(FutInfo.session.TABLE_INDEX, sessionsRepository)
-
-      val futuresRepository = TestFSMRef(Repository[FutInfo.fut_sess_contents], "FuturesRepository")
-      FutInfoDataStream ! BindTable(FutInfo.fut_sess_contents.TABLE_INDEX, futuresRepository)
+      val optionsRepository = TestFSMRef(Repository[OptInfo.opt_sess_contents], "OptionsRepository")
+      OptInfoDataStream ! BindTable(OptInfo.opt_sess_contents.TABLE_INDEX, optionsRepository)
 
       // Handle repository data
-      sessionsRepository ! SubscribeSnapshots(TestActorRef(new Actor {
+      optionsRepository ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
-          case snapshot: Snapshot[FutInfo.session] =>
-            log.info("Got Sessions snapshot, size = " + snapshot.data.size)
+          case snapshot: Snapshot[OptInfo.opt_sess_contents] =>
+            log.info("Got Options Contents snapshot, size = " + snapshot.data.size)
             snapshot.data foreach {
               rec =>
-                log.info("SessionRecord; Session id = " + rec.get_sess_id() + ", option session id = " + rec.get_opt_sess_id() + ", state = " + rec.get_state())
-            }
-        }
-      }))
-
-      futuresRepository ! SubscribeSnapshots(TestActorRef(new Actor {
-        protected def receive = {
-          case snapshot: Snapshot[FutInfo.fut_sess_contents] =>
-            log.info("Got Futures Contents snapshot, size = " + snapshot.data.size)
-            snapshot.data foreach {
-              rec =>
-                log.info("ContentsRecord; Future isin = " + rec.get_isin() + ", isin id = " + rec.get_isin_id() + ", name = " + rec.get_name() + ", session = " + rec.get_sess_id() + ", state = " + rec.get_state())
+                log.info("ContentsRecord; Option isin = " + rec.get_isin() + ", isin id = " + rec.get_isin_id() + ", name = " + rec.get_name() + ", session = " + rec.get_sess_id())
             }
         }
       }))
@@ -94,7 +79,7 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
             listener ! TrackUnderlyingStatus(500.millis)
 
             // Process messages
-            connection ! StartMessageProcessing(500.millis);
+            connection ! StartMessageProcessing(500.millis)
         }
       })))
 

@@ -29,7 +29,9 @@ class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) wi
   }
 
   implicit val dummyOrderConverter = new ConvertToMarketDb[OrdLog.orders_log, OrderPayload] {
-    def apply(in: orders_log) = OrderPayload(Market("RTS"), Security("RIH"), 1l, new DateTime, 100, 1, 1, BigDecimal("100"), 1, 1, None)
+    import scalaz._
+    import Scalaz._
+    def apply(in: orders_log) = OrderPayload(Market("RTS"), Security("RIH"), 1l, new DateTime, 100, 1, 1, BigDecimal("100"), 1, 1, None).success[String]
   }
 
   implicit val dummyReads = new Reads[OrdLog.orders_log] {

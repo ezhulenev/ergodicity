@@ -118,18 +118,19 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
   val OrdLogListener = context.actorOf(Props(new Listener(underlyingOrdLogListener)), "OrdLogListener")
 
   val cgListeners = (FutInfoListener :: OptInfoListener :: FutTradeListener :: OptTradeListener :: OrdLogListener :: Nil)
+  cgListeners.foreach(_ ! TrackUnderlyingStatus(100.millis))
 
   // Create captures
   implicit val ConvertOrder = new ConvertToMarketDb[OrdLog.orders_log, OrderPayload] {
-    def apply(in: orders_log) = convertOrdersLog(in).getOrElse(throw new MarketCaptureException("Can't find isin for " + in))
+    def apply(in: orders_log) = convertOrdersLog(in).toSuccess("Failed to find isin for id = " + in.get_isin_id() + "; Session id = " + in.get_sess_id())
   }
 
   implicit val ConvertFutureDeal = new ConvertToMarketDb[FutTrade.deal, TradePayload] {
-    def apply(in: FutTrade.deal) = convertFuturesDeal(in).getOrElse(throw new MarketCaptureException("Can't find isin for " + in))
+    def apply(in: FutTrade.deal) = convertFuturesDeal(in).toSuccess("Failed to find isin for id = " + in.get_isin_id() + "; Session id = " + in.get_sess_id())
   }
 
   implicit val ConvertOptionDeal = new ConvertToMarketDb[OptTrade.deal, TradePayload] {
-    def apply(in: OptTrade.deal) = convertOptionsDeal(in).getOrElse(throw new MarketCaptureException("Can't find isin for " + in))
+    def apply(in: OptTrade.deal) = convertOptionsDeal(in).toSuccess("Failed to find isin for id = " + in.get_isin_id() + "; Session id = " + in.get_sess_id())
   }
 
   lazy val ordersBuncher = new OrdersBuncher(client, kestrel.ordersQueue)
@@ -179,7 +180,7 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
     case Event(ShutDown, _) => goto(CaptureState.ShuttingDown) using StreamStates()
   }
 
-  when(CaptureState.ShuttingDown) {
+  when(CaptureState.ShuttingDown, stateTimeout = 30.seconds) {
     case Event(DataStreamReplState(FutInfoStream, state), s: StreamStates) =>
       repository.setReplicationState(replication.futInfo.stream, state)
       handleStreamState(s.copy(futInfo = Some(ReplState(state))))
@@ -199,6 +200,10 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
     case Event(DataStreamReplState(OrdLogStream, state), s: StreamStates) =>
       repository.setReplicationState(replication.ordLog.stream, state)
       handleStreamState(s.copy(ordLog = Some(ReplState(state))))
+
+    case Event(FSM.StateTimeout, _) =>
+      closeConnection()
+      stay()
   }
 
   onTransition {
@@ -227,7 +232,7 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
 
     case CaptureState.Capturing -> CaptureState.ShuttingDown =>
       log.info("Shutting down Market Capture; Close all listeners!")
-      listeners.foreach(_ ! Listener.Close)
+      cgListeners.foreach(_ ! Listener.Close)
 
   }
 
@@ -284,13 +289,17 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
     } match {
       case states@Some((_, _, _, _, _)) =>
         log.debug("Streams shutted down in states = " + states)
-        cgListeners.foreach(_ ! Listener.Dispose)
-        connection ! Connection.Close
-        connection ! Connection.Dispose
+        closeConnection()
         stay()
       case _ =>
         log.debug("Waiting for all streams closed in state = " + state)
         stay() using state
     }
+  }
+
+  def closeConnection() {
+    cgListeners.foreach(_ ! Listener.Dispose)
+    connection ! Connection.Close
+    connection ! Connection.Dispose
   }
 }

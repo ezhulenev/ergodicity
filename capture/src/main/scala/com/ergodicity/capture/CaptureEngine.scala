@@ -2,7 +2,8 @@ package com.ergodicity.capture
 
 import org.slf4j.LoggerFactory
 import akka.actor._
-import com.twitter.ostrich.admin.{RuntimeEnvironment, Service}
+import akka.util.duration._
+import com.twitter.ostrich.admin.{ServiceTracker, RuntimeEnvironment, Service}
 import com.typesafe.config.ConfigFactory
 import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.config.{CGateConfig, ConnectionConfig}
@@ -18,17 +19,8 @@ object CaptureEngine {
     try {
       runtime = RuntimeEnvironment(this, args)
       marketCapture = runtime.loadRuntimeConfig[CaptureEngine]()
+
       marketCapture.start()
-
-      // Add shutdown hook
-      Runtime.getRuntime.addShutdownHook(new Thread() {
-        override def run() {
-          import akka.util.duration._
-          marketCapture.marketCapture ! ShutDown
-          marketCapture.system.awaitTermination(1.second)
-        }
-      });
-
     } catch {
       case e =>
         log.error("Exception during startup; exiting!", e)
@@ -40,17 +32,19 @@ object CaptureEngine {
 class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig, replication: ReplicationScheme, database: CaptureDatabase, kestrel: KestrelConfig) extends Service {
   val log = LoggerFactory.getLogger(classOf[CaptureEngine])
 
-  val ConfigWithDetailedLogging = ConfigFactory.parseString("""
+  val ConfigWithDetailedLogging = ConfigFactory.parseString( """
     akka.loglevel = DEBUG
     akka.actor.debug {
       receive = on
       lifecycle = on
     }
-    """)
+                                                             """)
 
   implicit val system = ActorSystem("CaptureEngine", ConfigWithDetailedLogging)
 
   var marketCapture: ActorRef = _
+
+  ServiceTracker.register(this)
 
   def start() {
     log.info("Start CaptureEngine")
@@ -72,18 +66,21 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
       context.watch(marketCapture)
 
       protected def receive = {
-        case Terminated(ref) if (ref == marketCapture) => shutdown();
+        case Terminated(ref) if (ref == marketCapture) => cleanResources()
       }
     }), "Watcher")
 
     marketCapture ! Capture
   }
 
-  def shutdown() {
-    log.info("Shutdown CaptureEngine")
+  private def cleanResources() {
+    log.info("Shutdown Capture Engine actor system")
     system.shutdown()
-    Thread.sleep(TimeUnit.SECONDS.toMillis(1))
-    CGate.close()
+    system.awaitTermination(3.seconds)
     System.exit(1)
+  }
+
+  def shutdown() {
+    marketCapture ! ShutDown
   }
 }

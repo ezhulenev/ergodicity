@@ -59,10 +59,14 @@ class Listener(underlying: CGListener) extends Actor with FSM[State, Option[List
 
     case Event(ListenerState(state), _) if (state == stateName) => stay()
 
-    case Event(TrackUnderlyingStatus(duration), _) =>
+    case Event(UpdateUnderlyingStatus, _) =>
+      self ! ListenerState(State(underlying.getState))
+      stay()
+
+    case Event(track@TrackUnderlyingStatus(duration), _) =>
       statusTracker.foreach(_.cancel())
       statusTracker = Some(context.system.scheduler.schedule(0 milliseconds, duration) {
-        self ! ListenerState(State(underlying.getState))
+        self ! UpdateUnderlyingStatus
       })
       stay()
 

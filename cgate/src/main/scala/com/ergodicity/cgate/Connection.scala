@@ -3,7 +3,7 @@ package com.ergodicity.cgate
 import akka.util.duration._
 import akka.actor.FSM.Failure
 import akka.actor.{Cancellable, FSM, Actor}
-import ru.micexrts.cgate.{Connection => CGConnection, ErrorCode}
+import ru.micexrts.cgate.{Connection => CGConnection}
 import akka.util.Duration
 
 object Connection {
@@ -87,10 +87,7 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
       stop(Failure("Disposed")) using Off
 
     case Event(pm@ProcessMessages(timeout), On) =>
-      val res = underlying.process(timeout.toMillis.toInt)
-      if (res == ErrorCode.TIMEOUT) {
-        log.warning("Timed out on message processing")
-      }
+      underlying.process(timeout.toMillis.toInt)
       self ! pm
       stay()
 

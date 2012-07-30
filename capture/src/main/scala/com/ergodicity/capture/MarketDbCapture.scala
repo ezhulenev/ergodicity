@@ -12,6 +12,7 @@ import com.twitter.concurrent.{Tx, Offer}
 import com.ergodicity.capture.MarketDbCapture.ConvertToMarketDb
 import akka.actor._
 import com.ergodicity.cgate.DataStream.BindTable
+import scalaz.Validation
 
 sealed trait MarketDbCaptureState
 
@@ -25,13 +26,15 @@ object MarketDbCaptureState {
 
 
 object MarketDbCapture {
+
   trait ConvertToMarketDb[T, M] {
-    def apply(in: T): M
+    def apply(in: T): Validation[String, M]
   }
+
 }
 
 class MarketDbCapture[T, M](tableIndex: Int, dataStream: ActorRef)(marketDbBuncher: => MarketDbBuncher[M])
-                           (implicit read: com.ergodicity.cgate.Reads[T], writes: ConvertToMarketDb[T, M]) extends Actor with FSM[MarketDbCaptureState, Unit] {
+                           (implicit read: com.ergodicity.cgate.Reads[T], converts: ConvertToMarketDb[T, M]) extends Actor with FSM[MarketDbCaptureState, Unit] {
 
   import com.ergodicity.cgate.StreamEvent._
 
@@ -56,9 +59,17 @@ class MarketDbCapture[T, M](tableIndex: Int, dataStream: ActorRef)(marketDbBunch
       goto(MarketDbCaptureState.Idle)
 
     case Event(StreamData(_, data), _) =>
-      Stats.incr(self.path + "/DataInserted")
       val record = read(data)
-      marketBuncher ! BunchMarketEvent(writes(record))
+      converts(record).fold(
+        error => {
+          Stats.incr(self.path + "/DataFailed")
+          log.error("Failed convert to MarketDb payload: " + error)
+        },
+        payload => {
+          Stats.incr(self.path + "/DataInserted")
+          marketBuncher ! BunchMarketEvent(payload)
+        }
+      )
       stay()
   }
 
