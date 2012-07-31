@@ -6,8 +6,6 @@ package object cgate {
 
   case class TrackUnderlyingStatus(duration: Duration)
 
-  protected[cgate] case object UpdateUnderlyingStatus
-
   case class Signs(signs: Long) {
 
     sealed trait Type

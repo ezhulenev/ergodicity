@@ -49,11 +49,11 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
       // Listeners
       val futInfoListenerConfig = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
       val underlyingFutInfoListener = new CGListener(underlyingConnection, futInfoListenerConfig(), new DataStreamSubscriber(FutInfoDataStream))
-      val futInfoListener = TestFSMRef(new Listener(underlyingFutInfoListener), "FutInfoListener")
+      val futInfoListener = TestFSMRef(new Listener(BindListener(underlyingFutInfoListener) to connection), "FutInfoListener")
 
       val optInfoListenerConfig = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")
       val underlyingOptInfoListener = new CGListener(underlyingConnection, optInfoListenerConfig(), new DataStreamSubscriber(OptInfoDataStream))
-      val optInfoListener = TestFSMRef(new Listener(underlyingOptInfoListener), "OptInfoListener")
+      val optInfoListener = TestFSMRef(new Listener(BindListener(underlyingOptInfoListener) to connection), "OptInfoListener")
 
       val sessions = TestActorRef(new Sessions(FutInfoDataStream, OptInfoDataStream), "Sessions")
 
@@ -68,7 +68,7 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
             optInfoListener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
 
             // Process messages
-            connection ! StartMessageProcessing(500.millis);
+            connection ! StartMessageProcessing(500.millis)
         }
       })))
 

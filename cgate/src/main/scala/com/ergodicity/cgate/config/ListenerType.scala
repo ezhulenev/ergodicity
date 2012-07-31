@@ -11,6 +11,8 @@ sealed trait ListenerType {
 
 sealed trait ListenerOpenParams {
   def config: String
+
+  def apply(): String = config
 }
 
 case class Replication(stream: String, ini: File, scheme: String) extends ListenerType {

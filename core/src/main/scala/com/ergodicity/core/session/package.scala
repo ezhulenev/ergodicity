@@ -10,8 +10,7 @@ package object session {
   type StatelessSessContents = SessContents
 
   def isFuture(record: FutInfo.fut_sess_contents) = {
-    import com.ergodicity.cgate.Signs
-    val signs = Signs(record.get_signs())
+    val signs = com.ergodicity.cgate.Signs(record.get_signs())
     !signs.spot && !signs.moneyMarket && signs.anonymous
   }
 

@@ -4,6 +4,11 @@ import common._
 import com.ergodicity.cgate.scheme.{FutTrade}
 
 package object order {
+
+  case class TrackSession(sessionId: Int)
+
+  case class DropSession(sessionId: Int)
+
   implicit def toOrderProps(record: FutTrade.orders_log) = {
 
     def mapOrderType(orderType: Int) = orderType match {
@@ -26,11 +31,6 @@ package object order {
       record.get_amount()
     )
   }
-
-
-  case class TrackSession(sessionId: Int)
-
-  case class DropSession(sessionId: Int)
 
 
   private[order] sealed trait Action

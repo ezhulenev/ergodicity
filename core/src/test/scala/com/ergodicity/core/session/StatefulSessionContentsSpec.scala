@@ -9,7 +9,7 @@ import akka.actor.ActorSystem
 import com.ergodicity.core.Mocking._
 import com.ergodicity.cgate.scheme.FutInfo
 import com.ergodicity.cgate.repository.Repository.Snapshot
-import akka.testkit.{TestProbe, TestActorRef, ImplicitSender, TestKit}
+import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 
 class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionContentsSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -27,11 +27,10 @@ class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionCo
   "StatefulSessionContents" must {
 
     "should track record updates merging with session state" in {
-      val session = TestProbe()
+
       val contents = TestActorRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents], "Futures")
 
-      session.expectMsgType[SubscribeTransitionCallBack]
-      contents ! CurrentState(session.ref, SessionState.Online)
+      contents ! CurrentState(self, SessionState.Online)
 
       contents ! Snapshot(self, gmkFuture(SUSPENDED) :: Nil)
 
@@ -44,12 +43,12 @@ class StatefulSessionContentsSpec extends TestKit(ActorSystem("StatefulSessionCo
       expectMsg(Transition(instrument, InstrumentState.Suspended, InstrumentState.Online))
 
       // Session suspended
-      contents ! Transition(session.ref, SessionState.Online, SessionState.Suspended)
+      contents ! Transition(self, SessionState.Online, SessionState.Suspended)
       expectMsg(Transition(instrument, InstrumentState.Online, InstrumentState.Suspended))
 
       // Instrument goes Assigned and session Online
       contents ! Snapshot(self, gmkFuture(ASSIGNED) :: Nil)
-      contents ! Transition(session.ref, SessionState.Suspended, SessionState.Online)
+      contents ! Transition(self, SessionState.Suspended, SessionState.Online)
       expectMsg(Transition(instrument, InstrumentState.Suspended, InstrumentState.Assigned))
     }
 
