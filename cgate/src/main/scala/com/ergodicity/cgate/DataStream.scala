@@ -48,6 +48,7 @@ object StreamEvent {
 }
 
 class DataStreamSubscriber(dataStream: ActorRef) extends Subscriber {
+
   import StreamEvent._
 
   private def decode(msg: Message) = msg.getType match {
@@ -100,6 +101,8 @@ object DataStream {
 
   case class SubscribeReplState(ref: ActorRef)
 
+  case class UnsubscribeReplState(ref: ActorRef)
+
   case class DataStreamReplState(stream: ActorRef, state: String)
 
   sealed trait BindingResult
@@ -126,10 +129,6 @@ class DataStream extends Actor with FSM[DataStreamState, Map[Int, Seq[ActorRef]]
     case Event(BindTable(idx, ref), subscribers) =>
       sender ! BindingSucceed(self, idx)
       stay() using (subscribers <+> Map(idx -> Seq(ref)))
-
-    case Event(SubscribeReplState(ref), _) =>
-      replStateSubscribers = ref +: replStateSubscribers
-      stay()
   }
 
   when(Opened)(handleStreamEvents orElse {
@@ -150,6 +149,14 @@ class DataStream extends Actor with FSM[DataStreamState, Map[Int, Seq[ActorRef]]
     case Event(BindTable(idx, _), _) =>
       sender ! BindingFailed(self, idx)
       stay()
+
+    case Event(SubscribeReplState(ref), _) =>
+      replStateSubscribers = ref +: replStateSubscribers
+      stay()
+
+    case Event(UnsubscribeReplState(ref), _) =>
+      replStateSubscribers = replStateSubscribers filterNot (_ == ref)
+      stay()
   }
 
   private def handleStreamEvents: StateFunction = {
@@ -168,6 +175,7 @@ class DataStream extends Actor with FSM[DataStreamState, Map[Int, Seq[ActorRef]]
     case Event(e@ReplState(state), _) =>
       replStateSubscribers.foreach(_ ! DataStreamReplState(self, state))
       stay()
+
   }
 
   initialize

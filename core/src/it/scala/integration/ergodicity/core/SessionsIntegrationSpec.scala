@@ -74,7 +74,7 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
 
       // Open connections and track it's status
       connection ! Connection.Open
-      connection ! TrackUnderlyingStatus(500.millis)
+      connection ! com.ergodicity.cgate.TrackUnderlyingStatus(500.millis)
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }

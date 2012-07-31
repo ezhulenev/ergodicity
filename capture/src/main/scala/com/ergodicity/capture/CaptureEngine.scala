@@ -8,6 +8,7 @@ import com.typesafe.config.ConfigFactory
 import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.config.{CGateConfig, ConnectionConfig}
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection}
+import com.ergodicity.capture.MarketCapture.{ShutDown, Capture}
 
 object CaptureEngine {
   val log = LoggerFactory.getLogger(getClass.getName)

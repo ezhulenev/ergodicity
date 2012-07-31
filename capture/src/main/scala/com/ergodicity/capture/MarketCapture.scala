@@ -20,8 +20,7 @@ import com.ergodicity.cgate.StreamEvent.ReplState
 import com.ergodicity.core.common.FullIsin
 import akka.actor.AllForOneStrategy
 import com.ergodicity.marketdb.model.Market
-import com.ergodicity.cgate.DataStream.DataStreamReplState
-import com.ergodicity.cgate.DataStream.SubscribeReplState
+import com.ergodicity.cgate.DataStream.{UnsubscribeReplState, DataStreamReplState, SubscribeReplState}
 import com.ergodicity.core.common.Security
 import com.ergodicity.marketdb.model.TradePayload
 import akka.actor.Terminated
@@ -29,15 +28,22 @@ import com.ergodicity.marketdb.model.OrderPayload
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate.scheme._
-import com.ergodicity.cgate.Protocol._
 import ru.micexrts.cgate.{CGateException, Listener => CGListener, Connection => CGConnection}
+import com.ergodicity.capture.ReopenReplicationStreams.{ReplStates, StreamRef, ReopeningState}
 
 
 case class MarketCaptureException(msg: String) extends RuntimeException(msg)
 
-case object Capture
+object MarketCapture {
+  val Forts = Market("FORTS")
+  val SaveReplicationStatesDuration = 10.minutes
 
-case object ShutDown
+  case object Capture
+
+  case object ShutDown
+
+  case object SaveReplicationStates
+}
 
 sealed trait CaptureState
 
@@ -73,13 +79,13 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
                     repository: ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository,
                     kestrel: KestrelConfig) extends Actor with FSM[CaptureState, CaptureData] {
 
+  import MarketCapture._
+
   implicit def SecuritySemigroup: Semigroup[Security] = semigroup {
     case (s1, s2) => s2
   }
 
   import CaptureData._
-
-  val Forts = Market("FORTS")
 
   implicit val revisionTracker = repository
 
@@ -136,6 +142,8 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
   lazy val ordersBuncher = new OrdersBuncher(client, kestrel.ordersQueue)
   lazy val futureDealsBuncher = new TradesBuncher(client, kestrel.tradesQueue)
   lazy val optionDealsBuncher = new TradesBuncher(client, kestrel.tradesQueue)
+
+  import com.ergodicity.cgate.Protocol._
   val orderCapture = context.actorOf(Props(new MarketDbCapture[OrdLog.orders_log, OrderPayload](OrdLog.orders_log.TABLE_INDEX, OrdLogStream)(ordersBuncher)), "OrdersCapture")
   val futuresCapture = context.actorOf(Props(new MarketDbCapture[FutTrade.deal, TradePayload](FutTrade.deal.TABLE_INDEX, FutTradeStream)(futureDealsBuncher)), "FuturesCapture")
   val optionsCapture = context.actorOf(Props(new MarketDbCapture[OptTrade.deal, TradePayload](OptTrade.deal.TABLE_INDEX, OptTradeStream)(optionDealsBuncher)), "OptionsCapture")
@@ -178,6 +186,13 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
 
   when(CaptureState.Capturing) {
     case Event(ShutDown, _) => goto(CaptureState.ShuttingDown) using StreamStates()
+
+    case Event(SaveReplicationStates, _) =>
+      val futTrade = StreamRef(replication.futTrade.stream, FutTradeStream, FutTradeListener)
+      val optTrade = StreamRef(replication.optTrade.stream, OptTradeStream, OptTradeListener)
+      val ordLog = StreamRef(replication.ordLog.stream, OrdLogStream, OrdLogListener)
+      ReopenReplicationStreams(repository, futTrade, optTrade, ordLog)
+      stay()
   }
 
   when(CaptureState.ShuttingDown, stateTimeout = 30.seconds) {
@@ -229,6 +244,9 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
       OrdLogListener ! Listener.Open(ReplicationParams(Combined, orderLogState.map(ReplState(_))))
       FutTradeListener ! Listener.Open(ReplicationParams(Combined, futTradeState.map(ReplState(_))))
       OptTradeListener ! Listener.Open(ReplicationParams(Combined, optTradeState.map(ReplState(_))))
+
+      // Schedule replication states saving
+      context.system.scheduler.schedule(SaveReplicationStatesDuration, SaveReplicationStatesDuration, self, SaveReplicationStates)
 
     case CaptureState.Capturing -> CaptureState.ShuttingDown =>
       log.info("Shutting down Market Capture; Close all listeners!")
@@ -302,4 +320,94 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
     connection ! Connection.Close
     connection ! Connection.Dispose
   }
+}
+
+object ReopenReplicationStreams {
+
+  case object Reopen
+
+  case class StreamRef(name: String, stream: ActorRef, listener: ActorRef)
+
+  case class ReplStates(futTrade: Option[ReplState] = None, optTrade: Option[ReplState] = None, ordLog: Option[ReplState] = None)
+
+  sealed trait ReopeningState
+
+  case object ShuttingDown extends ReopeningState
+
+  case object StartingUp extends ReopeningState
+
+
+  def apply(repository: ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository, futTrade: StreamRef, optTrade: StreamRef, ordLog: StreamRef)
+           (implicit context: ActorContext) = context.actorOf(Props(new ReopenReplicationStreams(repository, futTrade, optTrade, ordLog)), "ReopenReplicationStreams")
+}
+
+class ReopenReplicationStreams(repository: ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository,
+                               futTrade: StreamRef, optTrade: StreamRef, ordLog: StreamRef) extends Actor with FSM[ReopeningState, ReplStates] {
+
+  import ReopenReplicationStreams._
+
+  startWith(ShuttingDown, ReplStates())
+
+  when(ShuttingDown, stateTimeout = 30.seconds) {
+    case Event(DataStreamReplState(futTrade.stream, state), s: ReplStates) =>
+      repository.setReplicationState(futTrade.name, state)
+      handleStreamState(s.copy(futTrade = Some(ReplState(state))))
+
+    case Event(DataStreamReplState(optTrade.stream, state), s: ReplStates) =>
+      repository.setReplicationState(optTrade.name, state)
+      handleStreamState(s.copy(optTrade = Some(ReplState(state))))
+
+    case Event(DataStreamReplState(ordLog.stream, state), s: ReplStates) =>
+      repository.setReplicationState(ordLog.name, state)
+      handleStreamState(s.copy(ordLog = Some(ReplState(state))))
+
+    case Event(FSM.StateTimeout, _) => stop(FSMFailure("Failed to get replication streams states"))
+  }
+
+  when(StartingUp) {
+    case Event(Reopen, states) =>
+      log.info("Reopen listeners with updated ReplState")
+      futTrade.listener ! Listener.Open(ReplicationParams(Combined, states.futTrade))
+      optTrade.listener ! Listener.Open(ReplicationParams(Combined, states.optTrade))
+      ordLog.listener ! Listener.Open(ReplicationParams(Combined, states.ordLog))
+
+      stop(akka.actor.FSM.Normal)
+  }
+
+  onTransition {
+    case ShuttingDown -> StartingUp =>
+      // Unsubscribe from replication states
+      futTrade.stream ! UnsubscribeReplState(self)
+      optTrade.stream ! UnsubscribeReplState(self)
+      ordLog.stream ! UnsubscribeReplState(self)
+
+      self ! Reopen
+  }
+
+  initialize
+
+  // Subscribe for replication states
+  futTrade.stream ! SubscribeReplState(self)
+  optTrade.stream ! SubscribeReplState(self)
+  ordLog.stream ! SubscribeReplState(self)
+
+  // Close all listeners
+  futTrade.listener ! Listener.Close
+  optTrade.listener ! Listener.Close
+  ordLog.listener ! Listener.Close
+
+  protected def handleStreamState(state: ReplStates): State = {
+    (state.futTrade.<***>(state.optTrade, state.ordLog)) {
+      (_, _, _)
+    } match {
+      case states@Some((_, _, _)) =>
+        log.debug("Streams shutted down in states = " + states)
+        goto(StartingUp) using(state)
+      case _ =>
+        log.debug("Waiting for all streams closed in state = " + state)
+        stay() using state
+    }
+  }
+
+
 }

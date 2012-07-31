@@ -67,7 +67,7 @@ class PositionsIntegrationSpec extends TestKit(ActorSystem("PositionsIntegration
 
       // Open connections and track it's status
       connection ! Connection.Open
-      connection ! TrackUnderlyingStatus(500.millis)
+      connection ! com.ergodicity.cgate.TrackUnderlyingStatus(500.millis)
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }

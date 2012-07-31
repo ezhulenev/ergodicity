@@ -15,6 +15,7 @@ import com.twitter.finagle.kestrel.Client
 import com.ergodicity.cgate.DataStream.DataStreamReplState
 import org.slf4j.{Logger, LoggerFactory}
 import com.mongodb.casbah.TypeImports._
+import com.ergodicity.capture.MarketCapture.Capture
 
 class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketCaptureSpec])
