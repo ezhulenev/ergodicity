@@ -91,16 +91,14 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
           case Transition(_, _, Active) =>
             // Open Listener in Combined mode
             listener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
-            listener ! TrackUnderlyingStatus(500.millis)
 
             // Process messages
-            connection ! StartMessageProcessing(500.millis);
+            connection ! StartMessageProcessing(500.millis)
         }
       })))
 
       // Open connections and track it's status
       connection ! Connection.Open
-      connection ! TrackUnderlyingStatus(500.millis)
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }

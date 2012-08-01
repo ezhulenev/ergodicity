@@ -5,11 +5,11 @@ import akka.pattern.ask
 import config.ListenerOpenParams
 import ru.micexrts.cgate.{Listener => CGListener}
 import akka.actor.FSM.Failure
-import akka.actor.{ActorRef, Cancellable, Actor, FSM}
+import akka.actor.{ActorRef, Actor, FSM}
 import akka.dispatch.Future
 import ru.micexrts.cgate
 import com.ergodicity.cgate.Connection.Execute
-import akka.util.Timeout
+import akka.util.{Duration, Timeout}
 
 object Listener {
 
@@ -19,6 +19,7 @@ object Listener {
 
   case object Dispose
 
+  def apply(underlying: WithListener, updateStateDuration: Option[Duration] = Some(100.millis)) = new Listener(underlying, updateStateDuration)
 }
 
 protected[cgate] case class ListenerState(state: State)
@@ -37,11 +38,18 @@ object BindListener {
   }
 }
 
-class Listener(withListener: WithListener) extends Actor with FSM[State, Option[ListenerOpenParams]] {
+class Listener(withListener: WithListener, updateStateDuration: Option[Duration] = Some(100.millis)) extends Actor with FSM[State, Option[ListenerOpenParams]] {
 
   import Listener._
 
-  private var statusTracker: Option[Cancellable] = None
+  private val statusTracker = updateStateDuration.map {
+    duration =>
+      context.system.scheduler.schedule(0 milliseconds, duration) {
+        withListener(listener => listener.getState) onSuccess {
+          case state => self ! ListenerState(State(state))
+        }
+      }
+  }
 
   startWith(Closed, None)
 
@@ -59,10 +67,8 @@ class Listener(withListener: WithListener) extends Actor with FSM[State, Option[
   when(Active) {
     case Event(Close, _) =>
       log.info("Close Listener")
-      statusTracker.foreach(_.cancel())
-      statusTracker = None
       withListener(_.close())
-      goto(Closed) using None
+      stay() using None
   }
 
   onTransition {
@@ -78,19 +84,8 @@ class Listener(withListener: WithListener) extends Actor with FSM[State, Option[
 
     case Event(ListenerState(state), _) if (state == stateName) => stay()
 
-    case Event(track@TrackUnderlyingStatus(duration), _) =>
-      statusTracker.foreach(_.cancel())
-      statusTracker = Some(context.system.scheduler.schedule(0 milliseconds, duration) {
-        withListener(listener => listener.getState).onSuccess {
-          case state => self ! ListenerState(State(state))
-        }
-      })
-      stay()
-
     case Event(Dispose, _) =>
       log.info("Dispose listener")
-      statusTracker.foreach(_.cancel())
-      statusTracker = None
       withListener(_.dispose())
       stop(Failure("Disposed"))
   }
@@ -100,4 +95,9 @@ class Listener(withListener: WithListener) extends Actor with FSM[State, Option[
   }
 
   initialize
+
+  override def postStop() {
+    statusTracker.foreach(_.cancel())
+    super.postStop()
+  }
 }

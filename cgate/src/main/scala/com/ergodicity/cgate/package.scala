@@ -1,11 +1,7 @@
 package com.ergodicity
 
-import akka.util.Duration
 
 package object cgate {
-
-  case class TrackUnderlyingStatus(duration: Duration)
-
 
   case class Signs(signs: Long) {
 

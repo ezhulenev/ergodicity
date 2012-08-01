@@ -41,7 +41,7 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
     "should work" in {
       val underlyingConnection = new CGConnection(RouterConnection())
 
-      val connection = TestFSMRef(new Connection(underlyingConnection), "Connection")
+      val connection = TestFSMRef(new Connection(underlyingConnection, Some(500.millis)), "Connection")
 
       val FutInfoDataStream = TestFSMRef(new DataStream, "FutInfoDataStream")
       val OptInfoDataStream = TestFSMRef(new DataStream, "OptInfoDataStream")
@@ -74,7 +74,6 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
 
       // Open connections and track it's status
       connection ! Connection.Open
-      connection ! com.ergodicity.cgate.TrackUnderlyingStatus(500.millis)
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }

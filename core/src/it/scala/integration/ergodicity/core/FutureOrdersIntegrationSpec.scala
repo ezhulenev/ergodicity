@@ -40,7 +40,7 @@ class FutureOrdersIntegrationSpec extends TestKit(ActorSystem("FutureOrdersInteg
 
       val underlyingConnection = new CGConnection(RouterConnection())
 
-      val connection = TestFSMRef(new Connection(underlyingConnection), "Connection")
+      val connection = TestFSMRef(new Connection(underlyingConnection, Some(500.millis)), "Connection")
 
       val dataStream = TestFSMRef(new DataStream, "FutTradeDataStream")
 
@@ -62,13 +62,12 @@ class FutureOrdersIntegrationSpec extends TestKit(ActorSystem("FutureOrdersInteg
             listener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
 
             // Process messages
-            connection ! StartMessageProcessing(500.millis);
+            connection ! StartMessageProcessing(500.millis)
         }
       })))
 
       // Open connections and track it's status
       connection ! Connection.Open
-      connection ! com.ergodicity.cgate.TrackUnderlyingStatus(500.millis)
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
