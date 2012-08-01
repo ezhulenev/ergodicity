@@ -1,10 +1,11 @@
 package com.ergodicity.cgate
 
 import akka.util.duration._
+import akka.pattern.ask
 import akka.actor.FSM.Failure
 import akka.actor.{Cancellable, FSM, Actor}
 import ru.micexrts.cgate.{Connection => CGConnection}
-import akka.util.Duration
+import akka.util.{Timeout, Duration}
 
 object Connection {
 
@@ -15,6 +16,8 @@ object Connection {
   case object Dispose
 
   case class StartMessageProcessing(timeout: Duration)
+
+  case class Execute[T](f: CGConnection => T)
 
   private[Connection] case class ProcessMessages(timeout: Duration)
 
@@ -37,6 +40,8 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
 
   import Connection._
   import MessageProcessingState._
+
+  implicit val timeout = Timeout(1.second)
 
   private var statusTracker: Option[Cancellable] = None
 
@@ -72,6 +77,10 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
 
     case Event(ConnectionState(state), _) if (state == stateName) => stay()
 
+    case Event(Execute(f), _) =>
+      sender ! f(underlying)
+      stay()
+
     case Event(Close, _) =>
       log.info("Close connection")
       statusTracker.foreach(_.cancel())
@@ -91,14 +100,12 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
       self ! pm
       stay()
 
-    case Event(UpdateUnderlyingStatus, _) =>
-      self ! ConnectionState(State(underlying.getState))
-      stay()
-
     case Event(track@TrackUnderlyingStatus(duration), _) =>
       statusTracker.foreach(_.cancel())
       statusTracker = Some(context.system.scheduler.schedule(0 milliseconds, duration) {
-        self ! UpdateUnderlyingStatus
+        (self ? Execute(_.getState)).mapTo[Int] onSuccess {
+          case state => self ! ConnectionState(State(state))
+        }
       })
       stay()
   }

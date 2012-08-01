@@ -109,19 +109,19 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
 
   // Listeners
   val underlyingFutInfoListener = new CGListener(underlyingConnection, replication.futInfo(), new DataStreamSubscriber(FutInfoStream))
-  val FutInfoListener = context.actorOf(Props(new Listener(underlyingFutInfoListener)), "FutInfoListener")
+  val FutInfoListener = context.actorOf(Props(new Listener(BindListener(underlyingFutInfoListener) to connection)), "FutInfoListener")
 
   val underlyingOptInfoListener = new CGListener(underlyingConnection, replication.optInfo(), new DataStreamSubscriber(OptInfoStream))
-  val OptInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)), "OptInfoListener")
+  val OptInfoListener = context.actorOf(Props(new Listener(BindListener(underlyingOptInfoListener) to connection)), "OptInfoListener")
 
   val underlyingFutTradeListener = new CGListener(underlyingConnection, replication.futTrade(), new DataStreamSubscriber(FutTradeStream))
-  val FutTradeListener = context.actorOf(Props(new Listener(underlyingFutTradeListener)), "FutTradeListener")
+  val FutTradeListener = context.actorOf(Props(new Listener(BindListener(underlyingFutTradeListener) to connection)), "FutTradeListener")
 
   val underlyingOptTradeListener = new CGListener(underlyingConnection, replication.optTrade(), new DataStreamSubscriber(OptTradeStream))
-  val OptTradeListener = context.actorOf(Props(new Listener(underlyingOptTradeListener)), "OptTradeListener")
+  val OptTradeListener = context.actorOf(Props(new Listener(BindListener(underlyingOptTradeListener) to connection)), "OptTradeListener")
 
   val underlyingOrdLogListener = new CGListener(underlyingConnection, replication.ordLog(), new DataStreamSubscriber(OrdLogStream))
-  val OrdLogListener = context.actorOf(Props(new Listener(underlyingOrdLogListener)), "OrdLogListener")
+  val OrdLogListener = context.actorOf(Props(new Listener(BindListener(underlyingOrdLogListener) to connection)), "OrdLogListener")
 
   val cgListeners = (FutInfoListener :: OptInfoListener :: FutTradeListener :: OptTradeListener :: OrdLogListener :: Nil)
   cgListeners.foreach(_ ! TrackUnderlyingStatus(100.millis))

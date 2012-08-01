@@ -4,6 +4,9 @@ import akka.util.Duration
 
 package object cgate {
 
+  case class TrackUnderlyingStatus(duration: Duration)
+
+
   case class Signs(signs: Long) {
 
     sealed trait Type
@@ -31,7 +34,4 @@ package object cgate {
     def moneyMarket = (signs & 0x800) > 0
   }
 
-  case class TrackUnderlyingStatus(duration: Duration)
-
-  protected[cgate] case object UpdateUnderlyingStatus
 }

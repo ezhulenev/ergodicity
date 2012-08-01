@@ -13,7 +13,7 @@ import com.ergodicity.cgate.scheme.FutInfo
 import com.ergodicity.cgate.repository.Repository.Snapshot
 import com.ergodicity.core.Mocking._
 import akka.testkit._
-import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack}
+import akka.actor.FSM.CurrentState
 
 
 class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -28,6 +28,7 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
   val gmkFuture = mockFuture(4023, 166911, "GMKR-6.12", "GMM2", "Фьючерсный контракт GMKR-06.12", 115, 2)
 
   "StatefulSessionContents" must {
+    import com.ergodicity.core.session._
 
     "return None if no instument found" in {
       val contents = TestFSMRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents], "Futures")
@@ -37,11 +38,9 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
     }
 
     "return instument reference if found" in {
-      val session = TestProbe()
       val contents = TestFSMRef(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents], "Futures")
 
-      session.expectMsgType[SubscribeTransitionCallBack]
-      contents ! CurrentState(session.ref, SessionState.Online)
+      contents ! CurrentState(self, SessionState.Online)
 
       assert(contents.stateName == SessionContentsState.TrackingSession)
 

@@ -46,7 +46,7 @@ class PositionsIntegrationSpec extends TestKit(ActorSystem("PositionsIntegration
       // Listeners
       val listenerConfig = Replication("FORTS_POS_REPL", new File("cgate/scheme/pos.ini"), "CustReplScheme")
       val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(dataStream))
-      val listener = TestFSMRef(new Listener(underlyingListener), "PosListener")
+      val listener = TestFSMRef(new Listener(BindListener(underlyingListener) to connection), "PosListener")
 
       // Create Positions actor
       val positions = TestFSMRef(new Positions(dataStream), "Positions")

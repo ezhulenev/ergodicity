@@ -53,7 +53,7 @@ class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec
       // Listener
       val listenerConfig = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")
       val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(OptInfoDataStream))
-      val listener = TestFSMRef(new Listener(underlyingListener), "Listener")
+      val listener = TestFSMRef(new Listener(BindListener(underlyingListener) to connection), "Listener")
 
       val optionsRepository = TestFSMRef(Repository[OptInfo.opt_sess_contents], "OptionsRepository")
       OptInfoDataStream ! BindTable(OptInfo.opt_sess_contents.TABLE_INDEX, optionsRepository)
