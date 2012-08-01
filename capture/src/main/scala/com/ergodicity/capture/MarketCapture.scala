@@ -4,7 +4,7 @@ import akka.actor._
 import SupervisorStrategy._
 import com.ergodicity.marketdb.model.{Security => MarketDbSecurity}
 import org.joda.time.DateTime
-import akka.actor.FSM.{Failure => FSMFailure}
+import akka.actor.FSM.{Failure => FSMFailure, CurrentState, Transition, UnsubscribeTransitionCallBack, SubscribeTransitionCallBack}
 import akka.util.duration._
 import com.ergodicity.cgate._
 import config.Replication.ReplicationMode.Combined
@@ -13,36 +13,35 @@ import scalaz._
 import Scalaz._
 import com.ergodicity.capture.MarketDbCapture.ConvertToMarketDb
 import scheme.OrdLog.orders_log
-import akka.actor.FSM.Transition
-import akka.actor.FSM.UnsubscribeTransitionCallBack
 import scala.Some
 import com.ergodicity.cgate.StreamEvent.ReplState
 import com.ergodicity.core.common.FullIsin
 import akka.actor.AllForOneStrategy
 import com.ergodicity.marketdb.model.Market
+import com.ergodicity.cgate.State
 import com.ergodicity.cgate.DataStream.{UnsubscribeReplState, DataStreamReplState, SubscribeReplState}
 import com.ergodicity.core.common.Security
 import com.ergodicity.marketdb.model.TradePayload
 import akka.actor.Terminated
 import com.ergodicity.marketdb.model.OrderPayload
-import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate.scheme._
 import ru.micexrts.cgate.{CGateException, Listener => CGListener, Connection => CGConnection}
-import com.ergodicity.capture.ReopenReplicationStreams.{ReplStates, StreamRef, ReopeningState}
+import com.ergodicity.capture.ReopenReplicationStreams.{ReopeningData, StreamRef, ReopeningState}
 
 
 case class MarketCaptureException(msg: String) extends RuntimeException(msg)
 
 object MarketCapture {
   val Forts = Market("FORTS")
-  val SaveReplicationStatesDuration = 10.minutes
+  val SaveReplicationStatesDuration = 5.minutes
 
   case object Capture
 
   case object ShutDown
 
   case object SaveReplicationStates
+
 }
 
 sealed trait CaptureState
@@ -328,13 +327,20 @@ object ReopenReplicationStreams {
 
   case class StreamRef(name: String, stream: ActorRef, listener: ActorRef)
 
-  case class ReplStates(futTrade: Option[ReplState] = None, optTrade: Option[ReplState] = None, ordLog: Option[ReplState] = None)
+
+  sealed trait ReopeningData
+
+  case class ReplStates(futTrade: Option[ReplState] = None, optTrade: Option[ReplState] = None, ordLog: Option[ReplState] = None) extends ReopeningData
+
+  case class ListenersStates(futTrade: Option[State] = None, optTrade: Option[State] = None, ordLog: Option[State] = None) extends ReopeningData
 
   sealed trait ReopeningState
 
+  case object SavingReplStates extends ReopeningState
+
   case object ShuttingDown extends ReopeningState
 
-  case object StartingUp extends ReopeningState
+  case object Reopening extends ReopeningState
 
 
   def apply(repository: ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository, futTrade: StreamRef, optTrade: StreamRef, ordLog: StreamRef)
@@ -342,13 +348,15 @@ object ReopenReplicationStreams {
 }
 
 class ReopenReplicationStreams(repository: ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository,
-                               futTrade: StreamRef, optTrade: StreamRef, ordLog: StreamRef) extends Actor with FSM[ReopeningState, ReplStates] {
+                               futTrade: StreamRef, optTrade: StreamRef, ordLog: StreamRef) extends Actor with FSM[ReopeningState, ReopeningData] {
 
   import ReopenReplicationStreams._
 
-  startWith(ShuttingDown, ReplStates())
+  private[this] var replStates: Option[ReplStates] = None
 
-  when(ShuttingDown, stateTimeout = 30.seconds) {
+  startWith(SavingReplStates, ReplStates())
+
+  when(SavingReplStates, stateTimeout = 30.seconds) {
     case Event(DataStreamReplState(futTrade.stream, state), s: ReplStates) =>
       repository.setReplicationState(futTrade.name, state)
       handleStreamState(s.copy(futTrade = Some(ReplState(state))))
@@ -364,9 +372,32 @@ class ReopenReplicationStreams(repository: ReplicationStateRepository with Sessi
     case Event(FSM.StateTimeout, _) => stop(FSMFailure("Failed to get replication streams states"))
   }
 
-  when(StartingUp) {
-    case Event(Reopen, states) =>
-      log.info("Reopen listeners with updated ReplState")
+  when(ShuttingDown, stateTimeout = 30.seconds) {
+    case Event(CurrentState(futTrade.listener, state: com.ergodicity.cgate.State), states: ListenersStates) =>
+      handleListenerStates(states.copy(futTrade = Some(state)))
+
+    case Event(CurrentState(optTrade.listener, state: com.ergodicity.cgate.State), states: ListenersStates) =>
+      handleListenerStates(states.copy(optTrade = Some(state)))
+
+    case Event(CurrentState(ordLog.listener, state: com.ergodicity.cgate.State), states: ListenersStates) =>
+      handleListenerStates(states.copy(ordLog = Some(state)))
+
+    case Event(Transition(futTrade.listener, _, state: com.ergodicity.cgate.State), states: ListenersStates) =>
+      handleListenerStates(states.copy(futTrade = Some(state)))
+
+    case Event(Transition(optTrade.listener, _, state: com.ergodicity.cgate.State), states: ListenersStates) =>
+      handleListenerStates(states.copy(optTrade = Some(state)))
+
+    case Event(Transition(ordLog.listener, _, state: com.ergodicity.cgate.State), states: ListenersStates) =>
+      handleListenerStates(states.copy(ordLog = Some(state)))
+
+
+    case Event(FSM.StateTimeout, _) => stop(FSMFailure("Failed to close all listeners"))
+  }
+
+  when(Reopening) {
+    case Event(Reopen, states: ReplStates) =>
+      log.info("Reopen listeners with ReplStates = " + states)
       futTrade.listener ! Listener.Open(ReplicationParams(Combined, states.futTrade))
       optTrade.listener ! Listener.Open(ReplicationParams(Combined, states.optTrade))
       ordLog.listener ! Listener.Open(ReplicationParams(Combined, states.ordLog))
@@ -375,13 +406,24 @@ class ReopenReplicationStreams(repository: ReplicationStateRepository with Sessi
   }
 
   onTransition {
-    case ShuttingDown -> StartingUp =>
+    case SavingReplStates -> ShuttingDown =>
       // Unsubscribe from replication states
       futTrade.stream ! UnsubscribeReplState(self)
       optTrade.stream ! UnsubscribeReplState(self)
       ordLog.stream ! UnsubscribeReplState(self)
 
-      self ! Reopen
+      // Subscribe for listeners
+      futTrade.listener ! SubscribeTransitionCallBack(self)
+      optTrade.listener ! SubscribeTransitionCallBack(self)
+      ordLog.listener ! SubscribeTransitionCallBack(self)
+
+    case ShuttingDown -> Reopening =>
+      // Unsubscribe from listeners
+      futTrade.listener ! UnsubscribeTransitionCallBack(self)
+      optTrade.listener ! UnsubscribeTransitionCallBack(self)
+      ordLog.listener ! UnsubscribeTransitionCallBack(self)
+
+      replStates.map(state => self ! Reopen) getOrElse log.error("Can't reopen listeners")
   }
 
   initialize
@@ -397,15 +439,21 @@ class ReopenReplicationStreams(repository: ReplicationStateRepository with Sessi
   ordLog.listener ! Listener.Close
 
   protected def handleStreamState(state: ReplStates): State = {
-    (state.futTrade.<***>(state.optTrade, state.ordLog)) {
-      (_, _, _)
-    } match {
+    (state.futTrade.<***>(state.optTrade, state.ordLog)) {(_, _, _)} match {
       case states@Some((_, _, _)) =>
         log.debug("Streams shutted down in states = " + states)
-        goto(StartingUp) using(state)
-      case _ =>
-        log.debug("Waiting for all streams closed in state = " + state)
-        stay() using state
+        replStates = Some(state)
+        goto(ShuttingDown) using ListenersStates()
+      case _ => stay() using state
+    }
+  }
+
+  protected def handleListenerStates(state: ListenersStates): State = {
+    (state.futTrade.<***>(state.optTrade, state.ordLog)) {(_, _, _)} match {
+      case states@Some((Closed, Closed, Closed)) =>
+        log.debug("Listeners closed")
+        replStates map (goto(Reopening) using _) getOrElse stop(FSMFailure("No replication state to reopen listeners"))
+      case _ => stay() using state
     }
   }
 
