@@ -34,7 +34,7 @@ case class MarketCaptureException(msg: String) extends RuntimeException(msg)
 
 object MarketCapture {
   val Forts = Market("FORTS")
-  val SaveReplicationStatesDuration = 5.minutes
+  val SaveReplicationStatesDuration = 2.minutes
 
   case object Capture
 
