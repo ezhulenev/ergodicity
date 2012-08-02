@@ -31,7 +31,7 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfiguration
     "be initialized in Closed state" in {
       val cg = mock(classOf[CGListener])
 
-      val listener = TestFSMRef(new Listener(withListener(cg)), "Listener")
+      val listener = TestFSMRef(new Listener(withListener(cg), None), "Listener")
       log.info("State: " + listener.stateName)
       assert(listener.stateName == Closed)
     }
@@ -39,7 +39,7 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfiguration
     "terminate after Listener gone to Error state" in {
       val cg = mock(classOf[CGListener])
 
-      val listener = TestFSMRef(new Listener(withListener(cg)), "Listener")
+      val listener = TestFSMRef(new Listener(withListener(cg), None), "Listener")
       watch(listener)
       listener ! ListenerState(Error)
       expectMsg(Terminated(listener))
@@ -48,7 +48,7 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfiguration
     "return to Closed state after Close listener sent" in {
       val cg = mock(classOf[CGListener])
 
-      val listener = TestFSMRef(new Listener(withListener(cg)), "Listener")
+      val listener = TestFSMRef(new Listener(withListener(cg), None), "Listener")
       watch(listener)
       listener ! Close
       assert(listener.stateName == Closed)
@@ -57,7 +57,7 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfiguration
     "terminate on FSM.StateTimeout in Opening state" in {
       val cg = mock(classOf[CGListener])
 
-      val listener = TestFSMRef(new Listener(withListener(cg)), "Listener")
+      val listener = TestFSMRef(new Listener(withListener(cg), None), "Listener")
       listener.setState(Opening)
       watch(listener)
       listener ! FSM.StateTimeout

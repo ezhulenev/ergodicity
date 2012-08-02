@@ -3,7 +3,7 @@ package com.ergodicity.cgate
 import akka.util.duration._
 import akka.pattern.ask
 import akka.actor.FSM.Failure
-import akka.actor.{Cancellable, FSM, Actor}
+import akka.actor.{FSM, Actor}
 import ru.micexrts.cgate.{Connection => CGConnection}
 import akka.util.{Timeout, Duration}
 
@@ -21,7 +21,7 @@ object Connection {
 
   private[Connection] case class ProcessMessages(timeout: Duration)
 
-  def apply(underlying: CGConnection) = new Connection(underlying)
+  def apply(underlying: CGConnection, updateStateDuration: Option[Duration] = Some(100.millis)) = new Connection(underlying, updateStateDuration)
 }
 
 protected[cgate] case class ConnectionState(state: State)
@@ -36,14 +36,20 @@ protected[cgate] object MessageProcessingState {
 
 }
 
-class Connection(protected[cgate] val underlying: CGConnection) extends Actor with FSM[State, MessageProcessingState] {
+class Connection(protected[cgate] val underlying: CGConnection, updateStateDuration: Option[Duration] = Some(100.millis)) extends Actor with FSM[State, MessageProcessingState] {
 
   import Connection._
   import MessageProcessingState._
 
   implicit val timeout = Timeout(1.second)
 
-  private var statusTracker: Option[Cancellable] = None
+  private val statusTracker = updateStateDuration.map {duration =>
+    context.system.scheduler.schedule(0 milliseconds, duration) {
+      (self ? Execute(_.getState)).mapTo[Int] onSuccess {
+        case state => self ! ConnectionState(State(state))
+      }
+    }
+  }
 
   startWith(Closed, Off)
 
@@ -59,8 +65,8 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
   }
 
   when(Active) {
-    case Event(StartMessageProcessing(timeout), off) =>
-      self ! ProcessMessages(timeout)
+    case Event(StartMessageProcessing(t), off) =>
+      self ! ProcessMessages(t)
       stay() using On
   }
 
@@ -83,30 +89,17 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
 
     case Event(Close, _) =>
       log.info("Close connection")
-      statusTracker.foreach(_.cancel())
-      statusTracker = None
       underlying.close()
       stay() using Off
 
     case Event(Dispose, cancellable) =>
       log.info("Dispose connection")
-      statusTracker.foreach(_.cancel())
-      statusTracker = None
       underlying.dispose()
       stop(Failure("Disposed")) using Off
 
-    case Event(pm@ProcessMessages(timeout), On) =>
-      underlying.process(timeout.toMillis.toInt)
+    case Event(pm@ProcessMessages(t), On) =>
+      underlying.process(t.toMillis.toInt)
       self ! pm
-      stay()
-
-    case Event(track@TrackUnderlyingStatus(duration), _) =>
-      statusTracker.foreach(_.cancel())
-      statusTracker = Some(context.system.scheduler.schedule(0 milliseconds, duration) {
-        (self ? Execute(_.getState)).mapTo[Int] onSuccess {
-          case state => self ! ConnectionState(State(state))
-        }
-      })
       stay()
   }
 
@@ -116,4 +109,9 @@ class Connection(protected[cgate] val underlying: CGConnection) extends Actor wi
   }
 
   initialize
+
+  override def postStop() {
+    statusTracker.foreach(_.cancel())
+    super.postStop()
+  }
 }

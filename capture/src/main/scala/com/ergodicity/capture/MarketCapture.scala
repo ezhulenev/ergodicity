@@ -120,10 +120,9 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
   val OptTradeListener = context.actorOf(Props(new Listener(BindListener(underlyingOptTradeListener) to connection)), "OptTradeListener")
 
   val underlyingOrdLogListener = new CGListener(underlyingConnection, replication.ordLog(), new DataStreamSubscriber(OrdLogStream))
-  val OrdLogListener = context.actorOf(Props(new Listener(BindListener(underlyingOrdLogListener) to connection)), "OrdLogListener")
+  val OrdLogListener = context.actorOf(Props(new Listener(BindListener(underlyingOrdLogListener) to connection, Some(100.millis))), "OrdLogListener")
 
   val cgListeners = (FutInfoListener :: OptInfoListener :: FutTradeListener :: OptTradeListener :: OrdLogListener :: Nil)
-  cgListeners.foreach(_ ! TrackUnderlyingStatus(100.millis))
 
   // Create captures
   implicit val ConvertOrder = new ConvertToMarketDb[OrdLog.orders_log, OrderPayload] {
@@ -165,7 +164,6 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
     case Event(Capture, _) =>
       connection ! SubscribeTransitionCallBack(self)
       connection ! Connection.Open
-      connection ! TrackUnderlyingStatus(100.millis)
       goto(CaptureState.Connecting)
   }
 

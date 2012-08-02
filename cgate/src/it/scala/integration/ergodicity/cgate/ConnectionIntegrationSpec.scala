@@ -38,7 +38,6 @@ class ConnectionIntegrationSpec extends TestKit(ActorSystem("ConnectionIntegrati
       val connection = TestFSMRef(new Connection(underlying), "Connection")
 
       connection ! Open
-      connection ! TrackUnderlyingStatus(100.millis)
 
       Thread.sleep(1000)
 

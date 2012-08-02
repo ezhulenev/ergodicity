@@ -76,7 +76,6 @@ class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec
           case Transition(_, _, Active) =>
             // Open Listener in Combined mode
             listener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
-            listener ! TrackUnderlyingStatus(500.millis)
 
             // Process messages
             connection ! StartMessageProcessing(500.millis)
@@ -85,7 +84,6 @@ class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec
 
       // Open connections and track it's status
       connection ! Connection.Open
-      connection ! TrackUnderlyingStatus(500.millis)
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
