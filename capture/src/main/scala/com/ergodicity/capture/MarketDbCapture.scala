@@ -122,6 +122,7 @@ sealed trait MarketDbBuncher[T] extends Actor with FSM[BuncherState, Option[List
     val bytes = toByteArray(payload)
     client.write(queue, OfferOnce(ChannelBuffers.wrappedBuffer(bytes))) onSuccess {
       err =>
+        log.error("Failed write data to kestrel; Err = " + err)
       // Stop market buncher on Kestrel client failed
         context.stop(self)
     }

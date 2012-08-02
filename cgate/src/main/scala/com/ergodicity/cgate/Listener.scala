@@ -33,12 +33,14 @@ object BindListener {
 
   def apply(listener: CGListener) = new {
     def to(connection: ActorRef) = new WithListener {
-      def apply[T](f: (cgate.Listener) => T)(implicit m: Manifest[T]) = (connection ? Execute(_ => f(listener))).mapTo[T]
+      def apply[T](f: (cgate.Listener) => T)(implicit m: Manifest[T]) = (connection ? Execute(_ => listener.synchronized {
+        f(listener)
+      })).mapTo[T]
     }
   }
 }
 
-class Listener(withListener: WithListener, updateStateDuration: Option[Duration] = Some(100.millis)) extends Actor with FSM[State, Option[ListenerOpenParams]] {
+class Listener(withListener: WithListener, updateStateDuration: Option[Duration] = Some(1.second)) extends Actor with FSM[State, Option[ListenerOpenParams]] {
 
   import Listener._
 

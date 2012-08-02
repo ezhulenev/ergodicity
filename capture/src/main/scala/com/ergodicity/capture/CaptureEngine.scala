@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.config.{CGateConfig, ConnectionConfig}
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection}
 import com.ergodicity.capture.MarketCapture.{ShutDown, Capture}
+import akka.actor.FSM.Failure
 
 object CaptureEngine {
   val log = LoggerFactory.getLogger(getClass.getName)
@@ -30,7 +31,7 @@ object CaptureEngine {
   }
 }
 
-class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig, replication: ReplicationScheme, database: CaptureDatabase, kestrel: KestrelConfig) extends Service {
+class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig, scheme: ReplicationScheme, database: CaptureDatabase, kestrel: KestrelConfig) extends Service {
   val log = LoggerFactory.getLogger(classOf[CaptureEngine])
 
   val ConfigWithDetailedLogging = ConfigFactory.parseString( """
@@ -47,6 +48,9 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
 
   ServiceTracker.register(this)
 
+  private val repo = new MarketCaptureRepository(database) with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
+  private def connection = new CGConnection(connectionConfig())
+
   def start() {
     log.info("Start CaptureEngine")
 
@@ -55,33 +59,62 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
     P2TypeParser.setCharset("windows-1251")
 
     // Create Market Capture system
-    val connection = new CGConnection(connectionConfig())
-    val repo = new MarketCaptureRepository(database) with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
-    marketCapture = system.actorOf(Props(new MarketCapture(connection, replication, repo, kestrel)), "MarketCapture")
+    marketCapture = system.actorOf(Props(new MarketCapture(connection, scheme, repo, kestrel)), "MarketCapture")
 
     // Let all actors to activate and perform all activities
-    Thread.sleep(TimeUnit.SECONDS.toMillis(5))
+    Thread.sleep(TimeUnit.SECONDS.toMillis(1))
 
     // Watch for Market Capture is working
-    system.actorOf(Props(new Actor {
+    val guardian = system.actorOf(Props(new Actor with FSM[GuardianState, ActorRef] {
       context.watch(marketCapture)
 
-      protected def receive = {
-        case Terminated(ref) if (ref == marketCapture) => cleanResources()
+      startWith(Working, marketCapture)
+
+      when(Working) {
+        case Event(Terminated(ref), mc) if (ref == mc) =>
+          system.shutdown()
+          System.exit(-1)
+          stop(Failure("Market Capture terminated"))
+
+        case Event(Restart, mc) =>
+          log.info("Restart Market Capture")
+          mc ! ShutDown
+          goto(Restarting)
       }
-    }), "Watcher")
+
+      when(Restarting) {
+        case Event(Terminated(ref), mc) if (ref == mc) =>
+          // Let connection to be closed
+          Thread.sleep(TimeUnit.SECONDS.toMillis(3))
+
+          // Create new Market Capture system
+          marketCapture = system.actorOf(Props(new MarketCapture(connection, scheme, repo, kestrel)), "MarketCapture")
+          context.watch(marketCapture)
+
+          // Wait for capture initialized
+          Thread.sleep(TimeUnit.SECONDS.toMillis(1))
+
+          // Start capturing
+          marketCapture ! Capture
+          goto(Working) using (marketCapture)
+      }
+
+    }), "CaptureGuardian")
+
+    // Schedule periodic restarting
+    system.scheduler.schedule(1.minutes, 2.minutes, guardian, Restart)
 
     marketCapture ! Capture
-  }
-
-  private def cleanResources() {
-    log.info("Shutdown Capture Engine actor system")
-    system.shutdown()
-    system.awaitTermination(3.seconds)
-    System.exit(1)
   }
 
   def shutdown() {
     marketCapture ! ShutDown
   }
+
+  case object Restart
+
+  sealed trait GuardianState
+  case object Working extends GuardianState
+  case object Restarting extends GuardianState
 }
+

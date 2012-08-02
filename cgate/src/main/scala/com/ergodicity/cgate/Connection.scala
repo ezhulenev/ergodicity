@@ -21,7 +21,7 @@ object Connection {
 
   private[Connection] case class ProcessMessages(timeout: Duration)
 
-  def apply(underlying: CGConnection, updateStateDuration: Option[Duration] = Some(100.millis)) = new Connection(underlying, updateStateDuration)
+  def apply(underlying: CGConnection, updateStateDuration: Option[Duration] = Some(1.second)) = new Connection(underlying, updateStateDuration)
 }
 
 protected[cgate] case class ConnectionState(state: State)
@@ -36,7 +36,7 @@ protected[cgate] object MessageProcessingState {
 
 }
 
-class Connection(protected[cgate] val underlying: CGConnection, updateStateDuration: Option[Duration] = Some(100.millis)) extends Actor with FSM[State, MessageProcessingState] {
+class Connection(protected[cgate] val underlying: CGConnection, updateStateDuration: Option[Duration] = Some(1.second)) extends Actor with FSM[State, MessageProcessingState] {
 
   import Connection._
   import MessageProcessingState._

@@ -175,20 +175,14 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       marketCapture.setState(CaptureState.ShuttingDown, CaptureData.StreamStates())
       log.info("State = " + marketCapture.stateName + "; data = " + marketCapture.stateData)
 
-      marketCapture ! DataStreamReplState(underlying.FutInfoStream, "FutInfoState")
-      marketCapture ! DataStreamReplState(underlying.OptInfoStream, "OptInfoState")
       marketCapture ! DataStreamReplState(underlying.FutTradeStream, "FutTradeState")
       marketCapture ! DataStreamReplState(underlying.OptTradeStream, "OptTradeState")
       marketCapture ! DataStreamReplState(underlying.OrdLogStream, "OrdLogState")
 
-      verify(repository).setReplicationState("FORTS_FUTINFO_REPL", "FutInfoState")
-      verify(repository).setReplicationState("FORTS_OPTINFO_REPL", "OptInfoState")
       verify(repository).setReplicationState("FORTS_FUTTRADE_REPL", "FutTradeState")
       verify(repository).setReplicationState("FORTS_OPTTRADE_REPL", "OptTradeState")
       verify(repository).setReplicationState("FORTS_ORDLOG_REPL", "OrdLogState")
 
-      expectMsg(Terminated(marketCapture))
-      
       verify(conn).close()
       verify(conn).dispose()
     }
