@@ -102,7 +102,7 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
     }), "CaptureGuardian")
 
     // Schedule periodic restarting
-    system.scheduler.schedule(1.minutes, 2.minutes, guardian, Restart)
+    system.scheduler.schedule(2.minutes, 2.minutes, guardian, Restart)
 
     marketCapture ! Capture
   }

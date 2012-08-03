@@ -1,26 +1,20 @@
 package com.ergodicity.core.broker
 
-import org.mockito.Mockito._
-import org.mockito.Matchers._
-import java.util.concurrent.Executor
-import com.jacob.com.Variant
-import akka.pattern._
-import plaza2.{ServiceRef, Message, MessageFactory, Connection => P2Connection}
-import com.ergodicity.core.common.{FullIsin, FutureContract}
-import com.ergodicity.core.common.OrderType._
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import com.ergodicity.core.AkkaConfigurations
-import akka.actor.ActorSystem
-import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
+import akka.actor.{FSM, Terminated, ActorSystem}
+import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.util.Timeout
 import akka.util.duration._
-import akka.dispatch.{Await, ExecutionContext}
+import akka.dispatch.Future
+import ru.micexrts.cgate.{Publisher => CGPublisher}
+import org.mockito.Mockito._
+import com.ergodicity.cgate.{Closed, Opening}
 
 class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
-  import BrokerCommand._
 
   implicit val timeout = Timeout(5 seconds)
 
@@ -28,47 +22,51 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
     system.shutdown()
   }
 
-  implicit val ec = ExecutionContext.fromExecutor(new Executor {
-    def execute(command: Runnable) {
-      command.run()
+  def withPublisher(publisher: CGPublisher) = new WithPublisher {
+    implicit val ec = system.dispatcher
+
+    def apply[T](f: (CGPublisher) => T)(implicit m: Manifest[T]) = Future {
+      f(publisher)
     }
-  })
+  }
+
+  implicit val config = Broker.Config("000")
 
   "Broker" must {
-    "support buy security" in {
+    "be initialized in Closed state" in {
+      val cg = mock(classOf[CGPublisher])
 
-      implicit val messageFactory = mock(classOf[MessageFactory])
-      val connection = mock(classOf[P2Connection])
-      val message = mock(classOf[Message])
+      val listener = TestFSMRef(new Broker(withPublisher(cg), None), "Broker")
+      log.info("State: " + listener.stateName)
+      assert(listener.stateName == Closed)
+    }
 
-      // -- Init mocks
-      when(connection.resolveService(any())).thenReturn(ServiceRef("ebaka"))
+    "terminate after Publisher gone to Error state" in {
+      val cg = mock(classOf[CGPublisher])
 
-      when(messageFactory.createMessage("FutAddOrder")).thenReturn(message)
+      val listener = TestFSMRef(new Broker(withPublisher(cg), None), "Broker")
+      watch(listener)
+      listener ! PublisherState(com.ergodicity.cgate.Error)
+      expectMsg(Terminated(listener))
+    }
 
-      val response = mock(classOf[Message])
-      when(response.field("P2_Category")).thenReturn(new Variant(Broker.FORTS_MSG));
-      when(response.field("P2_Type")).thenReturn(new Variant(101));
-      when(response.field("code")).thenReturn(new Variant(100))
-      when(response.field("message")).thenReturn(new Variant("error"))
+    "return to Closed state after Close listener sent" in {
+      val cg = mock(classOf[CGPublisher])
 
-      when(message.send(any(), any())).thenReturn(response)
+      val listener = TestFSMRef(new Broker(withPublisher(cg), None), "Broker")
+      watch(listener)
+      listener ! Broker.Close
+      assert(listener.stateName == Closed)
+    }
 
-      val broker = TestActorRef(new Broker("000", connection))
+    "terminate on FSM.StateTimeout in Opening state" in {
+      val cg = mock(classOf[CGPublisher])
 
-      // -- Execute
-      val future = FutureContract(FullIsin(111, "isin", "shortIsin"), "name")
-
-      val report = Await.result((broker ? Buy(future, GoodTillCancelled, BigDecimal(100), 1)).mapTo[ExecutionReport[FutOrder]], 100 millis)
-      log.info("Res = " + report)
-
-      assert(report match {
-        case ExecutionReport(Left(_)) => true
-        case _ => false
-      })
-
-      // -- Verify
-      verify(messageFactory).createMessage("FutAddOrder")
+      val listener = TestFSMRef(new Broker(withPublisher(cg), None), "Broker")
+      listener.setState(Opening)
+      watch(listener)
+      listener ! FSM.StateTimeout
+      expectMsg(Terminated(listener))
     }
   }
 }

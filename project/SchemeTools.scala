@@ -15,7 +15,8 @@ object SchemeTools {
     SchemeProps("fut_trades.ini", "FutTrade", "CustReplScheme"),
     SchemeProps("opt_trades.ini", "OptTrade", "CustReplScheme"),
     SchemeProps("pos.ini", "Pos", "CustReplScheme"),
-    SchemeProps("ordLog_trades.ini", "OrdLog", "CustReplScheme")
+    SchemeProps("ordLog_trades.ini", "OrdLog", "CustReplScheme"),
+    SchemeProps("forts_messages.ini", "Message", "message")
   )
 
   def generateSchemes(projectDir: File, outDir: File): Seq[File] = {

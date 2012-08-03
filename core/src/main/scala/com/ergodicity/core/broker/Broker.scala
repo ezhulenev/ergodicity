@@ -1,17 +1,18 @@
 package com.ergodicity.core.broker
 
-import plaza2.{MessageFactory, Connection => P2Connection}
-import com.jacob.com.Variant
 import com.ergodicity.core.common._
-import akka.event.Logging
-import akka.actor.{Actor, ActorSystem}
+import akka.actor.{FSM, ActorRef, Actor}
+import akka.util.duration._
+import akka.pattern.ask
 import akka.dispatch.Future
-
-object Broker {
-  val FORTS_MSG = "FORTS_MSG"
-
-  def apply(clientCode: String, connection: P2Connection)(implicit messageFactory: MessageFactory, system: ActorSystem) = new Broker(clientCode, connection)
-}
+import ru.micexrts.cgate.{Publisher => CGPublisher, ErrorCode, MessageType}
+import com.ergodicity.cgate._
+import ru.micexrts.cgate.messages._
+import java.nio.ByteBuffer
+import akka.util.{Duration, Timeout}
+import com.ergodicity.cgate.Connection.Execute
+import akka.actor.FSM.Failure
+import scala.Some
 
 protected[broker] sealed trait Order {
   def id: Long
@@ -25,137 +26,151 @@ case class OptOrder(id: Long) extends Order
 protected[broker] sealed trait BrokerCommand
 
 object BrokerCommand {
+
   case class Sell[S <: Security](sec: S, orderType: OrderType, price: BigDecimal, amount: Int) extends BrokerCommand
 
   case class Buy[S <: Security](sec: S, orderType: OrderType, price: BigDecimal, amount: Int) extends BrokerCommand
 
   case class Cancel[O <: Order](order: O) extends BrokerCommand
+
 }
 
 case class ExecutionReport[O <: Order](order: Either[String, O])
 
-case class CancelReport(amount: Either[String,  Int])
+case class CancelReport(amount: Either[String, Int])
 
 
-class Broker(clientCode: String, connection: P2Connection)(implicit messageFactory: MessageFactory) extends Actor with WhenUnhandled {
+sealed trait ReplyEvent
+
+object ReplyEvent {
+
+  case class ReplyData(id: Int, messageId: Int, data: ByteBuffer) extends ReplyEvent
+
+  case class TimeoutMessage(id: Int) extends ReplyEvent
+
+  case class UnsupportedMessage(msg: Message) extends ReplyEvent
+
+}
+
+class ReplySubscriber(dataStream: ActorRef) extends Subscriber {
+
+  import ReplyEvent._
+
+  private def decode(msg: Message) = msg.getType match {
+    case MessageType.MSG_DATA =>
+      val dataMsg = msg.asInstanceOf[DataMessage]
+      ReplyData(dataMsg.getUserId, dataMsg.getMsgId, dataMsg.getData)
+
+    case MessageType.MSG_P2MQ_TIMEOUT =>
+      val timeoutMsg = msg.asInstanceOf[P2MqTimeOutMessage]
+      TimeoutMessage(timeoutMsg.getUserId)
+
+    case _ => UnsupportedMessage(msg)
+  }
+
+  def handleMessage(msg: Message) = {
+    dataStream ! decode(msg)
+    ErrorCode.OK
+  }
+}
+
+protected[broker] case class PublisherState(state: State)
+
+trait WithPublisher {
+  def apply[T](f: CGPublisher => T)(implicit m: Manifest[T]): Future[T]
+}
+
+object BindPublisher {
+  implicit val timeout = Timeout(1.second)
+
+  def apply(publisher: CGPublisher) = new {
+    def to(connection: ActorRef) = new WithPublisher {
+      def apply[T](f: (CGPublisher) => T)(implicit m: Manifest[T]) = (connection ? Execute(_ => publisher.synchronized {
+        f(publisher)
+      })).mapTo[T]
+    }
+  }
+}
+
+object Broker {
+
+  case class Config(clientCode: String)
+
+  case object Open
+
+  case object Close
+
+  case object Dispose
+
+
+  def apply(withPublisher: WithPublisher, updateStateDuration: Option[Duration] = Some(1.second))
+           (implicit config: Broker.Config) = new Broker(withPublisher, updateStateDuration)(config)
+}
+
+class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration] = Some(1.second))
+            (implicit val config: Broker.Config) extends Actor with FSM[State, Map[Int, ActorRef]] {
+
   import Broker._
-  import BrokerCommand._
 
-  val log = Logging(context.system, self)
+  private val statusTracker = updateStateDuration.map {
+    duration =>
+      context.system.scheduler.schedule(0 milliseconds, duration) {
+        withPublisher(publisher => publisher.getState) onSuccess {
+          case state => self ! PublisherState(State(state))
+        }
+      }
+  }
 
-  implicit val system = context.system
+  startWith(Closed, Map())
 
-  lazy val service = connection.resolveService("FORTS_SRV")
-
-  private def handleBuyCommand: Receive = {
-    case Buy(future: FutureContract, orderType, price, amount) =>
+  when(Closed) {
+    case Event(Open, _) =>
+      log.info("Open publisher")
       val replyTo = sender
-      Future {buy(future, orderType, price, amount)} onSuccess {case res =>
-        replyTo ! ExecutionReport(res)
-      } onFailure {case err =>
-        replyTo ! ExecutionReport(Left("Adding order failed; Error = "+err.toString))
+      withPublisher(_.open("")) onSuccess {
+        case _ => replyTo ! Success
       }
+      stay()
   }
 
-  private def handleSellCommand: Receive = {
-    case Sell(future: FutureContract, orderType, price, amount) =>
-      val replyTo = sender
-      Future {sell(future, orderType, price, amount)} onSuccess {case res =>
-        replyTo ! ExecutionReport(res)
-      } onFailure {case err =>
-        replyTo ! ExecutionReport(Left("Adding order failed; Error = "+err.toString))
-      }
-  }
-  
-  private def handleCancel: Receive = {
-    case Cancel(FutOrder(id)) =>
-    val replyTo = sender
-    Future(cancel(FutOrder(id))) onSuccess {case res =>
-      replyTo ! CancelReport(res)
-    } onFailure {case err =>
-      replyTo ! CancelReport(Left("Canceling order failed; Error = "+err.toString))
-    }
+  when(Opening, stateTimeout = 3.second) {
+    case Event(FSM.StateTimeout, _) => stop(Failure("Opening timeout"))
   }
 
-  protected def receive = handleBuyCommand orElse handleSellCommand orElse handleCancel orElse whenUnhandled
-
-  private def mapOrderType(orderType: OrderType) = orderType match {
-    case OrderType.GoodTillCancelled => 1
-    case OrderType.ImmediateOrCancel => 2
-    case OrderType.FillOrKill => 3
+  when(Active) {
+    case Event(Close, _) =>
+      log.info("Close Publisher")
+      withPublisher(_.close())
+      stay()
   }
 
-  private def mapOrderDirection(direction: OrderDirection) = direction match {
-    case OrderDirection.Buy => 1
-    case OrderDirection.Sell => 2
-  }  
-  
-  private def addOrder(future: FutureContract, orderType: OrderType, direction: OrderDirection, price: BigDecimal, amount: Int): Either[String, FutOrder] = {
-
-    val message = messageFactory.createMessage("FutAddOrder")
-
-    message.destAddr = service.address
-
-    message.setField("P2_Category", FORTS_MSG)
-    message.setField("P2_Type", 36)
-
-    message.setField("isin", future.isin.isin)
-    message.setField("price", price.toString())
-    message.setField("amount", amount)
-    message.setField("client_code", clientCode)
-    message.setField("type", mapOrderType(orderType))
-    message.setField("dir", mapOrderDirection(direction))
-
-    val response = message.send(connection)
-    val c = response.field("P2_Category").getString
-    val t = response.field("P2_Type").changeType(Variant.VariantInt).getInt
-
-    if (c == FORTS_MSG && t == 101) {
-      if (response.field("code").getInt == 0) {
-        Right(FutOrder(response.field("order_id").getLong))
-      } else {
-        Left("Adding order failed, error message = " + response.field("message"))
-      }
-    } else {
-      Left("Adding order failed; Response Category = " + c + "; Type = " + t)
-    }
+  onTransition {
+    case Closed -> Opening => log.info("Opening publisher")
+    case _ -> Active => log.info("Publisher opened")
+    case _ -> Closed => log.info("Publisher closed")
   }
 
-  private def buy(future: FutureContract, orderType: OrderType, price: BigDecimal, amount: Int) = {
-    log.debug("Buy: Security = " + future + "; Price = " + price + "; Amount = " + amount + "; Type = " + orderType)
-    addOrder(future, orderType, OrderDirection.Buy, price, amount)
+  whenUnhandled {
+    case Event(PublisherState(Error), _) => stop(Failure("Publisher in Error state"))
+
+    case Event(PublisherState(state), _) if (state != stateName) => goto(state)
+
+    case Event(PublisherState(state), _) if (state == stateName) => stay()
+
+    case Event(Dispose, _) =>
+      log.info("Dispose publisher")
+      withPublisher(_.dispose())
+      stop(Failure("Disposed"))
   }
 
-  private def sell(future: FutureContract, orderType: OrderType, price: BigDecimal, amount: Int) = {
-    log.debug("Sell: Security = " + future + "; Price = " + price + "; Amount = " + amount + "; Type = " + orderType)
-    addOrder(future, orderType, OrderDirection.Sell, price, amount)
+  onTermination {
+    case StopEvent(reason, s, d) => log.error("Publisher failed, reason = " + reason)
   }
 
-  private def cancel(order: FutOrder): Either[String, Int] = {
-    val message = messageFactory.createMessage("FutDelOrder")
+  initialize
 
-    message.destAddr = service.address
-
-    message.setField("P2_Category", FORTS_MSG)
-    message.setField("P2_Type", 37)
-
-    message.setField("order_id", order.id)
-
-    val response = message.send(connection)
-    val c = response.field("P2_Category").getString
-    val t = response.field("P2_Type").changeType(Variant.VariantInt).getInt
-
-    if (c == FORTS_MSG && t == 102) {
-      val code = response.field("code").getInt
-      if (code == 0) {
-        Right(response.field("amount").changeType(Variant.VariantInt).getInt)
-      } else if (code == 14) {
-        Right(0)
-      } else {
-        Left("Canceling order failed, error message = " + response.field("message"))
-      }
-    } else {
-      Left("Canceling order failed; Response Category = " + c + "; Type = " + t)
-    }
+  override def postStop() {
+    statusTracker.foreach(_.cancel())
+    super.postStop()
   }
 }

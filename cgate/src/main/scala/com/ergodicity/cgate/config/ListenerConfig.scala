@@ -3,7 +3,7 @@ package com.ergodicity.cgate.config
 import java.io.File
 import com.ergodicity.cgate.StreamEvent.ReplState
 
-sealed trait ListenerType {
+sealed trait ListenerConfig {
   def config: String
 
   def apply(): String = config
@@ -15,7 +15,7 @@ sealed trait ListenerOpenParams {
   def apply(): String = config
 }
 
-case class Replication(stream: String, ini: File, scheme: String) extends ListenerType {
+case class Replication(stream: String, ini: File, scheme: String) extends ListenerConfig {
   if (!ini.exists()) throw new IllegalArgumentException("Scheme ini file doesn't exists = " + ini)
 
   val prefix = "p2repl://"
@@ -52,3 +52,17 @@ object Replication {
 
 }
 
+
+case class Replies(ref: String) extends ListenerConfig {
+  val prefix = "p2mqreply://"
+
+  val config = prefix + ";ref=" + ref
+}
+
+object Replies {
+
+  case object RepliesParams extends ListenerOpenParams {
+    def config = ""
+  }
+
+}

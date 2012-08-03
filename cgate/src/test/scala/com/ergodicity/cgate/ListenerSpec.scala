@@ -14,10 +14,6 @@ import akka.dispatch.Future
 class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = Logging(system, self)
 
-  val Host = "host"
-  val Port = 4001
-  val AppName = "ConnectionSpec"
-
   override def afterAll() {
     system.shutdown()
   }

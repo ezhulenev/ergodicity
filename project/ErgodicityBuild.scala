@@ -15,7 +15,7 @@ object ErgodicityBuild extends Build {
   lazy val ergodicity = Project(
     id = "ergodicity",
     base = file("."),
-    aggregate = Seq(cgate, core, capture, engine, plaza2)
+    aggregate = Seq(cgate, core, capture, engine)
   ).configs( IntegrationTest )
     .settings( (Defaults.itSettings ++ graphSettings) : _*)
 
@@ -47,15 +47,8 @@ object ErgodicityBuild extends Build {
   lazy val core = Project(
     id = "core",
     base = file("core"),
-    dependencies = Seq(cgate, plaza2),
+    dependencies = Seq(cgate),
     settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.core)
-  ).configs( IntegrationTest )
-    .settings( Defaults.itSettings : _*)
-
-  lazy val plaza2 = Project(
-    id = "plaza2",
-    base = file("plaza2"),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.plaza2)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
@@ -143,9 +136,6 @@ object Dependencies {
 
   val core = Seq(scalaz) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
-  val plaza2 = Seq(ostrich, plaza2Connectivity, akka, scalaTime, logback, jodaTime, jodaConvert) ++
-    Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
-
   val cgate = Seq(scalaz, akka, ostrich) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 }
 
@@ -178,7 +168,6 @@ object Dependency {
   }
 
   // Compile
-  val plaza2Connectivity     = "com.ergodicity.connectivity"      %% "plaza2"                 % V.Plaza2
   val marketDb               = "com.ergodicity.marketdb"          %% "marketdb-api"           % V.MarketDb
 
   val logback                = "ch.qos.logback"                    % "logback-classic"        % V.Logback

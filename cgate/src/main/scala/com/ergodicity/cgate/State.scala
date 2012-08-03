@@ -22,3 +22,7 @@ object State {
     case _ => throw new IllegalArgumentException("Illegal state value = " + i)
   }
 }
+
+sealed trait Result
+case object Success extends Result
+case object Failed extends Result

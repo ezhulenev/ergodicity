@@ -1,90 +1,78 @@
 package integration.ergodicity.core
 
 import java.io.File
-import plaza2.RouterStatus.RouterConnected
-import plaza2.{MessageFactory, Connection}
-import com.ergodicity.core.common.{FullIsin, FutureContract}
-import com.ergodicity.core.common.OrderType._
-import com.ergodicity.core.AkkaConfigurations
+import akka.actor.{Actor, Props, ActorSystem}
+import AkkaIntegrationConfigurations._
+import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
+import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
+import akka.util.duration._
+import java.util.concurrent.TimeUnit
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
+import ru.micexrts.cgate.{CGate, Connection => CGConnection, Listener => CGListener, Publisher => CGPublisher}
+import com.ergodicity.cgate.Connection.StartMessageProcessing
+import com.ergodicity.cgate._
+import config.Replies.RepliesParams
+import config.{FortsMessages, Replies, CGateConfig}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
-import akka.pattern.ask
-import akka.actor.ActorSystem
-import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
-import com.ergodicity.core.broker.BrokerCommand.{Cancel, Sell}
-import com.ergodicity.core.broker.{CancelReport, ExecutionReport, FutOrder, Broker}
-import akka.util.Timeout
-import akka.dispatch.Await
+import com.ergodicity.core.broker.{BindPublisher, ReplySubscriber, Broker}
 
-class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
-
-  override def afterAll() {
-    system.shutdown()
-  }
 
   val Host = "localhost"
   val Port = 4001
-  val AppName = "BrokerIntegrationSpec"
 
-  import akka.util.duration._
-  implicit val timeout = Timeout(5 seconds)
-  implicit val factory = MessageFactory(new File("core/scheme/p2fortsgate_messages.ini"))
+  val RouterConnection = Tcp(Host, Port, system.name)
+
+  override def beforeAll() {
+    val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
+    CGate.open(props())
+  }
+
+  override def afterAll() {
+    system.shutdown()
+    CGate.close()
+  }
+
+  implicit val config = Broker.Config("533")
+  val BrokerName = "TestBroker"
 
   "Broker" must {
-    "should failt to buy wrong future contract" in {
-      val conn = Connection()
+    "go to Active state" in {
 
-      conn.host = Host
-      conn.port = Port
-      conn.appName = AppName
-      conn.connect()
+      val underlyingConnection = new CGConnection(RouterConnection())
+      val connection = TestFSMRef(new Connection(underlyingConnection, Some(500.millis)), "Connection")
 
-      log.info("Status: " + conn.status)
-      log.info("Router status: " + conn.routerStatus)
+      val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/forts_messages.ini"))
+      val underlyingPublisher = new CGPublisher(underlyingConnection, messagesConfig())
 
-      assert(conn.status == plaza2.ConnectionStatus.ConnectionConnected)
-      assert(conn.routerStatus == Some(RouterConnected))
+      val broker = TestFSMRef(new Broker(BindPublisher(underlyingPublisher) to connection), "Broker")
 
-      val broker = TestActorRef(new Broker("533", conn))
+      val underlyingListener = new CGListener(underlyingConnection, Replies(BrokerName)(), new ReplySubscriber(broker))
+      val replyListener = TestFSMRef(new Listener(BindListener(underlyingListener) to connection), "ReplyListener")
 
-      val future = FutureContract(FullIsin(0, "RTS-9.12", ""), "")
+      // On connection Activated open listeners etc
+      connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
+        protected def receive = {
+          case Transition(_, _, Active) =>
+            // Open Listener &  Broker
+            broker ! Broker.Open
+            Thread.sleep(2000)
+            replyListener ! Listener.Open(RepliesParams)
 
-      val report = Await.result((broker ? Sell(future, GoodTillCancelled, BigDecimal(127000), 3)).mapTo[ExecutionReport[FutOrder]], 2 seconds)
+            // Process messages
+            connection ! StartMessageProcessing(500.millis)
+        }
+      })))
 
-      log.info("Report = " + report)
+      // Open connections and track it's status
+      connection ! Connection.Open
 
-      if (report.order.isRight) {
-        val order = report.order.right.get
-        val cancel = Await.result((broker ? Cancel(order)).mapTo[CancelReport], 2 seconds)
-        log.info("Cancel = " + cancel)
-      }
+      log.info("Broker state = " + broker.stateName)
+      log.info("Listener state = " + replyListener.stateName)
 
-      conn.disconnect()
-    }
-
-    "cancel order" in {
-      val order = FutOrder(2816543292l)
-
-      val conn = Connection()
-
-      conn.host = Host
-      conn.port = Port
-      conn.appName = AppName
-      conn.connect()
-
-      log.info("Status: " + conn.status)
-      log.info("Router status: " + conn.routerStatus)
-
-      assert(conn.status == plaza2.ConnectionStatus.ConnectionConnected)
-      assert(conn.routerStatus == Some(RouterConnected))
-
-      val broker = TestActorRef(new Broker("533", conn))
-
-      val cancel = Await.result((broker ? Cancel(order)).mapTo[CancelReport], 2 seconds)
-      log.info("Cancel = " + cancel)
-
-      conn.disconnect()
+      Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
   }
 }

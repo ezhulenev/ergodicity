@@ -81,14 +81,6 @@ class DataStreamSubscriber(dataStream: ActorRef) extends Subscriber {
     case _ => UnsupportedMessage(msg)
   }
 
-  def clone(original: ByteBuffer) = {
-    val clone = ByteBuffer.allocate(original.capacity());
-    clone.order(ByteOrder.nativeOrder())
-    original.rewind()
-    clone.put(original)
-    clone
-  }
-
   def handleMessage(msg: Message) = {
     dataStream ! decode(msg)
     ErrorCode.OK
