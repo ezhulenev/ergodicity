@@ -21,7 +21,7 @@ class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLoggi
   val props = OrderProps(100, 100, IsinId(111), GoodTillCancelled, Buy, BigDecimal(100), 1)
 
   "Order" must {
-    "create new order in New state" in {
+    "create new futOrder in New state" in {
       val order = TestFSMRef(new Order(props), "TestOrder")
       val underlying = order.underlyingActor.asInstanceOf[Order]
       
@@ -58,13 +58,13 @@ class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLoggi
       }
     }
 
-    "cancel order" in {
+    "cancel futOrder" in {
       val order = TestFSMRef(new Order(props.copy(amount = 2)), "TestOrder")
       order ! CancelOrder(1)
       assert(order.stateName == OrderState.Cancelled)
     }
 
-    "fail cancel order twice" in {
+    "fail cancel futOrder twice" in {
       val order = TestFSMRef(new Order(props.copy(amount = 2)), "TestOrder")
       order ! CancelOrder(1)
       assert(order.stateName == OrderState.Cancelled)

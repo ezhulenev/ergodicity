@@ -64,14 +64,14 @@ class FutureSessionOrdersSpec extends TestKit(ActorSystem("FutureSessionOrdersSp
       assert(underlying.orders.size == 0)
     }
 
-    "create new order" in {
+    "create new futOrder" in {
       val orders = TestActorRef(new FutureSessionOrders(4072), "FutureSessionOrders")
       val underlying = orders.underlyingActor
       orders ! create
       assert(underlying.orders.size == 1)
     }
 
-    "cancel order" in {
+    "cancel futOrder" in {
       val orders = TestActorRef(new FutureSessionOrders(4072), "FutureSessionOrders")
       val underlying = orders.underlyingActor
 
@@ -86,7 +86,7 @@ class FutureSessionOrdersSpec extends TestKit(ActorSystem("FutureSessionOrdersSp
       expectMsg(Transition(order, OrderState.Active, OrderState.Cancelled))
     }
 
-    "fill order" in {
+    "fill futOrder" in {
       val orders = TestActorRef(new FutureSessionOrders(4072), "FutureSessionOrders")
       val underlying = orders.underlyingActor
 

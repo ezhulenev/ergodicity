@@ -112,7 +112,7 @@ class FutureSessionOrders(sessionId: Int) extends Actor with WhenUnhandled {
   private def handleCreateOrder: Receive = {
     case record: FutTrade.orders_log if (Action(record) == Create && !orderExists(record) && matchSession(record)) =>
       val orderId = record.get_id_ord()
-      log.debug("Create new order, id = " + orderId)
+      log.debug("Create new futOrder, id = " + orderId)
       val order = context.actorOf(Props(new Order(record)), "Order-" + orderId)
       orders = orders + (orderId -> order)
   }
@@ -120,14 +120,14 @@ class FutureSessionOrders(sessionId: Int) extends Actor with WhenUnhandled {
   private def handleDeleteOrder: Receive = {
     case record: FutTrade.orders_log if (Action(record) == Delete && orderExists(record) && matchSession(record)) =>
       val orderId = record.get_id_ord()
-      log.debug("Cancel order, id = " + orderId)
+      log.debug("Cancel futOrder, id = " + orderId)
       orders(orderId) ! CancelOrder(record.amount)
   }
 
   private def handleFillOrder: Receive = {
     case record: FutTrade.orders_log if (Action(record) == Fill && orderExists(record) && matchSession(record)) =>
       val orderId = record.get_id_ord()
-      log.debug("Fill order, id = " + orderId + ", amount = " + record.amount + ", rest = " + record.get_amount_rest() + ", deal id = " + record.get_id_deal())
+      log.debug("Fill futOrder, id = " + orderId + ", amount = " + record.amount + ", rest = " + record.get_amount_rest() + ", deal id = " + record.get_id_deal())
       orders(orderId) ! FillOrder(record.price, record.amount)
   }
 
