@@ -6,7 +6,8 @@ import com.ergodicity.cgate.{Connection => ConnectionActor}
 import akka.event.Logging
 import akka.actor.{Terminated, ActorRef, Actor, Props}
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.core.common.WhenUnhandled
+import com.ergodicity.core.WhenUnhandled
+import com.ergodicity.core.WhenUnhandled
 
 case object ConnectionService extends Service
 

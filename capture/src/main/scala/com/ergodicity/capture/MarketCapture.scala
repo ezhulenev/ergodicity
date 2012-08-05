@@ -15,11 +15,11 @@ import com.ergodicity.capture.MarketDbCapture.ConvertToMarketDb
 import scheme.OrdLog.orders_log
 import scala.Some
 import com.ergodicity.cgate.StreamEvent.ReplState
-import com.ergodicity.core.common.FullIsin
+import com.ergodicity.core.Isins
 import akka.actor.AllForOneStrategy
 import com.ergodicity.marketdb.model.Market
 import com.ergodicity.cgate.DataStream.{DataStreamReplState, SubscribeReplState}
-import com.ergodicity.core.common.Security
+import com.ergodicity.core.Security
 import com.ergodicity.marketdb.model.TradePayload
 import akka.actor.Terminated
 import com.ergodicity.marketdb.model.OrderPayload
@@ -263,7 +263,7 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
     }
   }
 
-  private def safeIsin(isinId: Int): Option[FullIsin] = {
+  private def safeIsin(isinId: Int): Option[Isins] = {
     val cur = stateData match {
       case c: Contents => lastContents = Some(c); Some(c)
       case _ => None

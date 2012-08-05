@@ -1,6 +1,6 @@
 package com.ergodicity.core.broker
 
-import com.ergodicity.core.common.{OrderDirection, OrderType, Isin}
+import com.ergodicity.core.{OrderDirection, OrderType, Isin}
 import ru.micexrts.cgate.{Publisher => CGPublisher, MessageKeyType}
 import ru.micexrts.cgate.messages.DataMessage
 import com.ergodicity.core.broker.Market.{Options, Futures}

@@ -4,7 +4,7 @@ import org.joda.time.Interval
 import akka.actor.{ActorRef, Props, Actor, FSM}
 import akka.pattern.ask
 import akka.actor.FSM._
-import com.ergodicity.core.common.{FullIsin, FutureContract, OptionContract}
+import com.ergodicity.core.{Isins, FutureContract, OptionContract}
 import akka.util.Timeout
 import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.repository.Repository.Snapshot
@@ -39,7 +39,7 @@ object Session {
   case class OptInfoSessionContents(snapshot: Snapshot[OptInfo.opt_sess_contents])
 }
 
-case class GetSessionInstrument(isin: FullIsin)
+case class GetSessionInstrument(isin: Isins)
 
 case class Session(content: SessionContent, state: SessionState, intClearingState: IntClearingState) extends Actor with FSM[SessionState, ActorRef] {
 

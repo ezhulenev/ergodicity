@@ -10,7 +10,7 @@ import akka.util.{Duration, Timeout}
 import com.ergodicity.cgate.Connection.Execute
 import akka.actor.FSM.Failure
 import scala.Some
-import com.ergodicity.core.common.{OrderDirection, OrderType, Isin}
+import com.ergodicity.core.{OrderDirection, OrderType, Isin}
 import com.ergodicity.core.broker.Protocol.Protocol
 import com.ergodicity.core.broker.Action.AddOrder
 

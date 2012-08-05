@@ -1,14 +1,30 @@
 package com.ergodicity.core
 
-import common._
-import com.ergodicity.cgate.scheme.{FutTrade}
+import com.ergodicity.cgate.scheme.FutTrade
 
 package object order {
 
   case class TrackSession(sessionId: Int)
 
-
   case class DropSession(sessionId: Int)
+
+
+  private[order] sealed trait Action
+
+  case object Delete
+
+  case object Create
+
+  case object Fill
+
+  object Action {
+    def apply(record: FutTrade.orders_log) = record.get_action() match {
+      case 0 => Delete
+      case 1 => Create
+      case 2 => Fill
+      case _ => throw new IllegalArgumentException("Illegal 'orders_log' action: " + record.get_action())
+    }
+  }
 
   implicit def toOrderProps(record: FutTrade.orders_log) = {
 
@@ -31,24 +47,6 @@ package object order {
       record.get_price(),
       record.get_amount()
     )
-  }
-
-
-  private[order] sealed trait Action
-
-  case object Delete
-
-  case object Create
-
-  case object Fill
-
-  object Action {
-    def apply(record: FutTrade.orders_log) = record.get_action() match {
-      case 0 => Delete
-      case 1 => Create
-      case 2 => Fill
-      case _ => throw new IllegalArgumentException("Illegal 'orders_log' action: " + record.get_action())
-    }
   }
 
 }

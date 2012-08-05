@@ -3,7 +3,7 @@ package com.ergodicity.core.session
 import akka.actor.{FSM, Props, ActorRef, Actor}
 import akka.actor.FSM.{SubscribeTransitionCallBack, CurrentState, Transition}
 import com.ergodicity.cgate.repository.Repository.Snapshot
-import com.ergodicity.core.common.{FullIsin, Security}
+import com.ergodicity.core.{Isins, Security}
 
 sealed trait SessionContentsState
 
@@ -21,7 +21,7 @@ trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[S
 
   def converter: R => S
 
-  protected[core] var instruments: Map[FullIsin, ActorRef] = Map()
+  protected[core] var instruments: Map[Isins, ActorRef] = Map()
 
   startWith(Binding, None)
 
@@ -48,12 +48,12 @@ trait SessionContents[S <: Security, R <: SessContents] extends Actor with FSM[S
 
   def conformIsinToActorName(isin: String): String = isin.replaceAll(" ", "@")
 
-  def conformIsinToActorName(isin: FullIsin): String = conformIsinToActorName(isin.isin)
+  def conformIsinToActorName(isin: Isins): String = conformIsinToActorName(isin.isin)
 }
 
 case class StatefulSessionContents[S <: Security, R <: StatefulSessContents](implicit val converter: R => S) extends SessionContents[S, R] {
 
-  private var originalInstrumentState: Map[FullIsin, InstrumentState] = Map()
+  private var originalInstrumentState: Map[Isins, InstrumentState] = Map()
 
   protected def handleSessionState(state: SessionState) {
     instruments.foreach {

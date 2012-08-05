@@ -2,7 +2,7 @@ package com.ergodicity.core.position
 
 import akka.pattern._
 import akka.event.Logging
-import com.ergodicity.core.common.IsinId
+import com.ergodicity.core.IsinId
 import akka.actor.{ActorRef, ActorSystem}
 import java.util.concurrent.TimeUnit
 import akka.dispatch.Await

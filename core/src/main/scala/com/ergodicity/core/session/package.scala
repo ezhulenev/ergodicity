@@ -1,6 +1,5 @@
 package com.ergodicity.core
 
-import common.{FullIsin, FutureContract, OptionContract}
 import com.ergodicity.cgate._
 import scheme.{OptInfo, FutInfo}
 
@@ -14,7 +13,7 @@ package object session {
     !signs.spot && !signs.moneyMarket && signs.anonymous
   }
 
-  def record2isin(record: SessContents) = FullIsin(record.get_isin_id(), record.get_isin().trim, record.get_short_isin().trim)
+  def record2isin(record: SessContents) = Isins(record.get_isin_id(), record.get_isin().trim, record.get_short_isin().trim)
 
   implicit val FutureConverter = (record: FutInfo.fut_sess_contents) => new FutureContract(record2isin(record), record.get_name().trim)
 

@@ -1,8 +1,8 @@
 package com.ergodicity.core.broker
 
 import org.scalatest.WordSpec
-import com.ergodicity.core.common.OrderType.GoodTillCancelled
-import com.ergodicity.core.common.Isin
+import com.ergodicity.core.OrderType.GoodTillCancelled
+import com.ergodicity.core.Isin
 import com.ergodicity.core.broker.Market.{Options, Futures}
 import org.mockito.Mockito._
 import org.mockito.Matchers._

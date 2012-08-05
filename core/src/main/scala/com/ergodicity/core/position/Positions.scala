@@ -1,6 +1,6 @@
 package com.ergodicity.core.position
 
-import com.ergodicity.core.common.IsinId
+import com.ergodicity.core.IsinId
 import akka.actor.{FSM, Props, ActorRef, Actor}
 import akka.actor.FSM.{Transition, CurrentState, UnsubscribeTransitionCallBack, SubscribeTransitionCallBack}
 import akka.pattern.ask

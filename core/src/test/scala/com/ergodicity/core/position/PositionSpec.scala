@@ -6,7 +6,7 @@ import akka.actor.ActorSystem
 import com.ergodicity.core.AkkaConfigurations
 import AkkaConfigurations._
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
-import com.ergodicity.core.common.FullIsin
+import com.ergodicity.core.Isins
 
 class PositionSpec extends TestKit(ActorSystem("PositionSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -15,7 +15,7 @@ class PositionSpec extends TestKit(ActorSystem("PositionSpec", ConfigWithDetaile
     system.shutdown()
   }
 
-  val isin = FullIsin(166911, "GMKR-6.12", "GMM2")
+  val isin = Isins(166911, "GMKR-6.12", "GMM2")
 
   "Position" must {
 

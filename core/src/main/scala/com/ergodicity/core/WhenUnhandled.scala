@@ -1,4 +1,4 @@
-package com.ergodicity.core.common
+package com.ergodicity.core
 
 import akka.actor.Actor
 import akka.event.LoggingAdapter

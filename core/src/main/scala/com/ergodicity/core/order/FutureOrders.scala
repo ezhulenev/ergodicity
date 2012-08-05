@@ -1,7 +1,7 @@
 package com.ergodicity.core.order
 
 import akka.event.Logging
-import com.ergodicity.core.common._
+import com.ergodicity.core._
 import akka.actor._
 import akka.util.duration._
 import akka.pattern.ask
@@ -13,6 +13,7 @@ import akka.dispatch.Await
 import com.ergodicity.cgate.{DataStreamState, Reads}
 import akka.actor.FSM._
 import akka.util.Timeout
+import com.ergodicity.core.WhenUnhandled
 
 private[order] sealed trait FutureOrdersState
 

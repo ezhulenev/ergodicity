@@ -1,7 +1,7 @@
 package com.ergodicity.core.position
 
 import akka.actor.{ActorRef, FSM, Actor}
-import com.ergodicity.core.common.IsinId
+import com.ergodicity.core.IsinId
 
 
 case class PositionData(open: Int, buys: Int, sells: Int, position: Int, volume: BigDecimal, lastDealId: Long)

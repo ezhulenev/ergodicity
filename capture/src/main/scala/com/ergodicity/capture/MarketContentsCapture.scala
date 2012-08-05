@@ -2,7 +2,7 @@ package com.ergodicity.capture
 
 import akka.actor.{Props, FSM, Actor, ActorRef}
 import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack, Transition}
-import com.ergodicity.core.common.Security
+import com.ergodicity.core.Security
 import com.ergodicity.cgate.scheme._
 import com.ergodicity.cgate.repository.Repository
 import com.ergodicity.cgate.DataStream.BindTable

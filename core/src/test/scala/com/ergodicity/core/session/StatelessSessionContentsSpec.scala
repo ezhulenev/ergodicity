@@ -5,7 +5,7 @@ import akka.event.Logging
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import akka.actor.ActorSystem
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
-import com.ergodicity.core.common.OptionContract
+import com.ergodicity.core.OptionContract
 import com.ergodicity.core.Mocking._
 import com.ergodicity.cgate.scheme.OptInfo
 import com.ergodicity.cgate.repository.Repository.Snapshot

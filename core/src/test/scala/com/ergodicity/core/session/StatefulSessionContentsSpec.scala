@@ -4,7 +4,7 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
-import com.ergodicity.core.common.FutureContract
+import com.ergodicity.core.FutureContract
 import akka.actor.ActorSystem
 import com.ergodicity.core.Mocking._
 import com.ergodicity.cgate.scheme.FutInfo

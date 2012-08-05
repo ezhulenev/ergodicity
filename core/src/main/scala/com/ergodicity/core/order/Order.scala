@@ -1,6 +1,6 @@
 package com.ergodicity.core.order
 
-import com.ergodicity.core.common.{IsinId, OrderDirection, OrderType}
+import com.ergodicity.core.{IsinId, OrderDirection, OrderType}
 import akka.actor.{FSM, Actor}
 import akka.actor.FSM.Failure
 
