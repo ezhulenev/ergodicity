@@ -1,30 +1,22 @@
 package com.ergodicity.core.broker
 
-import com.ergodicity.core.{OrderDirection, OrderType, Isin}
+import com.ergodicity.core.{Market, OrderDirection, OrderType, Isin}
 import ru.micexrts.cgate.{Publisher => CGPublisher, MessageKeyType}
 import ru.micexrts.cgate.messages.DataMessage
-import com.ergodicity.core.broker.Market.{Options, Futures}
+import com.ergodicity.core.Market.{Options, Futures}
 import com.ergodicity.core.broker.Protocol.Protocol
 import com.ergodicity.core.broker.Action.AddOrder
 import com.ergodicity.cgate.scheme.Message
 
-sealed trait Market
-
-object Market {
-
-  sealed trait Futures extends Market
-
-  sealed trait Options extends Market
-
-}
-
-private[broker] sealed trait Action[M <: Market]
+private[broker] sealed trait Action[R <: Reaction]
 
 private[broker] object Action {
 
-  case class AddOrder[M <: Market](isin: Isin, amount: Int, price: BigDecimal, orderType: OrderType, direction: OrderDirection)(implicit val command: Protocol[AddOrder[M], M, Order]) extends Action[M]
+  case class AddOrder(isin: Isin, amount: Int, price: BigDecimal, orderType: OrderType, direction: OrderDirection)
+                     (implicit val p: Protocol[AddOrder, _ <: Market, Order]) extends Action[Order] {
+    def protocol = p
+  }
 
-  case class DelOrder[M <: Market](order: Order) extends Action[M]
 }
 
 
@@ -44,16 +36,16 @@ case class Cancelled(num: Int) extends Reaction
 
 object Protocol {
 
-  trait Send[A <: Action[M], M <: Market] {
-    def send(action: A, publisher: CGPublisher): DataMessage
+  trait Serialize[A <: Action[_], M <: Market] {
+    def serialize(action: A, publisher: CGPublisher): DataMessage
   }
 
-  trait Receive[A <: Action[M], M <: Market, R <: Reaction] {
-    def receive(message: DataMessage): Either[ActionFailed, Reaction]
+  trait Deserialize[A <: Action[_], M <: Market, R <: Reaction] {
+    def deserialize(message: DataMessage): Either[ActionFailed, R]
   }
 
-  trait Protocol[A <: Action[M], M <: Market, R <: Reaction] extends Send[A, M] with Receive[A, M, R] {
-    protected def failures: PartialFunction[(Int, DataMessage), Either[ActionFailed, Reaction]] = {
+  trait Protocol[A <: Action[R], M <: Market, R <: Reaction] extends Serialize[A, M] with Deserialize[A, M, R] {
+    protected def failures: PartialFunction[(Int, DataMessage), Either[ActionFailed, R]] = {
       case (Message.FORTS_MSG99.MSG_ID, message) =>
         val msg = new Message.FORTS_MSG99(message.getData)
         Left(Flood(msg.get_queue_size(), msg.get_penalty_remain(), msg.get_message()))
@@ -64,8 +56,8 @@ object Protocol {
     }
   }
 
-  implicit val FutAddOrder = new Protocol[AddOrder[Futures], Futures, Order] {
-    def send(action: AddOrder[Futures], publisher: CGPublisher) = {
+  implicit val FutAddOrder = new Protocol[AddOrder, Futures, Order] {
+    def serialize(action: AddOrder, publisher: CGPublisher) = {
       val dataMsg = publisher.newMessage(MessageKeyType.KEY_ID, Message.FutAddOrder.MSG_ID).asInstanceOf[DataMessage]
       val command = new Message.FutAddOrder(dataMsg.getData)
 
@@ -78,17 +70,17 @@ object Protocol {
       dataMsg
     }
 
-    def receive(message: DataMessage) = (failures orElse futOrder) apply(message.getMsgId, message)
+    def deserialize(message: DataMessage) = (failures orElse futOrder) apply(message.getMsgId, message)
 
-    private def futOrder: PartialFunction[(Int, DataMessage), Either[ActionFailed, Reaction]] = {
+    private def futOrder: PartialFunction[(Int, DataMessage), Either[ActionFailed, Order]] = {
       case (Message.FORTS_MSG101.MSG_ID, message) =>
         val msg = new Message.FORTS_MSG101(message.getData)
         Right(Order(msg.get_order_id()))
     }
   }
 
-  implicit val OptAddOrder = new Protocol[AddOrder[Options], Options, Order] {
-    def send(action: AddOrder[Options], publisher: CGPublisher) = {
+  implicit val OptAddOrder = new Protocol[AddOrder, Options, Order] {
+    def serialize(action: AddOrder, publisher: CGPublisher) = {
       val dataMsg = publisher.newMessage(MessageKeyType.KEY_ID, Message.OptAddOrder.MSG_ID).asInstanceOf[DataMessage]
       val command = new Message.OptAddOrder(dataMsg.getData)
 
@@ -101,9 +93,9 @@ object Protocol {
       dataMsg
     }
 
-    def receive(message: DataMessage) = (failures orElse optOrder) apply(message.getMsgId, message)
+    def deserialize(message: DataMessage) = (failures orElse optOrder) apply(message.getMsgId, message)
 
-    private def optOrder: PartialFunction[(Int, DataMessage), Either[ActionFailed, Reaction]] = {
+    private def optOrder: PartialFunction[(Int, DataMessage), Either[ActionFailed, Order]] = {
       case (Message.FORTS_MSG109.MSG_ID, message) =>
         val msg = new Message.FORTS_MSG109(message.getData)
         Right(Order(msg.get_order_id()))

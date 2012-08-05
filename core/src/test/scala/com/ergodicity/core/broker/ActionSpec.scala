@@ -3,7 +3,7 @@ package com.ergodicity.core.broker
 import org.scalatest.WordSpec
 import com.ergodicity.core.OrderType.GoodTillCancelled
 import com.ergodicity.core.Isin
-import com.ergodicity.core.broker.Market.{Options, Futures}
+import com.ergodicity.core.Market.{Options, Futures}
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import ru.micexrts.cgate.Publisher
@@ -24,7 +24,7 @@ class ActionSpec extends WordSpec {
       when(dataMessage.getData).thenReturn(ByteBuffer.allocate(1000))
 
       val buy = Buy[Futures](Isin("RTS-6.12"), 1, BigDecimal(100), GoodTillCancelled)
-      val futAddOrder = new Message.FutAddOrder(buy.command.send(buy, publisher).getData)
+      val futAddOrder = new Message.FutAddOrder(buy.protocol.serialize(buy, publisher).getData)
 
       assert(futAddOrder.get_isin() == "RTS-6.12")
       assert(futAddOrder.get_amount() == 1)
@@ -38,7 +38,7 @@ class ActionSpec extends WordSpec {
       when(dataMessage.getData).thenReturn(ByteBuffer.allocate(1000))
 
       val buy = Buy[Options](Isin("RTS-6.12"), 1, BigDecimal(100), GoodTillCancelled)
-      val futOptOrder = new Message.OptAddOrder(buy.command.send(buy, publisher).getData)
+      val futOptOrder = new Message.OptAddOrder(buy.protocol.serialize(buy, publisher).getData)
 
       assert(futOptOrder.get_isin() == "RTS-6.12")
       assert(futOptOrder.get_amount() == 1)

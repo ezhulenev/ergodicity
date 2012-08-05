@@ -10,7 +10,7 @@ import akka.util.{Duration, Timeout}
 import com.ergodicity.cgate.Connection.Execute
 import akka.actor.FSM.Failure
 import scala.Some
-import com.ergodicity.core.{OrderDirection, OrderType, Isin}
+import com.ergodicity.core.{Market, OrderDirection, OrderType, Isin}
 import com.ergodicity.core.broker.Protocol.Protocol
 import com.ergodicity.core.broker.Action.AddOrder
 
@@ -31,10 +31,10 @@ object Broker {
            (implicit config: Broker.Config) = new Broker(withPublisher, updateStateDuration)(config)
 
   def Buy[M <: Market](isin: Isin, amount: Int, price: BigDecimal, orderType: OrderType)
-                      (implicit protocol: Protocol[AddOrder[M], M, Order]) = new AddOrder[M](isin, amount, price, orderType, OrderDirection.Buy)
+                      (implicit protocol: Protocol[AddOrder, M, Order]) = new AddOrder(isin, amount, price, orderType, OrderDirection.Buy)
 
   def Sell[M <: Market](isin: Isin, amount: Int, price: BigDecimal, orderType: OrderType)
-                       (implicit protocol: Protocol[AddOrder[M], M, Order]) = new AddOrder[M](isin, amount, price, orderType, OrderDirection.Sell)
+                       (implicit protocol: Protocol[AddOrder, M, Order]) = new AddOrder(isin, amount, price, orderType, OrderDirection.Sell)
 
 }
 
