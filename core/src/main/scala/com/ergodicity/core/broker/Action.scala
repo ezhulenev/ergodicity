@@ -8,18 +8,21 @@ import com.ergodicity.core.broker.Action.{Cancel, AddOrder}
 import com.ergodicity.cgate.scheme.Message
 import scala.{Either, Left, Right}
 import com.ergodicity.core.Market.{Options, Futures}
+import java.nio.ByteBuffer
 
 private[broker] trait MarketCommand[A <: Action[R], R <: Reaction, M <: Market] {
-  def encode(publisher: CGPublisher): DataMessage
+  def encode(publisher: CGPublisher)(implicit config: Broker.Config): DataMessage
 
-  def decode(message: DataMessage): Either[ActionFailed, R]
+  def decode(msgId: Int, data: ByteBuffer): Either[ActionFailed, R]
 }
 
 private[broker] object MarketCommand {
   def apply[A <: Action[R], R <: Reaction, M <: Market](action: A)(implicit protocol: Protocol[A, R, M]) = new MarketCommand[A, R, M] {
-    def encode(publisher: CGPublisher) = protocol.serialize(action, publisher)
+    def encode(publisher: CGPublisher)(implicit config: Broker.Config) = protocol.serialize(action, publisher)
 
-    def decode(message: DataMessage) = protocol.deserialize(message)
+    def decode(msgId: Int, data: ByteBuffer) = protocol.deserialize(msgId, data)
+
+    override def toString = action.toString
   }
 }
 
@@ -37,6 +40,8 @@ private[broker] object Action {
 
 sealed trait ActionFailed
 
+case object TimedOut extends ActionFailed
+
 case class Error(message: String) extends ActionFailed
 
 case class Flood(queueSize: Int, penaltyRemain: Int, message: String) extends ActionFailed
@@ -52,31 +57,31 @@ case class Cancelled(num: Int) extends Reaction
 object Protocol {
 
   trait Serialize[A <: Action[R], R <: Reaction] {
-    def serialize(action: A, publisher: CGPublisher): DataMessage
+    def serialize(action: A, publisher: CGPublisher)(implicit config: Broker.Config): DataMessage
   }
 
   trait Deserialize[A <: Action[R], R <: Reaction] {
-    def deserialize(message: DataMessage): Either[ActionFailed, R]
+    def deserialize(msgId: Int, data: ByteBuffer): Either[ActionFailed, R]
   }
 
   trait Protocol[A <: Action[R], R <: Reaction, M <: Market] extends Serialize[A, R] with Deserialize[A, R] {
-    def deserialize(message: DataMessage) = (failures orElse payload) apply (message)
+    def deserialize(msgId: Int, data: ByteBuffer) = (failures orElse payload) apply msgId -> data
 
-    def payload: PartialFunction[DataMessage, Either[ActionFailed, R]]
+    def payload: PartialFunction[(Int, ByteBuffer), Either[ActionFailed, R]]
 
-    protected def failures: PartialFunction[DataMessage, Either[ActionFailed, R]] = {
-      case message if (message.getMsgId == Message.FORTS_MSG99.MSG_ID) =>
-        val floodErr = new Message.FORTS_MSG99(message.getData)
+    protected def failures: PartialFunction[(Int, ByteBuffer), Either[ActionFailed, R]] = {
+      case (Message.FORTS_MSG99.MSG_ID, data) =>
+        val floodErr = new Message.FORTS_MSG99(data)
         Left(Flood(floodErr.get_queue_size(), floodErr.get_penalty_remain(), floodErr.get_message()))
 
-      case message if (message.getMsgId == Message.FORTS_MSG100.MSG_ID) =>
-        val error = new Message.FORTS_MSG100(message.getData)
+      case (Message.FORTS_MSG100.MSG_ID, data) =>
+        val error = new Message.FORTS_MSG100(data)
         Left(Error(error.get_message()))
     }
   }
 
   implicit val FutAddOrder = new Protocol[AddOrder, Order, Futures] {
-    def serialize(action: AddOrder, publisher: CGPublisher) = {
+    def serialize(action: AddOrder, publisher: CGPublisher)(implicit config: Broker.Config) = {
       val dataMsg = publisher.newMessage(MessageKeyType.KEY_ID, Message.FutAddOrder.MSG_ID).asInstanceOf[DataMessage]
       val command = new Message.FutAddOrder(dataMsg.getData)
 
@@ -85,19 +90,20 @@ object Protocol {
       command.set_type(mapOrderType(action.orderType))
       command.set_amount(action.amount)
       command.set_price(action.price.toString())
+      command.set_client_code(config.clientCode)
 
       dataMsg
     }
 
-    def payload = {
-      case message if (message.getMsgId == Message.FORTS_MSG101.MSG_ID) =>
-        val msg = new Message.FORTS_MSG101(message.getData)
+    def payload: PartialFunction[(Int, ByteBuffer), Either[ActionFailed, Order]] = {
+      case (Message.FORTS_MSG101.MSG_ID, data) =>
+        val msg = new Message.FORTS_MSG101(data)
         Right(Order(msg.get_order_id()))
     }
   }
 
   implicit val OptAddOrder = new Protocol[AddOrder, Order, Options] {
-    def serialize(action: AddOrder, publisher: CGPublisher) = {
+    def serialize(action: AddOrder, publisher: CGPublisher)(implicit config: Broker.Config) = {
       val dataMsg = publisher.newMessage(MessageKeyType.KEY_ID, Message.OptAddOrder.MSG_ID).asInstanceOf[DataMessage]
       val command = new Message.OptAddOrder(dataMsg.getData)
 
@@ -106,57 +112,56 @@ object Protocol {
       command.set_type(mapOrderType(action.orderType))
       command.set_amount(action.amount)
       command.set_price(action.price.toString())
+      command.set_client_code(config.clientCode)
 
       dataMsg
     }
 
-    def payload = {
-      case message if (message.getMsgId == Message.FORTS_MSG109.MSG_ID) =>
-        val msg = new Message.FORTS_MSG109(message.getData)
+    def payload: PartialFunction[(Int, ByteBuffer), Either[ActionFailed, Order]] = {
+      case (Message.FORTS_MSG109.MSG_ID, data) =>
+        val msg = new Message.FORTS_MSG109(data)
         Right(Order(msg.get_order_id()))
     }
   }
 
   implicit val FutDelOrder = new Protocol[Cancel, Cancelled, Futures] {
-    def serialize(action: Cancel, publisher: CGPublisher) = {
+    def serialize(action: Cancel, publisher: CGPublisher)(implicit config: Broker.Config) = {
       val dataMsg = publisher.newMessage(MessageKeyType.KEY_ID, Message.FutDelOrder.MSG_ID).asInstanceOf[DataMessage]
       val command = new Message.FutDelOrder(dataMsg.getData)
-
       command.set_order_id(action.order.id)
-
       dataMsg
     }
 
-    def payload = {
-      case message if (message.getMsgId == Message.FORTS_MSG102.MSG_ID) =>
-        val msg = new Message.FORTS_MSG102(message.getData)
+    def payload: PartialFunction[(Int, ByteBuffer), Either[ActionFailed, Cancelled]] = {
+      case (Message.FORTS_MSG102.MSG_ID, data) =>
+        val msg = new Message.FORTS_MSG102(data)
         Right(Cancelled(msg.get_amount()))
     }
   }
 
   implicit val OptDelOrder = new Protocol[Cancel, Cancelled, Options] {
-    def serialize(action: Cancel, publisher: CGPublisher) = {
+    def serialize(action: Cancel, publisher: CGPublisher)(implicit config: Broker.Config) = {
       val dataMsg = publisher.newMessage(MessageKeyType.KEY_ID, Message.OptDelOrder.MSG_ID).asInstanceOf[DataMessage]
       val command = new Message.OptDelOrder(dataMsg.getData)
       command.set_order_id(action.order.id)
       dataMsg
     }
 
-    def payload = {
-      case message if (message.getMsgId == Message.FORTS_MSG110.MSG_ID) =>
-        val msg = new Message.FORTS_MSG110(message.getData)
+    def payload: PartialFunction[(Int, ByteBuffer), Either[ActionFailed, Cancelled]] = {
+      case (Message.FORTS_MSG110.MSG_ID, data) =>
+        val msg = new Message.FORTS_MSG110(data)
         Right(Cancelled(msg.get_amount()))
     }
   }
 
 
-  private def mapOrderType(orderType: OrderType) = orderType match {
+  def mapOrderType(orderType: OrderType) = orderType match {
     case OrderType.GoodTillCancelled => 1
     case OrderType.ImmediateOrCancel => 2
     case OrderType.FillOrKill => 3
   }
 
-  private def mapOrderDirection(direction: OrderDirection) = direction match {
+  def mapOrderDirection(direction: OrderDirection) = direction match {
     case OrderDirection.Buy => 1
     case OrderDirection.Sell => 2
   }

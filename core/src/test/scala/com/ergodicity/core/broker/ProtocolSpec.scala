@@ -16,11 +16,7 @@ class ProtocolSpec extends WordSpec {
       val errorMessage = new Message.FORTS_MSG100(ByteBuffer.allocate(1000))
       errorMessage.set_message("Error")
 
-      val dataMessage = mock(classOf[DataMessage])
-      when(dataMessage.getMsgId).thenReturn(Message.FORTS_MSG100.MSG_ID)
-      when(dataMessage.getData).thenReturn(errorMessage.getData)
-
-      val res = protocol.deserialize(dataMessage)
+      val res = protocol.deserialize(Message.FORTS_MSG100.MSG_ID, errorMessage.getData)
 
       assert(res == Left(Error("Error")))
     }
@@ -33,11 +29,7 @@ class ProtocolSpec extends WordSpec {
       errorMessage.set_penalty_remain(100)
       errorMessage.set_message("Flood")
 
-      val dataMessage = mock(classOf[DataMessage])
-      when(dataMessage.getMsgId).thenReturn(Message.FORTS_MSG99.MSG_ID)
-      when(dataMessage.getData).thenReturn(errorMessage.getData)
-
-      val res = protocol.deserialize(dataMessage)
+      val res = protocol.deserialize(Message.FORTS_MSG99.MSG_ID, errorMessage.getData)
 
       assert(res == Left(Flood(50, 100, "Flood")))
     }
@@ -48,12 +40,8 @@ class ProtocolSpec extends WordSpec {
       val errorMessage = new Message.FORTS_MSG111(ByteBuffer.allocate(1000))
       errorMessage.set_message("Error")
 
-      val dataMessage = mock(classOf[DataMessage])
-      when(dataMessage.getMsgId).thenReturn(Message.FORTS_MSG111.MSG_ID)
-      when(dataMessage.getData).thenReturn(errorMessage.getData)
-
       intercept[MatchError] {
-        protocol.deserialize(dataMessage)
+        protocol.deserialize(Message.FORTS_MSG111.MSG_ID, errorMessage.getData)
       }
     }
   }
@@ -65,11 +53,7 @@ class ProtocolSpec extends WordSpec {
       val errorMessage = new Message.FORTS_MSG101(ByteBuffer.allocate(1000))
       errorMessage.set_order_id(1111)
 
-      val dataMessage = mock(classOf[DataMessage])
-      when(dataMessage.getMsgId).thenReturn(Message.FORTS_MSG101.MSG_ID)
-      when(dataMessage.getData).thenReturn(errorMessage.getData)
-
-      val res = protocol.deserialize(dataMessage)
+      val res = protocol.deserialize(Message.FORTS_MSG101.MSG_ID, errorMessage.getData)
 
       assert(res == Right(Order(1111)))
     }
@@ -82,11 +66,7 @@ class ProtocolSpec extends WordSpec {
       val errorMessage = new Message.FORTS_MSG109(ByteBuffer.allocate(1000))
       errorMessage.set_order_id(1111)
 
-      val dataMessage = mock(classOf[DataMessage])
-      when(dataMessage.getMsgId).thenReturn(Message.FORTS_MSG109.MSG_ID)
-      when(dataMessage.getData).thenReturn(errorMessage.getData)
-
-      val res = protocol.deserialize(dataMessage)
+      val res = protocol.deserialize(Message.FORTS_MSG109.MSG_ID, errorMessage.getData)
 
       assert(res == Right(Order(1111)))
     }

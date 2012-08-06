@@ -4,7 +4,7 @@ import akka.actor.{FSM, ActorRef, Actor}
 import akka.util.duration._
 import akka.pattern.ask
 import akka.dispatch.Future
-import ru.micexrts.cgate.{Publisher => CGPublisher}
+import ru.micexrts.cgate.{Publisher => CGPublisher, PublishFlag}
 import com.ergodicity.cgate._
 import akka.util.{Duration, Timeout}
 import com.ergodicity.cgate.Connection.Execute
@@ -13,10 +13,14 @@ import scala.Some
 import com.ergodicity.core.{Market, OrderDirection, OrderType, Isin}
 import com.ergodicity.core.broker.Protocol.Protocol
 import com.ergodicity.core.broker.Action.{Cancel, AddOrder}
+import com.ergodicity.core.broker.ReplyEvent.{ReplyData, TimeoutMessage}
+import java.nio.ByteBuffer
 
 protected[broker] case class PublisherState(state: State)
 
 object Broker {
+
+  type Decoder = (Int, ByteBuffer) => Either[ActionFailed, _]
 
   case class Config(clientCode: String)
 
@@ -41,9 +45,11 @@ object Broker {
 }
 
 class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration] = Some(1.second))
-            (implicit val config: Broker.Config) extends Actor with FSM[State, Map[Int, ActorRef]] {
+            (implicit val config: Broker.Config) extends Actor with FSM[State, Map[Int, (ActorRef, Broker.Decoder)]] {
 
   import Broker._
+
+  val InitialId = 1
 
   private val statusTracker = updateStateDuration.map {
     duration =>
@@ -59,10 +65,7 @@ class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration]
   when(Closed) {
     case Event(Open, _) =>
       log.info("Open publisher")
-      val replyTo = sender
-      withPublisher(_.open("")) onSuccess {
-        case _ => replyTo ! Success
-      }
+      withPublisher(_.open(""))
       stay()
   }
 
@@ -75,6 +78,17 @@ class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration]
       log.info("Close Publisher")
       withPublisher(_.close())
       stay()
+
+    case Event(command: MarketCommand[_, _, _], pending) =>
+      log.debug("Execute command: " + command)
+      val counter = if (pending.isEmpty) InitialId else pending.keys.max + 1
+      withPublisher(publisher => {
+        val message = command.encode(publisher)
+        message.setUserId(counter)
+        publisher.post(message, PublishFlag.NEED_REPLY)
+      })
+
+      stay() using pending + (counter ->(sender, command.decode _))
   }
 
   onTransition {
@@ -94,6 +108,16 @@ class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration]
       log.info("Dispose publisher")
       withPublisher(_.dispose())
       stop(Failure("Disposed"))
+
+    case Event(TimeoutMessage(id), pending) if (pending.contains(id)) =>
+      val (replyTo, _) = pending(id)
+      replyTo ! Left(TimedOut)
+      stay() using pending - id
+
+    case Event(ReplyData(id, msgId, data), pending) if (pending.contains(id)) =>
+      val (replyTo, decode) = pending(id)
+      replyTo ! decode(msgId, data)
+      stay() using pending - id
   }
 
   onTermination {
