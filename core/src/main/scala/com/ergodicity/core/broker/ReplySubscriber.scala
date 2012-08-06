@@ -25,6 +25,7 @@ class ReplySubscriber(dataStream: ActorRef) extends Subscriber {
   private def decode(msg: Message) = msg.getType match {
     case MessageType.MSG_DATA =>
       val dataMsg = msg.asInstanceOf[DataMessage]
+
       ReplyData(dataMsg.getUserId, dataMsg.getMsgId, dataMsg.getData)
 
     case MessageType.MSG_P2MQ_TIMEOUT =>
