@@ -3,13 +3,10 @@ package com.ergodicity.core
 sealed trait Market
 
 object Market {
-
   sealed trait Futures extends Market
 
   sealed trait Options extends Market
-
 }
-
 
 case class Isins(id: Int, isin: String, shortIsin: String) extends IsinId with Isin with ShortIsin
 

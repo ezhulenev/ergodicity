@@ -12,7 +12,7 @@ import akka.actor.FSM.Failure
 import scala.Some
 import com.ergodicity.core.{Market, OrderDirection, OrderType, Isin}
 import com.ergodicity.core.broker.Protocol.Protocol
-import com.ergodicity.core.broker.Action.AddOrder
+import com.ergodicity.core.broker.Action.{Cancel, AddOrder}
 
 protected[broker] case class PublisherState(state: State)
 
@@ -31,10 +31,12 @@ object Broker {
            (implicit config: Broker.Config) = new Broker(withPublisher, updateStateDuration)(config)
 
   def Buy[M <: Market](isin: Isin, amount: Int, price: BigDecimal, orderType: OrderType)
-                      (implicit protocol: Protocol[AddOrder, M, Order]) = new AddOrder(isin, amount, price, orderType, OrderDirection.Buy)
+                      (implicit protocol: Protocol[AddOrder, Order, M]): MarketCommand[AddOrder, Order, M] = MarketCommand(AddOrder(isin, amount, price, orderType, OrderDirection.Buy))
 
   def Sell[M <: Market](isin: Isin, amount: Int, price: BigDecimal, orderType: OrderType)
-                       (implicit protocol: Protocol[AddOrder, M, Order]) = new AddOrder(isin, amount, price, orderType, OrderDirection.Sell)
+                       (implicit protocol: Protocol[AddOrder, Order, M]): MarketCommand[AddOrder, Order, M] = MarketCommand(AddOrder(isin, amount, price, orderType, OrderDirection.Sell))
+
+  def Cancel[M <: Market](order: Order)(implicit protocol: Protocol[Cancel, Cancelled, M]): MarketCommand[Cancel, Cancelled, M] = MarketCommand(Action.Cancel(order))
 
 }
 

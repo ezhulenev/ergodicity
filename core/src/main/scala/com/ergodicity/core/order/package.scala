@@ -26,6 +26,7 @@ package object order {
     }
   }
 
+
   implicit def toOrderProps(record: FutTrade.orders_log) = {
 
     def mapOrderType(orderType: Int) = orderType match {

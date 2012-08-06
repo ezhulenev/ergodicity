@@ -24,7 +24,7 @@ class ActionSpec extends WordSpec {
       when(dataMessage.getData).thenReturn(ByteBuffer.allocate(1000))
 
       val buy = Buy[Futures](Isin("RTS-6.12"), 1, BigDecimal(100), GoodTillCancelled)
-      val futAddOrder = new Message.FutAddOrder(buy.protocol.serialize(buy, publisher).getData)
+      val futAddOrder = new Message.FutAddOrder(buy.encode(publisher).getData)
 
       assert(futAddOrder.get_isin() == "RTS-6.12")
       assert(futAddOrder.get_amount() == 1)
@@ -38,10 +38,35 @@ class ActionSpec extends WordSpec {
       when(dataMessage.getData).thenReturn(ByteBuffer.allocate(1000))
 
       val buy = Buy[Options](Isin("RTS-6.12"), 1, BigDecimal(100), GoodTillCancelled)
-      val futOptOrder = new Message.OptAddOrder(buy.protocol.serialize(buy, publisher).getData)
+      val futOptOrder = new Message.OptAddOrder(buy.encode(publisher).getData)
 
       assert(futOptOrder.get_isin() == "RTS-6.12")
       assert(futOptOrder.get_amount() == 1)
     }
+
+    "support FutDelOrder" in {
+      val dataMessage = mock(classOf[DataMessage])
+      val publisher = mock(classOf[Publisher])
+      when(publisher.newMessage(any(), any())).thenReturn(dataMessage)
+      when(dataMessage.getData).thenReturn(ByteBuffer.allocate(1000))
+
+      val cancel = Cancel[Futures](Order(1111))
+      val futDelOrder = new Message.FutDelOrder(cancel.encode(publisher).getData)
+
+      assert(futDelOrder.get_order_id() == 1111)
+    }
+
+    "support OptDelOrder" in {
+      val dataMessage = mock(classOf[DataMessage])
+      val publisher = mock(classOf[Publisher])
+      when(publisher.newMessage(any(), any())).thenReturn(dataMessage)
+      when(dataMessage.getData).thenReturn(ByteBuffer.allocate(1000))
+
+      val cancel = Cancel[Options](Order(1111))
+      val optDelOrder = new Message.OptDelOrder(cancel.encode(publisher).getData)
+
+      assert(optDelOrder.get_order_id() == 1111)
+    }
+
   }
 }
