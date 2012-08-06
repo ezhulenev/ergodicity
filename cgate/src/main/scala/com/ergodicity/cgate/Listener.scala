@@ -33,9 +33,7 @@ object BindListener {
 
   def apply(listener: CGListener) = new {
     def to(connection: ActorRef) = new WithListener {
-      def apply[T](f: (cgate.Listener) => T)(implicit m: Manifest[T]) = (connection ? Execute(_ => listener.synchronized {
-        f(listener)
-      })).mapTo[T]
+      def apply[T](f: (cgate.Listener) => T)(implicit m: Manifest[T]) = (connection ? Execute(_ => f(listener))).mapTo[T]
     }
   }
 }

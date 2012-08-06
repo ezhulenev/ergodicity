@@ -10,6 +10,8 @@ sealed trait ReplyEvent
 
 object ReplyEvent {
 
+  case object Open extends ReplyEvent
+
   case class ReplyData(id: Int, messageId: Int, data: ByteBuffer) extends ReplyEvent
 
   case class TimeoutMessage(id: Int) extends ReplyEvent
@@ -23,10 +25,11 @@ class ReplySubscriber(dataStream: ActorRef) extends Subscriber {
   import ReplyEvent._
 
   private def decode(msg: Message) = msg.getType match {
+    case MessageType.MSG_OPEN => Open
+
     case MessageType.MSG_DATA =>
       val dataMsg = msg.asInstanceOf[DataMessage]
-
-      ReplyData(dataMsg.getUserId, dataMsg.getMsgId, dataMsg.getData)
+      ReplyData(dataMsg.getUserId, dataMsg.getMsgId, clone(dataMsg.getData))
 
     case MessageType.MSG_P2MQ_TIMEOUT =>
       val timeoutMsg = msg.asInstanceOf[P2MqTimeOutMessage]

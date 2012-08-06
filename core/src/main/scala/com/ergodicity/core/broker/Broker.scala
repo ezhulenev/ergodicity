@@ -141,9 +141,7 @@ object BindPublisher {
 
   def apply(publisher: CGPublisher) = new {
     def to(connection: ActorRef) = new WithPublisher {
-      def apply[T](f: (CGPublisher) => T)(implicit m: Manifest[T]) = (connection ? Execute(_ => publisher.synchronized {
-        f(publisher)
-      })).mapTo[T]
+      def apply[T](f: (CGPublisher) => T)(implicit m: Manifest[T]) = (connection ? Execute(_ => f(publisher))).mapTo[T]
     }
   }
 }

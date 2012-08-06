@@ -46,6 +46,8 @@ case class Error(message: String) extends ActionFailed
 
 case class Flood(queueSize: Int, penaltyRemain: Int, message: String) extends ActionFailed
 
+case class Failed(code: Int, message: String) extends ActionFailed
+
 
 sealed trait Reaction
 
@@ -98,7 +100,10 @@ object Protocol {
     def payload: PartialFunction[(Int, ByteBuffer), Either[ActionFailed, Order]] = {
       case (Message.FORTS_MSG101.MSG_ID, data) =>
         val msg = new Message.FORTS_MSG101(data)
-        Right(Order(msg.get_order_id()))
+        if (msg.get_code() == 0)
+          Right(Order(msg.get_order_id()))
+        else
+          Left(Failed(msg.get_code(), msg.get_message()))
     }
   }
 
@@ -120,7 +125,10 @@ object Protocol {
     def payload: PartialFunction[(Int, ByteBuffer), Either[ActionFailed, Order]] = {
       case (Message.FORTS_MSG109.MSG_ID, data) =>
         val msg = new Message.FORTS_MSG109(data)
-        Right(Order(msg.get_order_id()))
+        if (msg.get_code() == 0)
+          Right(Order(msg.get_order_id()))
+        else
+          Left(Failed(msg.get_code(), msg.get_message()))
     }
   }
 
@@ -135,7 +143,10 @@ object Protocol {
     def payload: PartialFunction[(Int, ByteBuffer), Either[ActionFailed, Cancelled]] = {
       case (Message.FORTS_MSG102.MSG_ID, data) =>
         val msg = new Message.FORTS_MSG102(data)
-        Right(Cancelled(msg.get_amount()))
+        if (msg.get_code() == 0)
+          Right(Cancelled(msg.get_amount()))
+        else
+          Left(Failed(msg.get_code(), msg.get_message()))
     }
   }
 
@@ -150,7 +161,10 @@ object Protocol {
     def payload: PartialFunction[(Int, ByteBuffer), Either[ActionFailed, Cancelled]] = {
       case (Message.FORTS_MSG110.MSG_ID, data) =>
         val msg = new Message.FORTS_MSG110(data)
-        Right(Cancelled(msg.get_amount()))
+        if (msg.get_code() == 0)
+          Right(Cancelled(msg.get_amount()))
+        else
+          Left(Failed(msg.get_code(), msg.get_message()))
     }
   }
 

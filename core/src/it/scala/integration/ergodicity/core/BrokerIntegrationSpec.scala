@@ -1,11 +1,11 @@
 package integration.ergodicity.core
 
 import java.io.File
-import akka.actor.{Actor, Props, ActorSystem}
+import akka.actor.{Props, Actor, ActorSystem}
 import AkkaIntegrationConfigurations._
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 import java.util.concurrent.TimeUnit
-import ru.micexrts.cgate.{CGate, Connection => CGConnection, Listener => CGListener, Publisher => CGPublisher}
+import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, Publisher => CGPublisher, P2TypeParser, CGate}
 import com.ergodicity.cgate.{Error => _, _}
 import config.ConnectionConfig.Tcp
 import config.Replies.RepliesParams
@@ -39,6 +39,7 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
   override def beforeAll() {
     val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
     CGate.open(props())
+    P2TypeParser.setCharset("windows-1251")
   }
 
   override def afterAll() {
@@ -53,22 +54,22 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
     "go to Active state" in {
 
       val underlyingConnection = new CGConnection(RouterConnection())
-      val connection = TestFSMRef(new Connection(underlyingConnection, Some(500.millis)), "Connection")
+      val connection = system.actorOf(Props(new Connection(underlyingConnection, Some(500.millis))), "Connection")
 
       val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/forts_messages.ini"))
       val underlyingPublisher = new CGPublisher(underlyingConnection, messagesConfig())
 
-      val broker = TestFSMRef(new Broker(BindPublisher(underlyingPublisher) to connection), "Broker")
+      val broker = system.actorOf(Props(new Broker(BindPublisher(underlyingPublisher) to connection)), "Broker")
 
       val underlyingListener = new CGListener(underlyingConnection, Replies(BrokerName)(), new ReplySubscriber(broker))
-      val replyListener = TestFSMRef(new Listener(BindListener(underlyingListener) to connection), "ReplyListener")
+      val replyListener = system.actorOf(Props(new Listener(BindListener(underlyingListener) to connection)), "ReplyListener")
 
       // On connection Activated open listeners etc
       connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
         protected def receive = {
           case Transition(_, _, Active) =>
             // Open Listener &  Broker
-            //broker ! Broker.Open
+            broker ! Broker.Open
             Thread.sleep(1000)
             replyListener ! Listener.Open(RepliesParams)
 
@@ -80,24 +81,22 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
       // Open connections and track it's status
       connection ! Connection.Open
 
-      log.info("Broker state = " + broker.stateName)
-      log.info("Listener state = " + replyListener.stateName)
-
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
   }
 
   "fail to buy bad contract" in {
+
     val underlyingConnection = new CGConnection(RouterConnection())
-    val connection = TestFSMRef(new Connection(underlyingConnection, Some(500.millis)), "Connection")
+    val connection = system.actorOf(Props(new Connection(underlyingConnection, Some(500.millis))), "Connection")
 
     val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/forts_messages.ini"))
     val underlyingPublisher = new CGPublisher(underlyingConnection, messagesConfig())
 
-    val broker = TestFSMRef(new Broker(BindPublisher(underlyingPublisher) to connection), "Broker")
+    val broker = system.actorOf(Props(new Broker(BindPublisher(underlyingPublisher) to connection)), "Broker")
 
     val underlyingListener = new CGListener(underlyingConnection, Replies(BrokerName)(), new ReplySubscriber(broker))
-    val replyListener = TestFSMRef(new Listener(BindListener(underlyingListener) to connection), "ReplyListener")
+    val replyListener = system.actorOf(Props(new Listener(BindListener(underlyingListener) to connection)), "ReplyListener")
 
     // On connection Activated open listeners etc
     connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
@@ -109,7 +108,7 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
           replyListener ! Listener.Open(RepliesParams)
 
           // Process messages
-          connection ! StartMessageProcessing(500.millis)
+          connection ! StartMessageProcessing(100.millis)
       }
     })))
 
@@ -118,18 +117,14 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
 
     Thread.sleep(3000)
 
-    log.info("Broker state = " + broker.stateName)
-    log.info("Listener state = " + replyListener.stateName)
-
-
-    val f = (broker ? Buy[Futures](Isin("RTS-01.01"), 1, 100, GoodTillCancelled)).mapTo[Either[ActionFailed, Order]]
+    val f = (broker ? Buy[Futures](Isin("RTS-9.12"), 1, 100, GoodTillCancelled)).mapTo[Either[ActionFailed, Order]]
 
     val response = Await.result(f, 5.seconds)
 
     log.info("Response = " + response)
 
     assert(response match {
-      case Left(Error(_)) => true
+      case err@Left(Failed(_, _)) => true
       case _ => false
     })
 
