@@ -10,7 +10,7 @@ import akka.event.Logging
 case object SessionsService extends Service
 
 trait Sessions {
-  engine: AkkaEngine with Connection with CreateListener with FutInfoReplication with OptInfoReplication =>
+  engine: EngineImpl with Connection with CreateListener with FutInfoReplication with OptInfoReplication =>
 
   val FutInfoStream = context.actorOf(Props(new DataStream), "FutInfoDataStream")
   val OptInfoStream = context.actorOf(Props(new DataStream), "FutInfoDataStream")

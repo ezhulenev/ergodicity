@@ -49,7 +49,7 @@ class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec",
       val engine = mockEngine(serviceTracker, connection)
       val watcher = TestActorRef(new ConnectionManager(engine))
       watcher ! CurrentState(connection.ref, com.ergodicity.cgate.Active)
-      serviceTracker.expectMsg(ServiceActivated(ConnectionService))
+      serviceTracker.expectMsg(ServiceStarted(ConnectionService))
     }
 
     "notify engine on closed state" in {
@@ -59,7 +59,7 @@ class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec",
       val engine = mockEngine(serviceTracker, connection)
       val watcher = TestActorRef(new ConnectionManager(engine))
       watcher ! Transition(connection.ref, com.ergodicity.cgate.Active, com.ergodicity.cgate.Closed)
-      serviceTracker.expectMsg(ServicePassivated(ConnectionService))
+      serviceTracker.expectMsg(ServiceStopped(ConnectionService))
     }
   }
 }

@@ -3,8 +3,8 @@ package com.ergodicity.engine
 import akka.event.LoggingAdapter
 import akka.actor.ActorRef
 
-class MockedEngine(_log: LoggingAdapter, _serviceTracker: ActorRef) extends Engine {
+class MockedEngine(_log: LoggingAdapter, _serviceManager: ActorRef) extends Engine {
   def log = _log
 
-  def ServiceTracker = _serviceTracker
+  def ServiceManager = _serviceManager
 }

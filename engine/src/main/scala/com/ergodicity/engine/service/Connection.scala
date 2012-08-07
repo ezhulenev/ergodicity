@@ -1,6 +1,6 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.{AkkaEngine, Engine}
+import com.ergodicity.engine.{EngineImpl, Engine}
 import com.ergodicity.cgate.{Connection => CgateConnection}
 import akka.event.Logging
 import akka.actor.{ActorRef, Terminated, Actor, Props}
@@ -20,7 +20,7 @@ trait Connection {
 }
 
 trait ManagedConnection extends Connection {
-  engine: AkkaEngine =>
+  engine: EngineImpl =>
 
   val Connection = context.actorOf(Props(new CgateConnection(underlyingConnection)), "Connection")
   private[this] val connectionManager = context.actorOf(Props(new ConnectionManager(this)), "ConnectionManager")
@@ -59,10 +59,10 @@ protected[service] class ConnectionManager(engine: Engine with Connection) exten
 
     case Transition(ManagedConnection, _, com.ergodicity.cgate.Error) => throw new ConnectionException("Connection switched to Error state")
 
-    case CurrentState(ManagedConnection, com.ergodicity.cgate.Active) => ServiceTracker ! ServiceActivated(ConnectionService)
+    case CurrentState(ManagedConnection, com.ergodicity.cgate.Active) => ServiceManager ! ServiceStarted(ConnectionService)
 
-    case Transition(ManagedConnection, _, com.ergodicity.cgate.Active) => ServiceTracker ! ServiceActivated(ConnectionService)
+    case Transition(ManagedConnection, _, com.ergodicity.cgate.Active) => ServiceManager ! ServiceStarted(ConnectionService)
 
-    case Transition(ManagedConnection, com.ergodicity.cgate.Active, com.ergodicity.cgate.Closed) => ServiceTracker ! ServicePassivated(ConnectionService)
+    case Transition(ManagedConnection, com.ergodicity.cgate.Active, com.ergodicity.cgate.Closed) => ServiceManager ! ServiceStopped(ConnectionService)
   }
 }

@@ -2,7 +2,6 @@ package com.ergodicity
 
 
 package object cgate {
-
   case class Signs(signs: Long) {
 
     sealed trait Type
@@ -29,5 +28,4 @@ package object cgate {
 
     def moneyMarket = (signs & 0x800) > 0
   }
-
 }

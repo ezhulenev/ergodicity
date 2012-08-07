@@ -10,9 +10,9 @@ object Service {
 
 }
 
-case class ServiceActivated(service: Service)
+case class ServiceStarted(service: Service)
 
-case class ServicePassivated(service: Service)
+case class ServiceStopped(service: Service)
 
 
 

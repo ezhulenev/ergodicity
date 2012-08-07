@@ -10,7 +10,7 @@ import org.mockito.Mockito._
 import ru.micexrts.cgate.{Connection => CGConnection}
 import service.{ManagedConnection, Connection}
 
-class AkkaEngineWithManagedConnectionSpec extends TestKit(ActorSystem("AkkaEngineWithManagedConnectionSpec", com.ergodicity.engine.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class EngineManagedConnectionSpec extends TestKit(ActorSystem("EngineManagedConnectionSpec", com.ergodicity.engine.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   override def afterAll() {
@@ -21,12 +21,12 @@ class AkkaEngineWithManagedConnectionSpec extends TestKit(ActorSystem("AkkaEngin
 
   "Trading engine" must {
     "register Connection service and connect on Start Up" in {
-      val engine = TestFSMRef(new AkkaEngine with ManagedConnection with MockedConnection, "Engine")
+      val engine = TestFSMRef(new EngineImpl with ManagedConnection with MockedConnection, "Engine")
 
       // Start engine
       engine ! Engine.StartEngine
 
-      Thread.sleep(300)
+      Thread.sleep(1300)
 
       verify(engine.underlyingActor.asInstanceOf[Connection].underlyingConnection).open("")
     }
