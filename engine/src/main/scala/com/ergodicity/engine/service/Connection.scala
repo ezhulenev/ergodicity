@@ -1,57 +1,68 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.Engine
-import com.ergodicity.engine.component.ConnectionComponent
-import com.ergodicity.cgate.{Connection => ConnectionActor}
+import com.ergodicity.engine.{AkkaEngine, Engine}
+import com.ergodicity.cgate.{Connection => CgateConnection}
 import akka.event.Logging
-import akka.actor.{Terminated, ActorRef, Actor, Props}
+import akka.actor.{ActorRef, Terminated, Actor, Props}
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import com.ergodicity.core.WhenUnhandled
-import com.ergodicity.core.WhenUnhandled
+import ru.micexrts.cgate.{Connection => CGConnection}
 
 case object ConnectionService extends Service
 
-trait Connection extends ConnectionComponent {
+class ConnectionException(msg: String) extends RuntimeException
+
+trait Connection {
   engine: Engine =>
 
-  val Connection = context.actorOf(Props(new ConnectionActor(underlyingConnection)), "Connection")
-  private[this] val connectionManager = context.actorOf(Props(new ConnectionManager(engine.self, Connection)), "ConnectionManager")
+  def underlyingConnection: CGConnection
+  def Connection: ActorRef
+}
+
+trait ManagedConnection extends Connection {
+  engine: AkkaEngine =>
+
+  val Connection = context.actorOf(Props(new CgateConnection(underlyingConnection)), "Connection")
+  private[this] val connectionManager = context.actorOf(Props(new ConnectionManager(this)), "ConnectionManager")
 
   log.info("Register Connection service")
   registerService(ConnectionService, connectionManager)
 }
 
-protected[service] class ConnectionManager(engine: ActorRef, Connection: ActorRef) extends Actor with WhenUnhandled {
+protected[service] class ConnectionManager(engine: Engine with Connection) extends Actor with WhenUnhandled {
   val log = Logging(context.system, self)
 
-  context.watch(Connection)
-  Connection ! SubscribeTransitionCallBack(self)
+  import engine._
+  
+  val ManagedConnection = Connection
+
+  context.watch(ManagedConnection)
+  ManagedConnection ! SubscribeTransitionCallBack(self)
 
 
   protected def receive = start orElse stop orElse trackConnectionState orElse whenUnhandled
 
   private def start: Receive = {
-    case Service.Start => Connection !
-      ConnectionActor.Open
+    case Service.Start => ManagedConnection ! CgateConnection.Open
   }
 
   private def stop: Receive = {
     case Service.Stop =>
-      Connection ! ConnectionActor.Close
-      Connection ! ConnectionActor.Dispose
+      ManagedConnection ! CgateConnection.Close
+      ManagedConnection ! CgateConnection.Dispose
   }
 
   private def trackConnectionState: Receive = {
-    case Terminated(Connection) => engine ! ServiceFailed(ConnectionService)
+    case Terminated(ManagedConnection) => throw new ConnectionException("Connection unexpected terminated")
 
-    case CurrentState(Connection, com.ergodicity.cgate.Error) => engine ! ServiceFailed(ConnectionService)
+    case CurrentState(ManagedConnection, com.ergodicity.cgate.Error) => throw new ConnectionException("Connection switched to Error state")
 
-    case CurrentState(Connection, com.ergodicity.cgate.Active) => engine ! ServiceActivated(ConnectionService)
+    case Transition(ManagedConnection, _, com.ergodicity.cgate.Error) => throw new ConnectionException("Connection switched to Error state")
 
-    case Transition(Connection, _, com.ergodicity.cgate.Error) => engine ! ServiceFailed(ConnectionService)
+    case CurrentState(ManagedConnection, com.ergodicity.cgate.Active) => ServiceTracker ! ServiceActivated(ConnectionService)
 
-    case Transition(Connection, _, com.ergodicity.cgate.Active) => engine ! ServiceActivated(ConnectionService)
+    case Transition(ManagedConnection, _, com.ergodicity.cgate.Active) => ServiceTracker ! ServiceActivated(ConnectionService)
 
-    case Transition(Connection, com.ergodicity.cgate.Active, com.ergodicity.cgate.Closed) => engine ! ServicePassivated(ConnectionService)
+    case Transition(ManagedConnection, com.ergodicity.cgate.Active, com.ergodicity.cgate.Closed) => ServiceTracker ! ServicePassivated(ConnectionService)
   }
 }

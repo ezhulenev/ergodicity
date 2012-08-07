@@ -1,6 +1,5 @@
 package com.ergodicity.engine.service
 
-
 trait Service
 
 object Service {
@@ -13,9 +12,9 @@ object Service {
 
 case class ServiceActivated(service: Service)
 
-case class ServiceFailed(service: Service)
-
 case class ServicePassivated(service: Service)
+
+
 
 
 

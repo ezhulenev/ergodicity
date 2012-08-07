@@ -1,10 +1,10 @@
 package com.ergodicity.engine
 
 import akka.actor._
-import akka.util.Duration
-import com.ergodicity.engine.Engine.{CareOf, StartEngine}
-import service.{ServiceFailed, ServicePassivated, ServiceActivated, Service}
+import com.ergodicity.engine.Engine.StartEngine
+import service.{ServicePassivated, ServiceActivated, Service}
 import scala.collection.mutable
+import akka.event.LoggingAdapter
 
 
 object Engine {
@@ -31,16 +31,25 @@ object EngineState {
 
 }
 
-class Engine extends Actor with FSM[EngineState, Unit] {
-  engine =>
+sealed trait EngineData
 
-  type ServiceFunction = scala.PartialFunction[Event, Unit]
+object EngineData {
 
-  import EngineState._
+  case object Blank extends EngineData
 
-  private val services: mutable.Map[Service, ActorRef] = mutable.Map()
+  case class Activating(pending: Iterable[Service]) extends EngineData
 
-  def registerService(service: Service, serviceRef: ActorRef = context.system.deadLetters) {
+}
+
+
+trait Engine {
+  def log: LoggingAdapter
+
+  def ServiceTracker: ActorRef
+
+  protected val services: mutable.Map[Service, ActorRef] = mutable.Map()
+
+  def registerService(service: Service, serviceRef: ActorRef) {
     if (services contains service) {
       throw new IllegalStateException("Service " + service + " already registered")
     } else {
@@ -48,26 +57,38 @@ class Engine extends Actor with FSM[EngineState, Unit] {
       services(service) = serviceRef
     }
   }
+}
 
-  startWith(Idle, ())
+class AkkaEngine extends Actor with FSM[EngineState, EngineData] with Engine {
+  import EngineState._
+  import EngineData._
+
+  val ServiceTracker = self
+
+  startWith(Idle, Blank)
 
   when(Idle) {
     case Event(StartEngine, _) =>
       services.values.foreach(_ ! Service.Start)
-      stay()
+      goto(Starting) using Activating(services.keys)
   }
 
-    whenUnhandled {
-      case Event(activated@ServiceActivated(service), _) =>
-        services.values.filter(_ != service).foreach(_ ! activated)
-        stay()
+  when(Starting) {
+    case Event(activated@ServiceActivated(service), Activating(pending)) =>
+      services.filter(_._1 != service).foreach(_._2 ! activated)
+      pending.filterNot(_ == service) match {
+        case Nil => goto(Active) using Blank
+        case remaining => stay() using Activating(remaining)
+      }
+  }
 
-      case Event(passivated@ServicePassivated(service), _) =>
-        services.values.filter(_ != service).foreach(_ ! passivated)
-        stay()
+  when(Active) {
+    case Event("Ebaka", _) => stay()
+  }
 
-      case Event(failed@ServiceFailed(service), _) =>
-        services.values.filter(_ != service).foreach(_ ! failed)
-        stay()
-    }
+  whenUnhandled {
+    case Event(passivated@ServicePassivated(service), _) =>
+      services.values.filter(_ != service).foreach(_ ! passivated)
+      stay()
+  }
 }
