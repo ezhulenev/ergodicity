@@ -5,7 +5,7 @@ import akka.util.duration._
 import service.Service.{Start, Stop}
 import service.{ServiceStopped, ServiceStarted, Service}
 import collection.mutable
-import akka.actor.FSM.Normal
+import akka.actor.FSM.{Failure, Normal}
 
 
 sealed trait ServiceManagerState
@@ -66,6 +66,9 @@ class ServiceManager extends Actor with FSM[ServiceManagerState, ServiceManagerD
         case 0 => goto(Active) using Blank
         case _ => stay() using PendingServices(remaining)
       }
+
+    case Event(FSM.StateTimeout, PendingServices(pending)) =>
+      stop(Failure("Timed out to start services; Pending = " + pending))
   }
 
   when(Active) {

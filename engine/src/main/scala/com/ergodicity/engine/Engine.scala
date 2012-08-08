@@ -3,9 +3,10 @@ package com.ergodicity.engine
 import akka.actor._
 import com.ergodicity.engine.Engine.StartEngine
 import service.Service
-import akka.actor.FSM.{UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
-import ru.micexrts.cgate.{Listener => CGListener, ISubscriber, Connection => CGConnection}
+import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
+import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection, CGateException, ISubscriber}
 import com.ergodicity.cgate.config.Replication
+import akka.actor.SupervisorStrategy.Stop
 
 
 object Engine {
@@ -48,6 +49,10 @@ trait Engine extends Actor with FSM[EngineState, EngineData] {
     ServiceManager ! RegisterService(service, manager)
   }
 
+  override val supervisorStrategy = AllForOneStrategy() {
+    case _: CGateException      ⇒ Stop
+  }
+
   import EngineState._
   import EngineData._
 
@@ -64,12 +69,20 @@ trait Engine extends Actor with FSM[EngineState, EngineData] {
     case Event(CurrentState(_, ServiceManagerState.Active), _) =>
       ServiceManager ! UnsubscribeTransitionCallBack(self)
       goto(Active)
+
+    case Event(Transition(_, _, ServiceManagerState.Active), _) =>
+      ServiceManager ! UnsubscribeTransitionCallBack(self)
+      goto(Active)
   }
 
   when(Active) {
     case Event(StopEvent, _) =>
       ServiceManager ! StopAllServices
       stay()
+  }
+
+  onTransition {
+    case Starting -> Active => log.info("Engine started")
   }
 }
 
@@ -87,7 +100,7 @@ object Components {
     def optInfoReplication: Replication
   }
 
-  trait Manager {
+  trait ServiceManagerComponent {
     this: {def context: ActorContext} =>
 
     val ServiceManager = context.actorOf(Props(new com.ergodicity.engine.ServiceManager()), "ServiceManager")
