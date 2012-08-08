@@ -16,6 +16,12 @@ import java.io.File
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.config.CGateConfig
 import com.ergodicity.cgate.Connection.StartMessageProcessing
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
+import com.ergodicity.cgate.config.CGateConfig
+import com.ergodicity.cgate.Connection.StartMessageProcessing
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
+import com.ergodicity.cgate.config.CGateConfig
+import com.ergodicity.cgate.Connection.StartMessageProcessing
 
 class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -53,11 +59,9 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
     }
   }
 
-  class IntegrationEngine extends Engine with IntegrationComponents
-  with ServiceManagerComponent with ManagedConnection
-  with CreateListenerComponent with FutInfoReplication with OptInfoReplication with ManagedSessions
+  class IntegrationEngine extends Engine with IntegrationComponents with ManagedServices with ManagedConnection with ManagedSessions
 
-  trait IntegrationComponents {
+  trait IntegrationComponents extends CreateListenerComponent with FutInfoReplication with OptInfoReplication {
     val underlyingConnection = new CGConnection(RouterConnection())
 
     val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")

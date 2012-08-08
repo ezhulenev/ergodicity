@@ -108,7 +108,7 @@ object Components {
 
 
   // Service Management
-  trait ServiceManagerComponent {
+  trait ManagedServices {
     this: {def context: ActorContext} =>
 
     val ServiceManager = context.actorOf(Props(new com.ergodicity.engine.ServiceManager()), "ServiceManager")
