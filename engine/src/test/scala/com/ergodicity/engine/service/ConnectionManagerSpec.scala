@@ -4,41 +4,43 @@ import akka.actor.ActorSystem
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit._
-import com.ergodicity.engine.MockedEngine
 import ru.micexrts.cgate.{Connection => CGConnection}
 import org.mockito.Mockito._
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
+import com.ergodicity.engine.Engine
 
-class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec", com.ergodicity.engine.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   override def afterAll() {
     system.shutdown()
   }
 
-  private def mockEngine(serviceTracker: TestProbe, connection: TestProbe) = new MockedEngine(log, serviceTracker.ref) with Connection {
+  private def mockEngine(manager: TestProbe, connection: TestProbe) = TestActorRef(new Engine with Connection {
     val underlyingConnection = mock(classOf[CGConnection])
     val Connection = connection.ref
-  }
+
+    val ServiceManager = manager.ref
+  })
 
   "ConnectionManager" must {
     "subscribe for transitions" in {
       val connection = TestProbe()
       val serviceTracker = TestProbe()
 
-      val engine = mockEngine(serviceTracker, connection)
-      val watcher = TestActorRef(new ConnectionManager(engine))
-      connection.expectMsg(SubscribeTransitionCallBack(watcher))
+      val engine = mockEngine(serviceTracker, connection).underlyingActor
+      val manager = TestActorRef(new ConnectionManager(engine))
+      connection.expectMsg(SubscribeTransitionCallBack(manager))
     }
 
     "throw exception on error state" in {
       val connection = TestProbe()
       val serviceTracker = TestProbe()
 
-      val engine = mockEngine(serviceTracker, connection)
-      val watcher = TestActorRef(new ConnectionManager(engine))
+      val engine = mockEngine(serviceTracker, connection).underlyingActor
+      val manager = TestActorRef(new ConnectionManager(engine))
       intercept[ConnectionException] {
-        watcher.receive(CurrentState(connection.ref, com.ergodicity.cgate.Error))
+        manager.receive(CurrentState(connection.ref, com.ergodicity.cgate.Error))
       }
     }
 
@@ -46,9 +48,9 @@ class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec",
       val connection = TestProbe()
       val serviceTracker = TestProbe()
 
-      val engine = mockEngine(serviceTracker, connection)
-      val watcher = TestActorRef(new ConnectionManager(engine))
-      watcher ! CurrentState(connection.ref, com.ergodicity.cgate.Active)
+      val engine = mockEngine(serviceTracker, connection).underlyingActor
+      val manager = TestActorRef(new ConnectionManager(engine))
+      manager ! CurrentState(connection.ref, com.ergodicity.cgate.Active)
       serviceTracker.expectMsg(ServiceStarted(ConnectionService))
     }
 
@@ -56,9 +58,9 @@ class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec",
       val connection = TestProbe()
       val serviceTracker = TestProbe()
 
-      val engine = mockEngine(serviceTracker, connection)
-      val watcher = TestActorRef(new ConnectionManager(engine))
-      watcher ! Transition(connection.ref, com.ergodicity.cgate.Active, com.ergodicity.cgate.Closed)
+      val engine = mockEngine(serviceTracker, connection).underlyingActor
+      val manager = TestActorRef(new ConnectionManager(engine))
+      manager ! Transition(connection.ref, com.ergodicity.cgate.Active, com.ergodicity.cgate.Closed)
       serviceTracker.expectMsg(ServiceStopped(ConnectionService))
     }
   }

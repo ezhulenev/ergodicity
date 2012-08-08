@@ -3,8 +3,9 @@ package com.ergodicity.engine
 import akka.actor._
 import com.ergodicity.engine.Engine.StartEngine
 import service.Service
-import akka.event.LoggingAdapter
 import akka.actor.FSM.{UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
+import ru.micexrts.cgate.{Listener => CGListener, ISubscriber, Connection => CGConnection}
+import com.ergodicity.cgate.config.Replication
 
 
 object Engine {
@@ -36,25 +37,19 @@ sealed trait EngineData
 object EngineData {
 
   case object Blank extends EngineData
+
 }
 
 
-trait Engine {
-  def log: LoggingAdapter
-
+trait Engine extends Actor with FSM[EngineState, EngineData] {
   def ServiceManager: ActorRef
 
   def registerService(service: Service, manager: ActorRef) {
     ServiceManager ! RegisterService(service, manager)
   }
-}
-
-class EngineImpl extends Actor with FSM[EngineState, EngineData] with Engine {
 
   import EngineState._
   import EngineData._
-
-  val ServiceManager = context.actorOf(Props(new ServiceManager), "ServiceManager")
 
   startWith(Idle, Blank)
 
@@ -66,7 +61,7 @@ class EngineImpl extends Actor with FSM[EngineState, EngineData] with Engine {
   }
 
   when(Starting) {
-    case Event(CurrentState(ServiceManager, ServiceManagerState.Active), _) =>
+    case Event(CurrentState(_, ServiceManagerState.Active), _) =>
       ServiceManager ! UnsubscribeTransitionCallBack(self)
       goto(Active)
   }
@@ -76,4 +71,26 @@ class EngineImpl extends Actor with FSM[EngineState, EngineData] with Engine {
       ServiceManager ! StopAllServices
       stay()
   }
+}
+
+object Components {
+
+  trait CreateListener {
+    def listener(connection: CGConnection, config: String, subscriber: ISubscriber): CGListener
+  }
+
+  trait FutInfoReplication {
+    def futInfoReplication: Replication
+  }
+
+  trait OptInfoReplication {
+    def optInfoReplication: Replication
+  }
+
+  trait Manager {
+    this: {def context: ActorContext} =>
+
+    val ServiceManager = context.actorOf(Props(new com.ergodicity.engine.ServiceManager()), "ServiceManager")
+  }
+
 }

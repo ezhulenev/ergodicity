@@ -1,6 +1,6 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.{EngineImpl, Engine}
+import com.ergodicity.engine.Engine
 import com.ergodicity.cgate.{Connection => CgateConnection}
 import akka.event.Logging
 import akka.actor.{ActorRef, Terminated, Actor, Props}
@@ -16,11 +16,12 @@ trait Connection {
   engine: Engine =>
 
   def underlyingConnection: CGConnection
+
   def Connection: ActorRef
 }
 
 trait ManagedConnection extends Connection {
-  engine: EngineImpl =>
+  engine: Engine =>
 
   val Connection = context.actorOf(Props(new CgateConnection(underlyingConnection)), "Connection")
   private[this] val connectionManager = context.actorOf(Props(new ConnectionManager(this)), "ConnectionManager")
@@ -33,7 +34,7 @@ protected[service] class ConnectionManager(engine: Engine with Connection) exten
   val log = Logging(context.system, self)
 
   import engine._
-  
+
   val ManagedConnection = Connection
 
   context.watch(ManagedConnection)

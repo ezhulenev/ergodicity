@@ -6,9 +6,8 @@ import akka.actor.{Terminated, ActorSystem}
 import akka.testkit.{TestFSMRef, TestProbe, ImplicitSender, TestKit}
 import service.Service.{Stop, Start}
 import service.{ServiceStopped, ServiceStarted, Service}
-import com.ergodicity.engine.ServiceManagerState.Active
 
-class ServiceManagerSpec extends TestKit(ActorSystem("ServiceManagerSpec", com.ergodicity.engine.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
+class ServiceManagerSpec extends TestKit(ActorSystem("ServiceManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   override def afterAll() {
