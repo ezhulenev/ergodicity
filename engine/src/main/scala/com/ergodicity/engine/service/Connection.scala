@@ -26,7 +26,6 @@ trait ManagedConnection extends Connection {
   val Connection = context.actorOf(Props(new CgateConnection(underlyingConnection)), "Connection")
   private[this] val connectionManager = context.actorOf(Props(new ConnectionManager(this)), "ConnectionManager")
 
-  log.info("Register Connection service")
   registerService(ConnectionService, connectionManager)
 }
 

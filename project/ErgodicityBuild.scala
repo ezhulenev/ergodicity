@@ -158,7 +158,7 @@ object Dependency {
     val JodaConvert  = "1.2"
     val SBinary      = "0.4.0"
     val ScalaTime    = "0.5"
-    val Akka         = "2.0"
+    val Akka         = "2.0.2"
     val ScalaIO      = "0.3.0"
     val Casbah       = "2.1.5-1"
 

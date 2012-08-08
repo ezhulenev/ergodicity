@@ -88,10 +88,7 @@ trait Engine extends Actor with FSM[EngineState, EngineData] {
 
 object Components {
 
-  trait CreateListener {
-    def listener(connection: CGConnection, config: String, subscriber: ISubscriber): CGListener
-  }
-
+  // Replication schemes
   trait FutInfoReplication {
     def futInfoReplication: Replication
   }
@@ -100,6 +97,17 @@ object Components {
     def optInfoReplication: Replication
   }
 
+  // Listener provider
+  trait CreateListener {
+    def listener(connection: CGConnection, config: String, subscriber: ISubscriber): CGListener
+  }
+
+  trait CreateListenerComponent extends CreateListener {
+    def listener(connection: CGConnection, config: String, subscriber: ISubscriber) = new CGListener(connection, config, subscriber)
+  }
+
+
+  // Service Management
   trait ServiceManagerComponent {
     this: {def context: ActorContext} =>
 

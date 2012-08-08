@@ -28,12 +28,11 @@ trait ManagedSessions extends Sessions {
   engine: Engine with Connection with CreateListener with FutInfoReplication with OptInfoReplication =>
 
   val FutInfoStream = context.actorOf(Props(new DataStream), "FutInfoDataStream")
-  val OptInfoStream = context.actorOf(Props(new DataStream), "FutInfoDataStream")
+  val OptInfoStream = context.actorOf(Props(new DataStream), "OptInfoDataStream")
 
-  val Sessions = context.actorOf(Props(new CoreSessions(FutInfoStream, OptInfoStream)).withDispatcher("deque-dispatcher"), "Sessions")
-  private[this] val sessionsManager = context.actorOf(Props(new SessionsManager(this)), "SessionsManager")
+  val Sessions = context.actorOf(Props(new CoreSessions(FutInfoStream, OptInfoStream)), "Sessions")
+  private[this] val sessionsManager = context.actorOf(Props(new SessionsManager(this)).withDispatcher("deque-dispatcher"), "SessionsManager")
 
-  log.info("Register Sessions service")
   registerService(SessionsService, sessionsManager)
 }
 
@@ -48,11 +47,12 @@ protected[service] class SessionsManager(engine: Engine with Connection with Ses
   val underlyingFutInfoListener = listener(underlyingConnection, futInfoReplication(), new DataStreamSubscriber(FutInfoStream))
   val futInfoListener = context.actorOf(Props(new Listener(BindListener(underlyingFutInfoListener) to Connection)), "FutInfoListener")
 
-  val underlyingOptInfoListener = listener(underlyingConnection, optInfoReplication(), new DataStreamSubscriber(FutInfoStream))
+  val underlyingOptInfoListener = listener(underlyingConnection, optInfoReplication(), new DataStreamSubscriber(OptInfoStream))
   val optInfoListener = context.actorOf(Props(new Listener(BindListener(underlyingOptInfoListener) to Connection)), "OptInfoListener")
 
   protected def receive = {
     case ServiceStarted(ConnectionService) =>
+      log.info("ConnectionService started, unstash all messages and start SessionsService")
       unstashAll()
       context.become {
         start orElse stop orElse handleSessionsGoesOnline orElse whenUnhandled
