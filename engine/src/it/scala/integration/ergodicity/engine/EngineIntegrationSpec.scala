@@ -53,15 +53,17 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
     }
   }
 
-  class IntegrationEngine extends {
+  class IntegrationEngine extends Engine with IntegrationComponents
+  with ServiceManagerComponent with ManagedConnection
+  with CreateListenerComponent with FutInfoReplication with OptInfoReplication with ManagedSessions
+
+  trait IntegrationComponents {
     val underlyingConnection = new CGConnection(RouterConnection())
 
     val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")
 
     val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
-  } with Engine with ServiceManagerComponent with ManagedConnection
-  with CreateListenerComponent with FutInfoReplication with OptInfoReplication with ManagedSessions
-
+  }
 
 }
 
