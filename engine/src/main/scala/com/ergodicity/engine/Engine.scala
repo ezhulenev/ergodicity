@@ -9,6 +9,8 @@ import com.ergodicity.cgate.config.Replication
 import akka.actor.SupervisorStrategy.Stop
 
 
+class ServiceFailedException(service: Service, message: String) extends RuntimeException
+
 object Engine {
 
   case object StartEngine

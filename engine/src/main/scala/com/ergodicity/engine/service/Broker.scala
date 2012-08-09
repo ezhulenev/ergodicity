@@ -1,17 +1,9 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.cgate.{Connection => ErgodicityConnection, BindListener, Listener => ErgodicityListener}
-import com.ergodicity.core.broker.{Broker => BrokerCore, ReplySubscriber, BindPublisher}
-import com.ergodicity.engine.Engine
-import com.ergodicity.engine.Components.CreateListener
-import akka.actor.{Stash, Actor, Props, ActorRef}
-import ru.micexrts.cgate.{Connection => CGConnection, Publisher => CGPublisher, Listener => CGListener}
-import com.ergodicity.cgate.config.Replies
-import com.ergodicity.core.WhenUnhandled
-import akka.event.Logging
 
 case object BrokerService extends Service
 
+/*
 trait Broker {
   engine: Engine with Connection with CreateListener =>
 
@@ -39,4 +31,4 @@ protected[service] class BrokerManager(engine: Engine with ManagedBroker) extend
   val log = Logging(context.system, self)
 
   protected def receive = null
-}
+}*/

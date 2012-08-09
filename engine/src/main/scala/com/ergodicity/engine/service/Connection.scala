@@ -1,16 +1,15 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.Engine
+import com.ergodicity.engine.{ServiceFailedException, Engine}
 import com.ergodicity.cgate.{Connection => CgateConnection}
 import akka.event.Logging
 import akka.actor.{ActorRef, Terminated, Actor, Props}
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
+import akka.util.duration._
 import com.ergodicity.core.WhenUnhandled
 import ru.micexrts.cgate.{Connection => CGConnection}
 
 case object ConnectionService extends Service
-
-class ConnectionException(msg: String) extends RuntimeException
 
 trait Connection {
   engine: Engine =>
@@ -50,19 +49,21 @@ protected[service] class ConnectionManager(engine: Engine with Connection) exten
     case Service.Stop =>
       ManagedConnection ! CgateConnection.Close
       ManagedConnection ! CgateConnection.Dispose
+      context.system.scheduler.scheduleOnce(1.second) {
+        ServiceManager ! ServiceStopped(ConnectionService)
+        context.stop(self)
+      }
   }
 
   private def trackConnectionState: Receive = {
-    case Terminated(ManagedConnection) => throw new ConnectionException("Connection unexpected terminated")
+    case Terminated(ManagedConnection) => throw new ServiceFailedException(ConnectionService, "Connection unexpected terminated")
 
-    case CurrentState(ManagedConnection, com.ergodicity.cgate.Error) => throw new ConnectionException("Connection switched to Error state")
+    case CurrentState(ManagedConnection, com.ergodicity.cgate.Error) => throw new ServiceFailedException(ConnectionService, "Connection switched to Error state")
 
-    case Transition(ManagedConnection, _, com.ergodicity.cgate.Error) => throw new ConnectionException("Connection switched to Error state")
+    case Transition(ManagedConnection, _, com.ergodicity.cgate.Error) => throw new ServiceFailedException(ConnectionService, "Connection switched to Error state")
 
     case CurrentState(ManagedConnection, com.ergodicity.cgate.Active) => ServiceManager ! ServiceStarted(ConnectionService)
 
     case Transition(ManagedConnection, _, com.ergodicity.cgate.Active) => ServiceManager ! ServiceStarted(ConnectionService)
-
-    case Transition(ManagedConnection, com.ergodicity.cgate.Active, com.ergodicity.cgate.Closed) => ServiceManager ! ServiceStopped(ConnectionService)
   }
 }

@@ -1,13 +1,13 @@
 package com.ergodicity.engine.service
 
-import akka.actor.ActorSystem
+import akka.actor.{Terminated, ActorSystem}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit._
 import ru.micexrts.cgate.{Connection => CGConnection}
 import org.mockito.Mockito._
-import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.engine.Engine
+import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack}
+import com.ergodicity.engine.{ServiceFailedException, Engine}
 
 class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -39,7 +39,7 @@ class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec",
 
       val engine = mockEngine(serviceTracker, connection).underlyingActor
       val manager = TestActorRef(new ConnectionManager(engine))
-      intercept[ConnectionException] {
+      intercept[ServiceFailedException] {
         manager.receive(CurrentState(connection.ref, com.ergodicity.cgate.Error))
       }
     }
@@ -54,14 +54,16 @@ class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec",
       serviceTracker.expectMsg(ServiceStarted(ConnectionService))
     }
 
-    "notify engine on closed state" in {
+    "stop itselt of Service.Stop message" in {
       val connection = TestProbe()
       val serviceTracker = TestProbe()
 
       val engine = mockEngine(serviceTracker, connection).underlyingActor
       val manager = TestActorRef(new ConnectionManager(engine))
-      manager ! Transition(connection.ref, com.ergodicity.cgate.Active, com.ergodicity.cgate.Closed)
+      watch(manager)
+      manager ! Service.Stop
       serviceTracker.expectMsg(ServiceStopped(ConnectionService))
+      expectMsg(Terminated(manager))
     }
   }
 }

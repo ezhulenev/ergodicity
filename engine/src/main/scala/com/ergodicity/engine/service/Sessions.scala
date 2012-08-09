@@ -2,6 +2,7 @@ package com.ergodicity.engine.service
 
 import com.ergodicity.engine._
 import akka.actor.{Stash, ActorRef, Actor, Props}
+import akka.util.duration._
 import com.ergodicity.core.{Sessions => CoreSessions, SessionsState, WhenUnhandled}
 import com.ergodicity.cgate.{BindListener, Listener, DataStreamSubscriber, DataStream}
 import akka.event.Logging
@@ -86,6 +87,9 @@ protected[service] class SessionsManager(engine: Engine with Connection with Ses
       optInfoListener ! Listener.Close
       futInfoListener ! Listener.Dispose
       optInfoListener ! Listener.Dispose
-      ServiceManager ! ServiceStopped(SessionsService)
+      context.system.scheduler.scheduleOnce(1.second) {
+        ServiceManager ! ServiceStopped(SessionsService)
+        context.stop(self)
+      }
   }
 }

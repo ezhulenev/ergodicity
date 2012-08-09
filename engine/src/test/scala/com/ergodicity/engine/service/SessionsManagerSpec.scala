@@ -1,6 +1,6 @@
 package com.ergodicity.engine.service
 
-import akka.actor.{ActorRef, Props, ActorSystem}
+import akka.actor.{Terminated, ActorRef, Props, ActorSystem}
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit._
@@ -65,6 +65,26 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
 
       then("Service Manager should be notified")
       serviceManager.expectMsg(ServiceStarted(SessionsService))
+    }
+
+    "stop actor on Service.Stop message" in {
+      val serviceManager = TestProbe()
+      val sessions = TestProbe()
+
+      val engine = mockEngine(serviceManager, sessions).underlyingActor
+      val manager: ActorRef = TestActorRef(Props(new SessionsManager(engine)).withDispatcher("deque-dispatcher"), "SessionsManager")
+
+      manager ! ServiceStarted(ConnectionService)
+      watch(manager)
+
+      when("stop Service")
+      manager ! Service.Stop
+
+      when("service manager should be notified")
+      serviceManager.expectMsg(ServiceStopped(SessionsService))
+
+      and("service manager actor terminated")
+      expectMsg(Terminated(manager))
     }
   }
 }
