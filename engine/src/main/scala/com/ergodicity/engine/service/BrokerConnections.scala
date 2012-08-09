@@ -43,9 +43,11 @@ object BrokerConnectionsManager {
 
   case object Idle extends ManagerState
 
-  case object Connecting extends ManagerState
+  case object Starting extends ManagerState
 
   case object Connected extends ManagerState
+
+  case object Stopping extends ManagerState
 
 
   sealed trait ManagerData
@@ -79,10 +81,10 @@ protected[service] class BrokerConnectionsManager(engine: Engine with BrokerConn
       ManagedPublisherConnection ! ErgodicityConnection.Open
       ManagedRepliesConnection ! ErgodicityConnection.Open
 
-      goto(Connecting) using ConnectionsStates()
+      goto(Starting) using ConnectionsStates()
   }
 
-  when(Connecting) {
+  when(Starting) {
     case Event(CurrentState(ManagedPublisherConnection, state: com.ergodicity.cgate.State), states@ConnectionsStates(_, _)) =>
       handleConnectionsStates(states.copy(publisher = Some(state)))
 
@@ -102,11 +104,13 @@ protected[service] class BrokerConnectionsManager(engine: Engine with BrokerConn
       ManagedRepliesConnection ! ErgodicityConnection.Close
       ManagedPublisherConnection ! ErgodicityConnection.Close
       ManagedRepliesConnection ! ErgodicityConnection.Dispose
-      context.system.scheduler.scheduleOnce(1.second) {
-        ServiceManager ! ServiceStopped(BrokerConnectionsService)
-        context.stop(self)
-      }
-      stay()
+      goto(Stopping) forMax (1.second)
+  }
+
+  when(Stopping) {
+    case Event(FSM.StateTimeout, _) =>
+      ServiceManager ! ServiceStopped(BrokerConnectionsService)
+      stop(FSM.Shutdown)
   }
 
   whenUnhandled {
@@ -120,14 +124,12 @@ protected[service] class BrokerConnectionsManager(engine: Engine with BrokerConn
       throw new ServiceFailedException(ConnectionService, "Broker connection switched to Error state")
   }
 
-  private def handleConnectionsStates(states: ConnectionsStates) = (states.publisher <**> states.replies) {
-    (_, _)
-  } match {
+  private def handleConnectionsStates(states: ConnectionsStates) = (states.publisher <**> states.replies)((_, _)) match {
     case Some((Active, Active)) => goto(Connected) using Blank
     case _ => stay() using states
   }
 
   onTransition {
-    case Connecting -> Connected => ServiceManager ! ServiceStarted(BrokerConnectionsService)
+    case Starting -> Connected => ServiceManager ! ServiceStarted(BrokerConnectionsService)
   }
 }

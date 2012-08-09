@@ -36,7 +36,7 @@ class BrokerConnectionsManagerSpec extends TestKit(ActorSystem("BrokerConnection
       val serviceManager = TestProbe()
 
       val engine = mockEngine(serviceManager, publisherConnection, repliesConnection).underlyingActor
-      val manager = TestFSMRef(new BrokerConnectionsManager(engine))
+      val manager = TestFSMRef(new BrokerConnectionsManager(engine), "Manager")
 
       assert(manager.stateName == BrokerConnectionsManager.Idle)
       when("service started")
@@ -57,7 +57,7 @@ class BrokerConnectionsManagerSpec extends TestKit(ActorSystem("BrokerConnection
       val serviceManager = TestProbe()
 
       val engine = mockEngine(serviceManager, publisherConnection, repliesConnection).underlyingActor
-      val manager = TestFSMRef(new BrokerConnectionsManager(engine))
+      val manager = TestFSMRef(new BrokerConnectionsManager(engine), "Manager")
 
       intercept[ServiceFailedException] {
         manager.receive(CurrentState(publisherConnection.ref, com.ergodicity.cgate.Error))
@@ -70,10 +70,10 @@ class BrokerConnectionsManagerSpec extends TestKit(ActorSystem("BrokerConnection
       val serviceManager = TestProbe()
 
       val engine = mockEngine(serviceManager, publisherConnection, repliesConnection).underlyingActor
-      val manager = TestFSMRef(new BrokerConnectionsManager(engine))
+      val manager = TestFSMRef(new BrokerConnectionsManager(engine), "Manager")
 
       manager ! Service.Start
-      assert(manager.stateName == BrokerConnectionsManager.Connecting)
+      assert(manager.stateName == BrokerConnectionsManager.Starting)
 
       manager ! CurrentState(publisherConnection.ref, com.ergodicity.cgate.Active)
       manager ! CurrentState(repliesConnection.ref, com.ergodicity.cgate.Active)
@@ -88,7 +88,7 @@ class BrokerConnectionsManagerSpec extends TestKit(ActorSystem("BrokerConnection
       val serviceManager = TestProbe()
 
       val engine = mockEngine(serviceManager, publisherConnection, repliesConnection).underlyingActor
-      val manager = TestFSMRef(new BrokerConnectionsManager(engine))
+      val manager = TestFSMRef(new BrokerConnectionsManager(engine), "Manager")
 
       manager.setState(BrokerConnectionsManager.Connected)
       watch(manager)
