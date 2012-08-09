@@ -3,19 +3,21 @@ package integration.ergodicity.engine
 import akka.event.Logging
 import akka.util.duration._
 import akka.actor.ActorSystem
-import akka.testkit.{TestActorRef, TestKit}
+import akka.testkit.{TestFSMRef, TestKit}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import com.ergodicity.engine.Components._
 import com.ergodicity.engine.Engine
 import com.ergodicity.engine.Engine.StartEngine
 import java.util.concurrent.TimeUnit
-import com.ergodicity.engine.service.{ManagedBrokerConnections, ManagedBroker, ManagedConnection}
+import com.ergodicity.engine.service._
 import ru.micexrts.cgate.{Connection => CGConnection, P2TypeParser, CGate, Publisher => CGPublisher}
-import com.ergodicity.cgate.config.{FortsMessages, Replication, CGateConfig}
+import com.ergodicity.cgate.config.Replication
 import java.io.File
+import com.ergodicity.core.broker.Broker.Config
+import com.ergodicity.cgate.config.CGateConfig
+import com.ergodicity.cgate.config.FortsMessages
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.Connection.StartMessageProcessing
-import com.ergodicity.core.broker.Broker.Config
 
 class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -43,20 +45,24 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
 
   "Engine" must {
     "start" in {
-      val engine = TestActorRef(factory, "Engine")
+      val engine = TestFSMRef(factory, "Engine")
 
       engine ! StartEngine
 
       Thread.sleep(5000)
 
-      engine.underlyingActor.Connection ! StartMessageProcessing(100.millis)
+      engine.underlyingActor.asInstanceOf[Engine with Connection].Connection ! StartMessageProcessing(100.millis)
+
+      Thread.sleep(10000)
+
+      log.info("ENGINE STATE = " + engine.stateName)
 
       Thread.sleep(TimeUnit.DAYS.toMillis(1))
     }
   }
 
   class TestEngine extends Engine with Config with CreateListenerComponent
-  with ManagedServices with ManagedConnection with ManagedBrokerConnections with ManagedBroker
+  with ManagedServices with ManagedConnection with ManagedBrokerConnections with ManagedBroker with ManagedSessions
 
   trait Config extends ConnectionConfig with SessionsConfig with BrokerConfig
 

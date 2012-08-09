@@ -5,6 +5,7 @@ import com.typesafe.config.ConfigFactory
 package object engine {
   val EngineSystemConfig = ConfigFactory.parseString("""
     akka.loglevel = DEBUG
+
     akka.actor.debug {
       receive = on
       lifecycle = on
@@ -14,5 +15,5 @@ package object engine {
       mailbox-type = "akka.dispatch.UnboundedDequeBasedMailbox"
     }
 
-    """)
+                                                     """)
 }

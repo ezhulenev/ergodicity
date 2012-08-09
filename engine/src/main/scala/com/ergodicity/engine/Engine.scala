@@ -99,6 +99,10 @@ object Components {
     def optInfoReplication: Replication
   }
 
+  trait PosReplication {
+    def posReplication: Replication
+  }
+
   // Listener provider
   trait CreateListener {
     def listener(connection: CGConnection, config: String, subscriber: ISubscriber): CGListener
