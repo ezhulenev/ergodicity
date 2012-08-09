@@ -83,7 +83,7 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
       when("service manager should be notified")
       serviceManager.expectMsg(ServiceStopped(SessionsService))
 
-      and("service manager actor terminated")
+      and("sessions manager actor terminated")
       expectMsg(Terminated(manager))
     }
   }

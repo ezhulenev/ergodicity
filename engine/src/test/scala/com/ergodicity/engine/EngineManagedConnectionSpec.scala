@@ -27,7 +27,7 @@ class EngineManagedConnectionSpec extends TestKit(ActorSystem("EngineManagedConn
       // Start engine
       engine ! Engine.StartEngine
 
-      Thread.sleep(300)
+      Thread.sleep(700)
 
       verify(engine.underlyingActor.asInstanceOf[Connection].underlyingConnection).open("")
     }
