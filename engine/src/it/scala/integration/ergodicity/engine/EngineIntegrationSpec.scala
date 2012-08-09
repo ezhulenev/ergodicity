@@ -62,9 +62,12 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
   }
 
   class TestEngine extends Engine with Config with CreateListenerComponent
-  with ManagedServices with ManagedConnection with ManagedBrokerConnections with ManagedBroker with ManagedSessions
+  with ManagedServices with ManagedConnection
+  //with ManagedSessions
+  with ManagedPositions
+  with ManagedBrokerConnections with ManagedBroker
 
-  trait Config extends ConnectionConfig with SessionsConfig with BrokerConfig
+  trait Config extends ConnectionConfig with SessionsConfig with PositionsConfig with BrokerConfig
 
   trait ConnectionConfig {
     val underlyingConnection = new CGConnection(ReplicationConnection())
@@ -88,6 +91,10 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
     val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")
 
     val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
+  }
+
+  trait PositionsConfig extends PosReplication {
+    def posReplication = Replication("FORTS_POS_REPL", new File("cgate/scheme/pos.ini"), "CustReplScheme")
   }
 
 }
