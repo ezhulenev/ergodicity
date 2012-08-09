@@ -9,19 +9,13 @@ import com.ergodicity.engine.Components._
 import com.ergodicity.engine.Engine
 import com.ergodicity.engine.Engine.StartEngine
 import java.util.concurrent.TimeUnit
-import com.ergodicity.engine.service.{ManagedSessions, ManagedConnection}
-import ru.micexrts.cgate.{Connection => CGConnection, P2TypeParser, CGate}
-import com.ergodicity.cgate.config.Replication
+import com.ergodicity.engine.service.{ManagedBrokerConnections, ManagedBroker, ManagedConnection}
+import ru.micexrts.cgate.{Connection => CGConnection, P2TypeParser, CGate, Publisher => CGPublisher}
+import com.ergodicity.cgate.config.{FortsMessages, Replication, CGateConfig}
 import java.io.File
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import com.ergodicity.cgate.config.CGateConfig
 import com.ergodicity.cgate.Connection.StartMessageProcessing
-import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import com.ergodicity.cgate.config.CGateConfig
-import com.ergodicity.cgate.Connection.StartMessageProcessing
-import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import com.ergodicity.cgate.config.CGateConfig
-import com.ergodicity.cgate.Connection.StartMessageProcessing
+import com.ergodicity.core.broker.Broker.Config
 
 class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -30,7 +24,9 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
   val Host = "localhost"
   val Port = 4001
 
-  val RouterConnection = Tcp(Host, Port, system.name)
+  val ReplicationConnection = Tcp(Host, Port, "Replication")
+  val PublisherConnection = Tcp(Host, Port, "Publisher")
+  val RepliesConnection = Tcp(Host, Port, "Repl")
 
   override def beforeAll() {
     val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
@@ -43,7 +39,7 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
     CGate.close()
   }
 
-  def factory = new IntegrationEngine
+  def factory = new TestEngine
 
   "Engine" must {
     "start" in {
@@ -59,11 +55,30 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
     }
   }
 
-  class IntegrationEngine extends Engine with IntegrationComponents with ManagedServices with ManagedConnection with ManagedSessions
+  class TestEngine extends Engine with Config with CreateListenerComponent
+  with ManagedServices with ManagedConnection with ManagedBrokerConnections with ManagedBroker
 
-  trait IntegrationComponents extends CreateListenerComponent with FutInfoReplication with OptInfoReplication {
-    val underlyingConnection = new CGConnection(RouterConnection())
+  trait Config extends ConnectionConfig with SessionsConfig with BrokerConfig
 
+  trait ConnectionConfig {
+    val underlyingConnection = new CGConnection(ReplicationConnection())
+  }
+
+  trait BrokerConnectionsConfig {
+    val underlyingPublisherConnection = new CGConnection(PublisherConnection())
+    val underlyingRepliesConnection = new CGConnection(RepliesConnection())
+  }
+
+  trait BrokerConfig extends BrokerConnectionsConfig {
+    implicit val BrokerConfig = Config("533")
+
+    val BrokerName = "Ergodicity"
+
+    val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/forts_messages.ini"))
+    val underlyingPublisher = new CGPublisher(underlyingPublisherConnection, messagesConfig())
+  }
+
+  trait SessionsConfig extends FutInfoReplication with OptInfoReplication {
     val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")
 
     val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")

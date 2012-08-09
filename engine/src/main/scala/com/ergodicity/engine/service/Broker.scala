@@ -20,7 +20,7 @@ case object BrokerService extends Service
 trait Broker {
   engine: Engine with BrokerConnections with CreateListener =>
 
-  val BrokerName = "Ergodicity"
+  def BrokerName: String
 
   implicit def BrokerConfig: BrokerCore.Config
 
@@ -30,13 +30,13 @@ trait Broker {
 }
 
 trait ManagedBroker extends Broker {
-  engine: Engine with BrokerConnections with CreateListener =>
+  engine: Engine with CreateListener with BrokerConnections =>
 
   val Broker = context.actorOf(Props(new BrokerCore(BindPublisher(underlyingPublisher) to PublisherConnection)), "Broker")
 
   private[this] val brokerManager = context.actorOf(Props(new BrokerManager(this)).withDispatcher("deque-dispatcher"), "BrokerManager")
 
-  registerService(SessionsService, brokerManager)
+  registerService(BrokerService, brokerManager)
 }
 
 protected[service] class BrokerManager(engine: Engine with CreateListener with BrokerConnections with Broker) extends Actor with WhenUnhandled with Stash {

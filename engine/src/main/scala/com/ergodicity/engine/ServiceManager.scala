@@ -54,14 +54,16 @@ class ServiceManager extends Actor with FSM[ServiceManagerState, ServiceManagerD
       stay()
 
     case Event(StartAllServices, _) =>
+      log.info("Start all services = " + services.keys)
       services.values.foreach(_ ! Start)
       goto(Starting) using PendingServices(services.keys)
   }
 
   when(Starting, stateTimeout = 30.seconds) {
     case Event(started@ServiceStarted(service), PendingServices(pending)) =>
-      services.filter(_._1 != service).foreach(_._2 ! started)
       val remaining = pending.filterNot(_ == service)
+      log.info("Service started = " + service + ", remaining = " + remaining)
+      services.filter(_._1 != service).foreach(_._2 ! started)
       remaining.size match {
         case 0 => goto(Active) using Blank
         case _ => stay() using PendingServices(remaining)
@@ -73,6 +75,7 @@ class ServiceManager extends Actor with FSM[ServiceManagerState, ServiceManagerD
 
   when(Active) {
     case Event(StopAllServices, _) =>
+      log.info("Stop all services = " + services.keys)
       services.values.foreach(_ ! Stop)
       goto(Stopping) using PendingServices(services.keys)
   }

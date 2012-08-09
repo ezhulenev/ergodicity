@@ -24,6 +24,8 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
     val ServiceManager = serviceManager.ref
     val Broker = broker.ref
   } with Engine with CreateListener with BrokerConnections with Broker {
+    val BrokerName = "TestBroker"
+
     def underlyingPublisherConnection = mock(classOf[CGConnection])
 
     def underlyingRepliesConnection = mock(classOf[CGConnection])
