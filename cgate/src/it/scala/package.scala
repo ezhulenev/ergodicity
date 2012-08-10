@@ -7,5 +7,11 @@ package object integration {
       receive = on
       lifecycle = on
     }
+
+    akka {
+      event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
+      loglevel = "DEBUG"
+    }
+
     """)
 }

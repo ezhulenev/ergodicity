@@ -47,4 +47,12 @@ object Protocol {
     def read(in: ByteBuffer) = new OptTrade.deal(in)
   }
 
+  implicit val ReadsOrderBookOrders = new Reads[OrderBook.orders] {
+    def read(in: ByteBuffer) = new OrderBook.orders(in)
+  }
+
+  implicit val ReadsOrderBookInfo = new Reads[OrderBook.info] {
+    def read(in: ByteBuffer) = new OrderBook.info(in)
+  }
+
 }

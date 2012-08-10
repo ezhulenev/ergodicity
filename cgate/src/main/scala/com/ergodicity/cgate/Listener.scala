@@ -55,7 +55,7 @@ class Listener(withListener: WithListener, updateStateDuration: Option[Duration]
 
   when(Closed) {
     case Event(Open(config), None) =>
-      log.info("Open listener with config = " + config)
+      log.info("Open listener with config = " + config())
       withListener(_.open(config()))
       stay() using Some(config)
   }

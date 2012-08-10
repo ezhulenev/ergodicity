@@ -136,7 +136,7 @@ object Dependencies {
 
   val core = Seq(scalaz, jodaTime, jodaConvert, scalaTime) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 
-  val cgate = Seq(scalaz, akka, ostrich) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val cgate = Seq(scalaz, akka, akkaSlf4j, ostrich) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
 }
 
 
@@ -146,7 +146,6 @@ object Dependency {
 
   object V {
     val MarketDb     = "0.1-SNAPSHOT"
-    val Plaza2       = "0.1-SNAPSHOT"
 
     val Scalatest    = "1.6.1"
     val Mockito      = "1.8.1"
@@ -181,6 +180,7 @@ object Dependency {
   val sbinary                = "org.scala-tools.sbinary"          %% "sbinary"                % V.SBinary
   val scalaTime              = "org.scala-tools.time"             %% "time"                   % V.ScalaTime intransitive()
   val akka                   = "com.typesafe.akka"                 % "akka-actor"             % V.Akka
+  val akkaSlf4j              = "com.typesafe.akka"                 % "akka-slf4j"             % V.Akka
   val scalaIO                = "com.github.scala-incubator.io"    %% "scala-io-core"          % V.ScalaIO
   val casbah                 = "com.mongodb.casbah"               %% "casbah"                 % V.Casbah
 

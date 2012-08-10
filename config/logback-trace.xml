@@ -1,0 +1,22 @@
+<configuration>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%date{ISO8601} %-5level %logger{36} %X{akkaSource} - %msg%n</pattern>
+        </encoder>    </appender>
+
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>log/ergodicity.log</file>
+        <append>false</append>
+        <encoder>
+            <pattern>%date{ISO8601} %-5level %logger{36} %X{akkaSource} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="com.ergodicity" level="TRACE"/>
+
+    <root level="trace">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>

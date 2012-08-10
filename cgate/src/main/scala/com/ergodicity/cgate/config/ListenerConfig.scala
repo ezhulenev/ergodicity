@@ -50,6 +50,9 @@ object Replication {
     val config = state.map(modeParam + ";replstate=" + _.state).getOrElse(modeParam)
   }
 
+  case object EmptyParams extends ListenerOpenParams {
+    val config = ""
+  }
 }
 
 

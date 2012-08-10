@@ -1,6 +1,6 @@
 package com.ergodicity.cgate.repository
 
-import akka.actor.{ActorRef, FSM, Actor}
+import akka.actor.{LoggingFSM, ActorRef, FSM, Actor}
 import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, Snapshot}
 import akka.actor.FSM.Failure
 import com.ergodicity.cgate.Reads
@@ -28,13 +28,13 @@ object Repository {
 
 }
 
-class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) extends Actor with FSM[RepositoryState, Map[Long, T]] {
+class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) extends Actor with LoggingFSM[RepositoryState, Map[Long, T]] {
 
 
   import RepositoryState._
   import com.ergodicity.cgate.StreamEvent._
 
-  var snapshotSubscribers: Set[ActorRef] = Set()
+  var snapshotSubscribers: Seq[ActorRef] = Seq()
 
   startWith(Empty, Map())
 
@@ -57,7 +57,7 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
 
   when(Synchronizing) {
     case Event(SubscribeSnapshots(ref), _) =>
-      snapshotSubscribers = snapshotSubscribers + ref
+      snapshotSubscribers = snapshotSubscribers :+ ref
       stay()
 
     case Event(StreamData(_, data), map) =>
@@ -70,23 +70,25 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
       } else stay() using map + (repl.replID -> rec)
 
     case Event(TnCommit, _) => goto(Consistent)
+  }
+
+  whenUnhandled {
+    case Event(SubscribeSnapshots(ref), _) =>
+      snapshotSubscribers = snapshotSubscribers :+ ref
+      ref ! Snapshot(self, stateData.values)
+      stay()
 
     case Event(ClearDeleted(_, rev), map) => stay() using map.filterNot {
       case (id, rec) =>
         replica(rec).replRev < rev
     }
-  }
-
-  whenUnhandled {
-    case Event(SubscribeSnapshots(ref), _) =>
-      snapshotSubscribers = snapshotSubscribers + ref
-      ref ! Snapshot(self, stateData.values)
-      stay()
 
     case Event(e, _) => stop(Failure("Unexpected event = " + e + " in state = " + stateName))
   }
 
   onTransition {
+    case Empty -> Synchronizing => log.info("Receive first data")
+
     case Consistent -> Synchronizing => log.info("Begin updating repository")
 
     case Synchronizing -> Consistent =>

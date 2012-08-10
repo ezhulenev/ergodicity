@@ -5,6 +5,8 @@ import com.ergodicity.cgate.scheme.OptInfo.opt_sess_contents
 import com.ergodicity.cgate.scheme.Pos.position
 import com.ergodicity.cgate.scheme._
 import com.ergodicity.cgate.scheme.FutTrade.{deal}
+import com.ergodicity.cgate.scheme.OrderBook.{info, orders}
+import java.lang.System
 
 case class Replica(replID: Long, replRev: Long, replAct: Long)
 
@@ -44,7 +46,15 @@ object ReplicaExtractor {
   }
 
   implicit val FutTradeOrdersExtractor = new ReplicaExtractor[FutTrade.orders_log] {
-    def repl(in: FutTrade.orders_log) = repl(in)
+    def repl(in: FutTrade.orders_log) = replica(in)
+  }
+
+  implicit val OrderBookOrdersExtractor = new ReplicaExtractor[OrderBook.orders] {
+    def repl(in: orders) = replica(in)
+  }
+
+  implicit val OrderBookInfoExtractor = new ReplicaExtractor[OrderBook.info] {
+    def repl(in: info) = replica(in)
   }
 }
 
