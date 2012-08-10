@@ -13,7 +13,7 @@ import Mocking._
 import com.ergodicity.cgate.repository.Repository.Snapshot
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.{DataStream, DataStreamState}
-import akka.actor.{Terminated, ActorSystem}
+import akka.actor.{Kill, Terminated, ActorSystem}
 
 class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -22,6 +22,20 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
 
   override def afterAll() {
     system.shutdown()
+  }
+
+  private def underlyingSessions(ref: TestFSMRef[SessionsState, SessionsData, Sessions]) = {
+    val underlying = ref.underlyingActor.asInstanceOf[Sessions]
+
+    // Kill all repositories to prevent Snapshot's from Empty state
+    underlying.SessionRepository ! Kill
+    underlying.FutSessContentsRepository ! Kill
+    underlying.OptSessContentsRepository ! Kill
+
+    // Let them die
+    Thread.sleep(100)
+
+    underlying
   }
 
   "Sessions" must {
@@ -36,8 +50,8 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
       val OptInfoDS = TestFSMRef(new DataStream(), "OptInfoDS")
 
       val sessions = TestFSMRef(new Sessions(FutInfoDS, OptInfoDS), "Sessions")
+      val underlying = underlyingSessions(sessions)
 
-      val underlying = sessions.underlyingActor.asInstanceOf[Sessions]
       val sessionRepository = underlying.SessionRepository
 
       then("should initialized in Binded state")
@@ -64,7 +78,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
 
       and("go to LoadingFuturesContents state")
       log.info("EBAKA = "+sessions.stateName)
-      assert(sessions.stateName == SessionsState.LoadingFuturesContents)
+      assert(sessions.stateName == SessionsState.LoadingFuturesContents, "Sessions state = " + sessions.stateName)
       
       when("receive Futures sessions contentes")
       sessions ! Snapshot(underlying.FutSessContentsRepository, List[FutInfo.fut_sess_contents]())
@@ -140,7 +154,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
       val OptInfoDS = TestFSMRef(new DataStream())
       val sessions = TestFSMRef(new Sessions(FutInfoDS, OptInfoDS), "Sessions")
 
-      val underlying = sessions.underlyingActor.asInstanceOf[Sessions]
+      val underlying = underlyingSessions(sessions)
 
       sessions.setState(SessionsState.Online, TrackingSessions(Map(SessionId(100l, 0l) -> self), None))
 
@@ -156,7 +170,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
       val OptInfoDS = TestFSMRef(new DataStream)
       val sessions = TestFSMRef(new Sessions(FutInfoDS, OptInfoDS), "Sessions")
 
-      val underlying = sessions.underlyingActor.asInstanceOf[Sessions]
+      val underlying = underlyingSessions(sessions)
 
       sessions.setState(SessionsState.Online, TrackingSessions(Map(SessionId(0, 100l) -> self), None))
 

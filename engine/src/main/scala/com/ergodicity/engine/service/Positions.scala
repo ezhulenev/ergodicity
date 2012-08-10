@@ -16,7 +16,7 @@ import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, 
 case object PositionsService extends Service
 
 trait Positions {
-  engine: Engine with Connection with CreateListener with PosReplication =>
+  engine: Engine =>
 
   def PosStream: ActorRef
 

@@ -3,9 +3,11 @@ package com.ergodicity.core
 sealed trait Market
 
 object Market {
+
   sealed trait Futures extends Market
 
   sealed trait Options extends Market
+
 }
 
 case class Isins(id: Int, isin: String, shortIsin: String) extends IsinId with Isin with ShortIsin
@@ -13,38 +15,50 @@ case class Isins(id: Int, isin: String, shortIsin: String) extends IsinId with I
 object IsinId {
   def apply(value: Int) = new IsinId {
     val id = value
-
-    override def toString = "IsinId(" + id + ")"
   }
 }
 
 trait IsinId {
   def id: Int
+
+  override def toString = "IsinId(" + id + ")"
+
+  override def hashCode() = id.hashCode
+
+  override def equals(obj: Any) = obj.isInstanceOf[IsinId] && obj.asInstanceOf[IsinId].id.equals(id)
 }
 
 object Isin {
   def apply(value: String) = new Isin {
     val isin = value
-
-    override def toString = "Isin(" + isin + ")"
   }
 }
 
 trait Isin {
   def isin: String
+
+  override def toString = "Isin(" + isin + ")"
+
+  override def hashCode() = isin.hashCode
+
+  override def equals(obj: Any) = obj.isInstanceOf[Isin] && obj.asInstanceOf[Isin].isin.equals(isin)
 }
 
 object ShortIsin {
 
   def apply(value: String) = new ShortIsin {
     val shortIsin = value
-
-    override def toString = "apply(" + shortIsin + ")"
   }
 }
 
 trait ShortIsin {
   def shortIsin: String
+
+  override def toString = "ShortIsisn(" + shortIsin + ")"
+
+  override def hashCode() = shortIsin.hashCode
+
+  override def equals(obj: Any) = obj.isInstanceOf[ShortIsin] && obj.asInstanceOf[ShortIsin].shortIsin.equals(shortIsin)
 }
 
 

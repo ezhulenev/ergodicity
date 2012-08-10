@@ -4,7 +4,9 @@ import com.ergodicity.cgate.scheme.FutTrade
 
 package object order {
 
+
   case class TrackSession(sessionId: Int)
+
 
   case class DropSession(sessionId: Int)
 
@@ -32,6 +34,7 @@ package object order {
     def mapOrderType(orderType: Int) = orderType match {
       case t if ((t & 0x01) > 0) => OrderType.GoodTillCancelled
       case t if ((t & 0x02) > 0) => OrderType.ImmediateOrCancel
+      case t => throw new IllegalArgumentException("Illegal order type: " + t)
     }
 
     def mapOrderDirection(direction: Short) = direction match {

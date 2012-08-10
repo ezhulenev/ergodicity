@@ -21,6 +21,7 @@ class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec",
     val Connection = connection.ref
 
     val ServiceManager = manager.ref
+    val StrategyManager = system.deadLetters
   })
 
   "ConnectionManager" must {

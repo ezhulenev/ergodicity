@@ -20,6 +20,8 @@ class BrokerConnectionsManagerSpec extends TestKit(ActorSystem("BrokerConnection
   private def mockEngine(manager: TestProbe, publisherConnection: TestProbe, repliesConnection: TestProbe) = TestActorRef(new Engine with BrokerConnections {
     val ServiceManager = manager.ref
 
+    val StrategyManager = system.deadLetters
+
     def underlyingPublisherConnection = mock(classOf[CGConnection])
 
     def underlyingRepliesConnection = mock(classOf[CGConnection])

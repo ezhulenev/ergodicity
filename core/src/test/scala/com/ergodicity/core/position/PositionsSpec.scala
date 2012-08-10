@@ -7,7 +7,6 @@ import akka.actor.{ActorRef, ActorSystem}
 import java.util.concurrent.TimeUnit
 import akka.dispatch.Await
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
-import com.ergodicity.core.position.PositionsData.TrackingPositions
 import com.ergodicity.core.AkkaConfigurations
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.scheme.Pos
@@ -16,6 +15,7 @@ import com.ergodicity.cgate.{DataStreamState, DataStream}
 import com.ergodicity.cgate.repository.Repository.Snapshot
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack, CurrentState}
 import org.scalatest.{BeforeAndAfter, GivenWhenThen, BeforeAndAfterAll, WordSpec}
+import com.ergodicity.core.position.Positions.{OpenPositions, GetOpenPositions, GetPosition}
 
 class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll with BeforeAndAfter {
   val log = Logging(system, self)
@@ -25,7 +25,7 @@ class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurati
   override def afterAll() {
     system.shutdown()
   }
-  
+
   after {
     Thread.sleep(100)
   }
@@ -61,15 +61,36 @@ class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurati
       assert(positions.stateName == Binded)
     }
 
-    "bind to stream and go Online later" in {
+    "bind to stream and go to LoadingPositions later" in {
       val PosDS = TestFSMRef(new DataStream, "DataStream")
       val positions = TestFSMRef(new Positions(PosDS), "Positions")
 
       when("PosRepl data Streams goes online")
       positions ! Transition(PosDS, DataStreamState.Opened, DataStreamState.Online)
 
+      then("should go to LoadingPositions state")
+      assert(positions.stateName == LoadingPositions)
+    }
+    
+    "go to online state after first snapshot received" in {
+      val PosDS = TestFSMRef(new DataStream, "DataStream")
+      val positions = TestFSMRef(new Positions(PosDS), "Positions")
+      val underlying = positions.underlyingActor.asInstanceOf[Positions]
+
+      when("PosRepl data Streams goes online")
+      positions ! Transition(PosDS, DataStreamState.Opened, DataStreamState.Online)
+
+      then("should go to LoadingPositions state")
+      assert(positions.stateName == LoadingPositions)
+
+      when("first snapshot received")
+      positions ! Snapshot(underlying.PositionsRepository, position :: Nil)
+
       then("should go to Online state")
       assert(positions.stateName == Online)
+      
+      and("hande snapshot values")
+      assert(positions.stateData.positions.size == 1)
     }
 
     "handle first repository snapshot" in {
@@ -81,9 +102,9 @@ class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurati
       val snapshot = Snapshot(underlying.PositionsRepository, position :: Nil)
       positions ! snapshot
 
-      assert(positions.stateData.asInstanceOf[TrackingPositions].positions.size == 1)
+      assert(positions.stateData.positions.size == 1)
 
-      val positionRef = positions.stateData.asInstanceOf[TrackingPositions].positions(IsinId(isin))
+      val positionRef = positions.stateData.positions(IsinId(isin))
       positionRef ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(positionRef, OpenedPosition))
     }
@@ -96,15 +117,15 @@ class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurati
 
       positions ! Snapshot(underlying.PositionsRepository, position :: Nil)
 
-      assert(positions.stateData.asInstanceOf[TrackingPositions].positions.size == 1)
+      assert(positions.stateData.positions.size == 1)
 
-      val positionRef = positions.stateData.asInstanceOf[TrackingPositions].positions(IsinId(isin))
+      val positionRef = positions.stateData.positions(IsinId(isin))
       positionRef ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(positionRef, OpenedPosition))
 
       positions ! Snapshot(underlying.PositionsRepository, List[Pos.position]())
 
-      assert(positions.stateData.asInstanceOf[TrackingPositions].positions.size == 1)
+      assert(positions.stateData.positions.size == 1)
       expectMsg(Transition(positionRef, OpenedPosition, UndefinedPosition))
     }
 
@@ -116,9 +137,9 @@ class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurati
       positions.setState(Online, TrackingPositions())
       positions ! Snapshot(underlying.PositionsRepository, position :: Nil)
 
-      assert(positions.stateData.asInstanceOf[TrackingPositions].positions.size == 1)
+      assert(positions.stateData.positions.size == 1)
 
-      val positionRef = positions.stateData.asInstanceOf[TrackingPositions].positions(IsinId(isin))
+      val positionRef = positions.stateData.positions(IsinId(isin))
       positionRef ! SubscribePositionUpdates(self)
 
       positions ! Snapshot(underlying.PositionsRepository, updatedPosition :: Nil)
@@ -129,9 +150,9 @@ class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurati
       val positions = TestFSMRef(new Positions(TestFSMRef(new DataStream, "DataStream")), "Positions")
       positions.setState(Online, TrackingPositions())
 
-      val position = Await.result((positions ? TrackPosition(IsinId(isin))).mapTo[ActorRef], TimeOut.duration)
+      val position = Await.result((positions ? GetPosition(IsinId(isin))).mapTo[ActorRef], TimeOut.duration)
 
-      assert(positions.stateData.asInstanceOf[TrackingPositions].positions.size == 1)
+      assert(positions.stateData.positions.size == 1)
 
       position ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(position, UndefinedPosition))
@@ -145,9 +166,22 @@ class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurati
 
       positions ! Snapshot(underlying.PositionsRepository, position :: Nil)
 
-      val positionRef = Await.result((positions ? TrackPosition(IsinId(isin))).mapTo[ActorRef], TimeOut.duration)
+      val positionRef = Await.result((positions ? GetPosition(IsinId(isin))).mapTo[ActorRef], TimeOut.duration)
       positionRef ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(positionRef, OpenedPosition))
+    }
+
+    "get all opened positions" in {
+      val positions = TestFSMRef(new Positions(TestFSMRef(new DataStream, "DataStream")), "Positions")
+      positions.setState(Online, TrackingPositions())
+
+      val underlying = positions.underlyingActor.asInstanceOf[Positions]
+
+      positions ! Snapshot(underlying.PositionsRepository, position :: Nil)
+
+      val openPositions = Await.result((positions ? GetOpenPositions).mapTo[OpenPositions], TimeOut.duration)
+      assert(openPositions.positions.size == 1)
+      assert(openPositions.positions.iterator.next() == IsinId(isin))
     }
   }
 

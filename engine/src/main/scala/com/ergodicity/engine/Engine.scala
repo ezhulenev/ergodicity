@@ -7,6 +7,7 @@ import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, 
 import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection, CGateException, ISubscriber}
 import com.ergodicity.cgate.config.Replication
 import akka.actor.SupervisorStrategy.Stop
+import strategy.Strategy
 
 
 class ServiceFailedException(service: Service, message: String) extends RuntimeException
@@ -49,6 +50,12 @@ trait Engine extends Actor with FSM[EngineState, EngineData] {
 
   def registerService(service: Service, manager: ActorRef) {
     ServiceManager ! RegisterService(service, manager)
+  }
+
+  def StrategyManager: ActorRef
+
+  def registerStrategy(strategy: Strategy, manager: ActorRef) {
+    StrategyManager ! RegisterStrategy(strategy, manager)
   }
 
   override val supervisorStrategy = AllForOneStrategy() {
@@ -118,6 +125,13 @@ object Components {
     this: {def context: ActorContext} =>
 
     val ServiceManager = context.actorOf(Props(new com.ergodicity.engine.ServiceManager()), "ServiceManager")
+  }
+
+  // Service Management
+  trait ManagedStrategies {
+    this: {def context: ActorContext} =>
+
+    val StrategyManager = context.actorOf(Props(new com.ergodicity.engine.StrategyManager()), "StrategyManager")
   }
 
 }

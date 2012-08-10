@@ -2,6 +2,7 @@ package com.ergodicity
 
 
 package object cgate {
+
   case class Signs(signs: Long) {
 
     sealed trait Type

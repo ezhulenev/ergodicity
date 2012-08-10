@@ -22,6 +22,7 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
 
   private def mockEngine(serviceManager: TestProbe, broker: TestProbe) = TestActorRef(new {
     val ServiceManager = serviceManager.ref
+    val StrategyManager = system.deadLetters
     val Broker = broker.ref
   } with Engine with CreateListener with BrokerConnections with Broker {
     val BrokerName = "TestBroker"

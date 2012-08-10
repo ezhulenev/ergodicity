@@ -39,10 +39,6 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
   startWith(Empty, Map())
 
   when(Empty) {
-    case Event(SubscribeSnapshots(ref), _) =>
-      snapshotSubscribers = snapshotSubscribers + ref
-      stay()
-
     case Event(LifeNumChanged(_), _) => stay()
 
     case Event(ClearDeleted(_, _), _) => stay()
@@ -51,11 +47,6 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
   }
 
   when(Consistent) {
-    case Event(SubscribeSnapshots(ref), _) =>
-      snapshotSubscribers = snapshotSubscribers + ref
-      ref ! Snapshot(self, stateData.values)
-      stay()
-
     case Event(LifeNumChanged(_), map) =>
       snapshotSubscribers.foreach(_ ! Snapshot[T](self, Seq()))
       stay() using Map()
@@ -67,7 +58,7 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
   when(Synchronizing) {
     case Event(SubscribeSnapshots(ref), _) =>
       snapshotSubscribers = snapshotSubscribers + ref
-      stay();
+      stay()
 
     case Event(StreamData(_, data), map) =>
       val rec = reads(data)
@@ -87,6 +78,11 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
   }
 
   whenUnhandled {
+    case Event(SubscribeSnapshots(ref), _) =>
+      snapshotSubscribers = snapshotSubscribers + ref
+      ref ! Snapshot(self, stateData.values)
+      stay()
+
     case Event(e, _) => stop(Failure("Unexpected event = " + e + " in state = " + stateName))
   }
 

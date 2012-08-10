@@ -23,6 +23,7 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
 
   private def mockEngine(serviceManager: TestProbe, sessions: TestProbe) = TestActorRef(new {
     val ServiceManager = serviceManager.ref
+    val StrategyManager = system.deadLetters
     val Sessions = sessions.ref
   } with Engine with Connection with CreateListener with FutInfoReplication with OptInfoReplication with Sessions {
 

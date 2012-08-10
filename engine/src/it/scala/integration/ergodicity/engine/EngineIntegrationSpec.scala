@@ -62,7 +62,9 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
   }
 
   class TestEngine extends Engine with Config with CreateListenerComponent
-  with ManagedServices with ManagedConnection
+  with ManagedServices
+  with ManagedStrategies
+  with ManagedConnection
   //with ManagedSessions
   with ManagedPositions
   with ManagedBrokerConnections with ManagedBroker

@@ -18,19 +18,19 @@ class FutureSessionOrdersSpec extends TestKit(ActorSystem("FutureSessionOrdersSp
     system.shutdown()
   }
 
-  val orderId = 2876875842l;
+  val orderId = 2876875842l
   val create = {
     val ord = baseOrder()
-    ord.set_status(1025)
     ord.set_action(1)
+    ord.set_status(1025)
     ord.set_amount(3)
     ord.set_amount_rest(3)
     ord
   }
   val fill1 = {
     val ord = baseOrder()
-    ord.set_status(4097)
     ord.set_action(2)
+    ord.set_status(4097)
     ord.set_amount(1)
     ord.set_amount_rest(2)
     ord.set_id_deal(28261086)
@@ -39,8 +39,8 @@ class FutureSessionOrdersSpec extends TestKit(ActorSystem("FutureSessionOrdersSp
   }
   val fill2 = {
     val ord = baseOrder()
-    ord.set_status(4097)
     ord.set_action(2)
+    ord.set_status(4097)
     ord.set_amount(2)
     ord.set_amount_rest(0)
     ord.set_id_deal(28261087)
@@ -49,8 +49,8 @@ class FutureSessionOrdersSpec extends TestKit(ActorSystem("FutureSessionOrdersSp
   }
   val cancel = {
     val ord = baseOrder()
-    ord.set_status(4097)
     ord.set_action(0)
+    ord.set_status(4097)
     ord.set_amount(3)
     ord.set_amount_rest(0)
     ord

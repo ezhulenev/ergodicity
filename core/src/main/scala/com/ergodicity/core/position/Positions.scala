@@ -17,32 +17,33 @@ import com.ergodicity.cgate.DataStream.{BindingFailed, BindingSucceed, BindingRe
 
 object Positions {
   def apply(PosStream: ActorRef) = new Positions(PosStream)
+
+  case class GetPosition(isin: IsinId)
+
+  case object GetOpenPositions
+
+  case class OpenPositions(positions: Iterable[IsinId])
+
 }
 
 sealed trait PositionsState
 
 object PositionsState {
+
   case object Binded extends PositionsState
 
+  case object LoadingPositions extends PositionsState
+
   case object Online extends PositionsState
-}
-
-sealed trait PositionsData
-
-object PositionsData {
-
-  case object Blank extends PositionsData
-
-  case class TrackingPositions(positions: Map[IsinId, ActorRef] = Map()) extends PositionsData
 
 }
 
-case class TrackPosition(isin: IsinId)
+case class TrackingPositions(positions: Map[IsinId, ActorRef] = Map())
 
-class Positions(PosStream: ActorRef) extends Actor with FSM[PositionsState, PositionsData] {
+class Positions(PosStream: ActorRef) extends Actor with FSM[PositionsState, TrackingPositions] {
 
+  import Positions._
   import PositionsState._
-  import PositionsData._
 
   implicit val timeout = Timeout(1.second)
 
@@ -61,19 +62,29 @@ class Positions(PosStream: ActorRef) extends Actor with FSM[PositionsState, Posi
   // Track Data Stream state
   PosStream ! SubscribeTransitionCallBack(self)
 
-  startWith(Binded, Blank)
+  startWith(Binded, TrackingPositions())
 
   when(Binded) {
-    case Event(CurrentState(PosStream, DataStreamState.Online), Blank) => goto(Online) using TrackingPositions()
-    case Event(Transition(PosStream, _, DataStreamState.Online), Blank) => goto(Online) using TrackingPositions()
+    case Event(CurrentState(PosStream, DataStreamState.Online), _) => goto(LoadingPositions)
+    case Event(Transition(PosStream, _, DataStreamState.Online), _) => goto(LoadingPositions)
+  }
+
+  when(LoadingPositions) {
+    case Event(s@Snapshot(PositionsRepository, _), _) =>
+      self ! s
+      goto(Online)
   }
 
   when(Online) {
-    case Event(TrackPosition(isin), TrackingPositions(positions)) if (positions.contains(isin)) =>
+    case Event(GetOpenPositions, TrackingPositions(positions)) =>
+      sender ! OpenPositions(positions.keys)
+      stay()
+
+    case Event(GetPosition(isin), TrackingPositions(positions)) if (positions.contains(isin)) =>
       sender ! positions(isin)
       stay()
 
-    case Event(TrackPosition(isin), TrackingPositions(positions)) if (!positions.contains(isin)) =>
+    case Event(GetPosition(isin), TrackingPositions(positions)) if (!positions.contains(isin)) =>
       // Create new positions
       val position = context.actorOf(Props(new Position(isin)))
       sender ! position
@@ -113,14 +124,15 @@ class Positions(PosStream: ActorRef) extends Actor with FSM[PositionsState, Posi
   }
 
   onTransition {
-    case Binded -> Online =>
-      log.debug("Positions goes online")
-
+    case Binded -> LoadingPositions =>
+      log.debug("Load opened positions")
       // Unsubscribe from updates
       PosStream ! UnsubscribeTransitionCallBack(self)
-
       // Subscribe for sessions snapshots
       PositionsRepository ! SubscribeSnapshots(self)
+
+    case LoadingPositions -> Online =>
+      log.debug("Positions goes online")
   }
 
 }

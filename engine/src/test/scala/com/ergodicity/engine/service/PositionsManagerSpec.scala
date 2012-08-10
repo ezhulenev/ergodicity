@@ -23,6 +23,8 @@ class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", c
 
   private def mockEngine(serviceManager: TestProbe, positions: TestProbe) = TestActorRef(new {
     val ServiceManager = serviceManager.ref
+    val StrategyManager = system.deadLetters
+
     val Positions = positions.ref
   } with Engine with Connection with CreateListener with PosReplication with Positions {
 
