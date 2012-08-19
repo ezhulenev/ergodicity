@@ -23,7 +23,6 @@ import com.ergodicity.cgate.Protocol._
 import com.ergodicity.cgate.repository.ReplicaExtractor._
 import com.ergodicity.cgate.DataStream.{BindingSucceed, BindingResult, BindTable}
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
-import java.util
 import akka.util.Timeout
 import akka.dispatch.Await
 
@@ -98,7 +97,7 @@ class FutOrderBookIntegrationSpec extends TestKit(ActorSystem("FutOrderBookInteg
             log.info("Got info snapshot, size = " + snapshot.data.size)
             snapshot.data foreach {
               rec =>
-                log.info("Info record; Moment = " + new util.Date(rec.get_moment()) + ", revision = " + rec.get_logRev())
+                log.info("Info record; Moment = " + rec.get_moment() + ", revision = " + rec.get_logRev())
             }
           case e => log.error("GOT = " + e)
         }

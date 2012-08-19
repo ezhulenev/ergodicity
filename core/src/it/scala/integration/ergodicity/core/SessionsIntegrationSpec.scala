@@ -9,7 +9,7 @@ import integration.ergodicity.core.AkkaIntegrationConfigurations._
 import com.ergodicity.core.Sessions
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
-import akka.testkit.{ImplicitSender, TestActorRef, TestFSMRef, TestKit}
+import akka.testkit.{ImplicitSender, TestActorRef, TestKit}
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate.config.Replication._
@@ -41,19 +41,19 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
     "should work" in {
       val underlyingConnection = new CGConnection(RouterConnection())
 
-      val connection = TestFSMRef(new Connection(underlyingConnection, Some(500.millis)), "Connection")
+      val connection = system.actorOf(Props(new Connection(underlyingConnection, Some(500.millis))), "Connection")
 
-      val FutInfoDataStream = TestFSMRef(new DataStream, "FutInfoDataStream")
-      val OptInfoDataStream = TestFSMRef(new DataStream, "OptInfoDataStream")
+      val FutInfoDataStream = system.actorOf(Props(new DataStream), "FutInfoDataStream")
+      val OptInfoDataStream = system.actorOf(Props(new DataStream), "OptInfoDataStream")
 
       // Listeners
       val futInfoListenerConfig = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
       val underlyingFutInfoListener = new CGListener(underlyingConnection, futInfoListenerConfig(), new DataStreamSubscriber(FutInfoDataStream))
-      val futInfoListener = TestFSMRef(new Listener(BindListener(underlyingFutInfoListener) to connection), "FutInfoListener")
+      val futInfoListener = system.actorOf(Props(new Listener(BindListener(underlyingFutInfoListener) to connection)), "FutInfoListener")
 
       val optInfoListenerConfig = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")
       val underlyingOptInfoListener = new CGListener(underlyingConnection, optInfoListenerConfig(), new DataStreamSubscriber(OptInfoDataStream))
-      val optInfoListener = TestFSMRef(new Listener(BindListener(underlyingOptInfoListener) to connection), "OptInfoListener")
+      val optInfoListener = system.actorOf(Props(new Listener(BindListener(underlyingOptInfoListener) to connection)), "OptInfoListener")
 
       val sessions = TestActorRef(new Sessions(FutInfoDataStream, OptInfoDataStream), "Sessions")
 

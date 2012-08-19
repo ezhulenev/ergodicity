@@ -42,6 +42,63 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
     CGate.close()
   }
 
+  private[this] sealed trait SessionState
+
+  private[this] object SessionState {
+    def apply(state: Int) = state match {
+      case 0 => Assigned
+      case 1 => Online
+      case 2 => Suspended
+      case 3 => Canceled
+      case 4 => Completed
+    }
+
+    case object Assigned extends SessionState
+
+    case object Online extends SessionState
+
+    case object Suspended extends SessionState
+
+    case object Canceled extends SessionState
+
+    case object Completed extends SessionState
+
+  }
+
+  private[this] sealed trait InstrumentState
+
+  private[this] object InstrumentState {
+
+    def apply(sessionState: SessionState) = sessionState match {
+      case SessionState.Assigned => Assigned
+      case SessionState.Online => Online
+      case SessionState.Suspended => Suspended
+      case SessionState.Canceled => Canceled
+      case SessionState.Completed => Completed
+    }
+
+    def apply(state: Long) = state match {
+      case 0 => Assigned
+      case 1 => Online
+      case 2 => Suspended
+      case 3 => Canceled
+      case 4 => Completed
+      case 5 => Suspended
+    }
+
+    case object Assigned extends InstrumentState
+
+    case object Online extends InstrumentState
+
+    case object Canceled extends InstrumentState
+
+    case object Completed extends InstrumentState
+
+    case object Suspended extends InstrumentState
+
+  }
+
+
   "FutInfo DataStream" must {
     "load contents to Reportitory" in {
       val underlyingConnection = new CGConnection(RouterConnection())
@@ -62,6 +119,9 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
       val futuresRepository = TestFSMRef(Repository[FutInfo.fut_sess_contents], "FuturesRepository")
       FutInfoDataStream ! BindTable(FutInfo.fut_sess_contents.TABLE_INDEX, futuresRepository)
 
+      val sysEventsRepository = TestFSMRef(Repository[FutInfo.sys_events], "SysEventsRepository")
+      FutInfoDataStream ! BindTable(FutInfo.sys_events.TABLE_INDEX, sysEventsRepository)
+
       // Handle repository data
       sessionsRepository ! SubscribeSnapshots(TestActorRef(new Actor {
         protected def receive = {
@@ -69,7 +129,7 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
             log.info("Got Sessions snapshot, size = " + snapshot.data.size)
             snapshot.data foreach {
               rec =>
-                log.info("SessionRecord; Session id = " + rec.get_sess_id() + ", option session id = " + rec.get_opt_sess_id() + ", state = " + rec.get_state())
+                log.info("SessionRecord; Session id = " + rec.get_sess_id() + ", option session id = " + rec.get_opt_sess_id() + ", state = " + SessionState(rec.get_state()))
             }
         }
       }))
@@ -78,9 +138,20 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
         protected def receive = {
           case snapshot: Snapshot[FutInfo.fut_sess_contents] =>
             log.info("Got Futures Contents snapshot, size = " + snapshot.data.size)
+            snapshot.data.take(10) foreach {
+              rec =>
+                log.info("ContentsRecord; Future isin = " + rec.get_isin() + ", isin id = " + rec.get_isin_id() + ", name = " + rec.get_name() + ", session = " + rec.get_sess_id() + ", state = " + InstrumentState(rec.get_state()))
+            }
+        }
+      }))
+
+      sysEventsRepository ! SubscribeSnapshots(TestActorRef(new Actor {
+        protected def receive = {
+          case snapshot: Snapshot[FutInfo.sys_events] =>
+            log.info("Got SysEvents Contents snapshot, size = " + snapshot.data.size)
             snapshot.data foreach {
               rec =>
-                log.info("ContentsRecord; Future isin = " + rec.get_isin() + ", isin id = " + rec.get_isin_id() + ", name = " + rec.get_name() + ", session = " + rec.get_sess_id() + ", state = " + rec.get_state())
+                log.info("SysEvent; Event id = " + rec.get_event_id() + ", type = " + rec.get_event_type())
             }
         }
       }))

@@ -19,6 +19,10 @@ object Protocol {
     def read(in: ByteBuffer) = new FutInfo.fut_sess_contents(in)
   }
 
+  implicit val ReadsFutInfoSysEvents = new Reads[FutInfo.sys_events] {
+    def read(in: ByteBuffer) = new FutInfo.sys_events(in)
+  }
+
   implicit val ReadsOptInfoSessionContents = new Reads[OptInfo.opt_sess_contents] {
     def read(in: ByteBuffer) = new OptInfo.opt_sess_contents(in)
   }

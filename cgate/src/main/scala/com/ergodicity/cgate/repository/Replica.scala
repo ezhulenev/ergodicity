@@ -1,12 +1,11 @@
 package com.ergodicity.cgate.repository
 
-import com.ergodicity.cgate.scheme.FutInfo.{fut_sess_contents, session}
+import com.ergodicity.cgate.scheme.FutInfo.{sys_events, fut_sess_contents, session}
 import com.ergodicity.cgate.scheme.OptInfo.opt_sess_contents
 import com.ergodicity.cgate.scheme.Pos.position
 import com.ergodicity.cgate.scheme._
-import com.ergodicity.cgate.scheme.FutTrade.{deal}
+import com.ergodicity.cgate.scheme.FutTrade.deal
 import com.ergodicity.cgate.scheme.OrderBook.{info, orders}
-import java.lang.System
 
 case class Replica(replID: Long, replRev: Long, replAct: Long)
 
@@ -27,6 +26,11 @@ object ReplicaExtractor {
 
   implicit val FutInfoSessionContentsExtractor = new ReplicaExtractor[FutInfo.fut_sess_contents] {
     def repl(in: fut_sess_contents) = replica(in)
+  }
+
+  implicit val FutInfoSysEventsExtractor = new ReplicaExtractor[FutInfo.sys_events] {
+    def repl(in: sys_events) =
+      replica(in)
   }
 
   implicit val OptInfoSessionContentsExtractor = new ReplicaExtractor[OptInfo.opt_sess_contents] {

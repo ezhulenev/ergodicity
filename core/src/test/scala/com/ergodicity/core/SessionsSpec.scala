@@ -14,6 +14,7 @@ import com.ergodicity.cgate.repository.Repository.Snapshot
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.{DataStream, DataStreamState}
 import akka.actor.{Kill, Terminated, ActorSystem}
+import java.util
 
 class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)
