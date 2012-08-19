@@ -9,7 +9,7 @@ object ErgodicityBuild extends Build {
   lazy val buildSettings = Seq(
     organization := "com.ergodicity",
     version      := "0.1-SNAPSHOT",
-    scalaVersion := "2.9.1"
+    scalaVersion := "2.9.2"
   )
 
   lazy val ergodicity = Project(
@@ -128,15 +128,15 @@ object ErgodicityBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val capture = Seq(scalaz, finagleKestrel, marketDb, casbah, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val capture = Seq(scalaz, finagleKestrel, marketDb, casbah, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest)
 
-  val quant = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val quant = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
-  val engine = Seq(scalaz) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val engine = Seq(scalaz) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
-  val core = Seq(scalaz, jodaTime, jodaConvert, scalaTime) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val core = Seq(scalaz, jodaTime, jodaConvert, scalaTime) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
-  val cgate = Seq(scalaz, akka, akkaSlf4j, ostrich) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.scalacheck)
+  val cgate = Seq(scalaz, akka, akkaSlf4j, ostrich) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 }
 
 
@@ -149,7 +149,6 @@ object Dependency {
 
     val Scalatest    = "1.6.1"
     val Mockito      = "1.8.1"
-    val Scalacheck   = "1.9"
     val Scalaz       = "6.0.4"
     val Logback      = "1.0.3"
     val ScalaSTM     = "0.4"
@@ -157,26 +156,26 @@ object Dependency {
     val JodaConvert  = "1.2"
     val SBinary      = "0.4.0"
     val ScalaTime    = "0.5"
-    val Akka         = "2.0.2"
+    val Akka         = "2.0.3"
     val ScalaIO      = "0.3.0"
-    val Casbah       = "2.1.5-1"
+    val Casbah       = "2.4.1"
 
     // Twitter dependencies
-    val Finagle      = "4.0.2"
-    val Ostrich      = "7.0.0"
+    val Finagle      = "5.3.6"
+    val Ostrich      = "8.2.3"
   }
 
   // Compile
-  val marketDb               = "com.ergodicity.marketdb"          %% "marketdb-api"           % V.MarketDb
+  val marketDb               = "com.ergodicity.marketdb"          %% "marketdb-api"           % V.MarketDb intransitive()
 
   val logback                = "ch.qos.logback"                    % "logback-classic"        % V.Logback
   val scalaz                 = "org.scalaz"                       %% "scalaz-core"            % V.Scalaz
   val scalaSTM               = "org.scala-tools"                  %% "scala-stm"              % V.ScalaSTM
   val jodaTime               = "joda-time"                         % "joda-time"              % V.JodaTime
   val jodaConvert            = "org.joda"                          % "joda-convert"           % V.JodaConvert
-  val finagleCore            = "com.twitter"                      %% "finagle-core"           % V.Finagle
-  val finagleKestrel         = "com.twitter"                      %% "finagle-kestrel"        % V.Finagle
-  val ostrich                = "com.twitter"                      %% "ostrich"                % V.Ostrich
+  val finagleCore            = "com.twitter"                       % "finagle-core"           % V.Finagle
+  val finagleKestrel         = "com.twitter"                       % "finagle-kestrel"        % V.Finagle
+  val ostrich                = "com.twitter"                       % "ostrich"                % V.Ostrich
   val sbinary                = "org.scala-tools.sbinary"          %% "sbinary"                % V.SBinary
   val scalaTime              = "org.scala-tools.time"             %% "time"                   % V.ScalaTime intransitive()
   val akka                   = "com.typesafe.akka"                 % "akka-actor"             % V.Akka
@@ -201,7 +200,6 @@ object Dependency {
   object Test {
     val mockito        = "org.mockito"                 % "mockito-all"                   % V.Mockito      % "test"
     val scalatest      = "org.scalatest"              %% "scalatest"                     % V.Scalatest    % "it,test"
-    val scalacheck     = "org.scala-tools.testing"    %% "scalacheck"                    % V.Scalacheck   % "test"
     val akkaTestkit    = "com.typesafe.akka"           % "akka-testkit"                  % V.Akka         % "it, test"
   }
 }
