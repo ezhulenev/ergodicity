@@ -65,6 +65,8 @@ object ErgodicityBuild extends Build {
 
   // -- Settings
   
+  override lazy val settings = super.settings ++ buildSettings
+  
   lazy val compilerSettings = scala.Seq[sbt.Project.Setting[_]](
     scalacOptions += "-unchecked"
   )
@@ -128,7 +130,7 @@ object ErgodicityBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val capture = Seq(scalaz, finagleKestrel, marketDb, casbah, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest)
+  val capture = Seq(sbinary, scalaz, finagleKestrel, marketDb, casbah, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val quant = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
@@ -181,7 +183,7 @@ object Dependency {
   val akka                   = "com.typesafe.akka"                 % "akka-actor"             % V.Akka
   val akkaSlf4j              = "com.typesafe.akka"                 % "akka-slf4j"             % V.Akka
   val scalaIO                = "com.github.scala-incubator.io"    %% "scala-io-core"          % V.ScalaIO
-  val casbah                 = "com.mongodb.casbah"               %% "casbah"                 % V.Casbah
+  val casbah                 = "org.mongodb"                      %% "casbah"                 % V.Casbah
 
   // Provided
 
