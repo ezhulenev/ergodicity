@@ -215,9 +215,9 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
 
       log.info("Initial stream revisions; OrderLog = " + orderLogState + "; FutDeal = " + futTradeState + "; OptDeal = " + optTradeState)
 
-      OrdLogListener ! Listener.Open(ReplicationParams(Combined, orderLogState.map(ReplState(_))))
-      FutTradeListener ! Listener.Open(ReplicationParams(Combined, futTradeState.map(ReplState(_))))
-      OptTradeListener ! Listener.Open(ReplicationParams(Combined, optTradeState.map(ReplState(_))))
+      OrdLogListener ! Listener.Open(ReplicationParams(Combined, orderLogState.map(StreamEvent.ReplState(_))))
+      FutTradeListener ! Listener.Open(ReplicationParams(Combined, futTradeState.map(StreamEvent.ReplState(_))))
+      OptTradeListener ! Listener.Open(ReplicationParams(Combined, optTradeState.map(StreamEvent.ReplState(_))))
 
     case CaptureState.Capturing -> CaptureState.ShuttingDown =>
       log.info("Shutting down Market Capture; Close all listeners!")

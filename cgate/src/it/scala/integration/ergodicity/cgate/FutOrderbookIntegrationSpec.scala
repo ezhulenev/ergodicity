@@ -26,7 +26,7 @@ import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Liste
 import akka.util.Timeout
 import akka.dispatch.Await
 
-class FutOrderBookIntegrationSpec extends TestKit(ActorSystem("FutOrderBookIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class FutOrderbookIntegrationSpec extends TestKit(ActorSystem("FutOrderBookIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   val Host = "localhost"

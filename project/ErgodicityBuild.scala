@@ -130,7 +130,7 @@ object ErgodicityBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val capture = Seq(sbinary, scalaz, finagleKestrel, marketDb, casbah, ostrich, scalaIO, Test.akkaTestkit, Test.mockito, Test.scalatest)
+  val capture = Seq(sbinary, scalaz, finagleKestrel, marketDb, casbah, ostrich, scalaIO) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val quant = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
@@ -138,7 +138,7 @@ object Dependencies {
 
   val core = Seq(scalaz, jodaTime, jodaConvert, scalaTime) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
-  val cgate = Seq(scalaz, akka, akkaSlf4j, ostrich) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
+  val cgate = Seq(scalaz, akka, akkaSlf4j, ostrich, logback) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 }
 
 
@@ -159,7 +159,7 @@ object Dependency {
     val SBinary      = "0.4.0"
     val ScalaTime    = "0.5"
     val Akka         = "2.0.3"
-    val ScalaIO      = "0.3.0"
+    val ScalaIO      = "0.4.1"
     val Casbah       = "2.4.1"
 
     // Twitter dependencies

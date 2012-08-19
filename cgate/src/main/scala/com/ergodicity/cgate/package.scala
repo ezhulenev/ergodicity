@@ -3,13 +3,8 @@ package com.ergodicity
 
 package object cgate {
 
+
   case class Signs(signs: Long) {
-
-    sealed trait Type
-
-    case object Margin extends Type
-
-    case object Premium extends Type
 
     def eveningSession = (signs & 0x01) > 0
 
@@ -25,8 +20,15 @@ package object cgate {
 
     def primarySession = (signs & 0x40) > 0
 
-    def multileg = (signs & 0x100) > 0
+    def multileg = (signs & 0x100)  > 0
 
     def moneyMarket = (signs & 0x800) > 0
+
+    sealed trait Type
+
+    case object Margin extends Type
+
+    case object Premium extends Type
   }
+
 }
