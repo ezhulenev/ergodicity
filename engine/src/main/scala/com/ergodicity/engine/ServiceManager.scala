@@ -6,6 +6,7 @@ import service.Service.{Start, Stop}
 import service.{ServiceStopped, ServiceStarted, Service}
 import collection.mutable
 import akka.actor.FSM.{Failure, Normal}
+import com.ergodicity.engine.ServiceManager.ServicesStartupTimedOut
 
 
 sealed trait ServiceManagerState
@@ -38,6 +39,10 @@ case object StartAllServices
 
 case object StopAllServices
 
+object ServiceManager {
+  case class ServicesStartupTimedOut(pending: Iterable[Service]) extends RuntimeException
+}
+
 class ServiceManager extends Actor with FSM[ServiceManagerState, ServiceManagerData] {
 
   import ServiceManagerState._
@@ -69,8 +74,7 @@ class ServiceManager extends Actor with FSM[ServiceManagerState, ServiceManagerD
         case _ => stay() using PendingServices(remaining)
       }
 
-    case Event(FSM.StateTimeout, PendingServices(pending)) =>
-      stop(Failure("Timed out to start services; Pending = " + pending))
+    case Event(FSM.StateTimeout, PendingServices(pending)) => throw new ServicesStartupTimedOut(pending)
   }
 
   when(Active) {

@@ -37,6 +37,8 @@ object Session {
   case class FutInfoSessionContents(snapshot: Snapshot[FutInfo.fut_sess_contents])
 
   case class OptInfoSessionContents(snapshot: Snapshot[OptInfo.opt_sess_contents])
+
+  case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
 }
 
 case class GetSessionInstrument(isin: Isins)
@@ -69,7 +71,7 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
 
   when(Canceled) {
     case Event(SessionState.Canceled, _) => stay()
-    case Event(e: SessionState, _) => stop(Failure("Unexpected event after canceled: " + e))
+    case Event(e: SessionState, _) => throw new IllegalLifeCycleEvent("Unexpected event after canceled", e)
   }
 
   when(Canceled) {
@@ -78,7 +80,7 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
 
   when(Completed) {
     case Event(SessionState.Completed, _) => stay()
-    case Event(e: SessionState, _) => stop(Failure("Unexpected event after completion: " + e))
+    case Event(e: SessionState, _) => throw new IllegalLifeCycleEvent("Unexpected event after completion", e)
   }
 
   when(Completed) {

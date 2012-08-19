@@ -22,6 +22,11 @@ object Connection {
   private[Connection] case class ProcessMessages(timeout: Duration)
 
   def apply(underlying: CGConnection, updateStateDuration: Option[Duration] = Some(1.second)) = new Connection(underlying, updateStateDuration)
+
+  case class ConnectionTimedOut() extends RuntimeException
+
+  case class ConnectionError() extends RuntimeException
+
 }
 
 protected[cgate] case class ConnectionState(state: State)
@@ -61,7 +66,7 @@ class Connection(protected[cgate] val underlying: CGConnection, updateStateDurat
   }
 
   when(Opening, stateTimeout = 3.second) {
-    case Event(FSM.StateTimeout, _) => stop(Failure("Connecting timeout"))
+    case Event(FSM.StateTimeout, _) => throw new ConnectionTimedOut
   }
 
   when(Active) {
@@ -77,7 +82,7 @@ class Connection(protected[cgate] val underlying: CGConnection, updateStateDurat
   }
 
   whenUnhandled {
-    case Event(ConnectionState(Error), _) => stop(Failure("Connection in Error state")) using Off
+    case Event(ConnectionState(Error), _) => throw new ConnectionError
 
     case Event(ConnectionState(state), _) if (state != stateName) => goto(state)
 

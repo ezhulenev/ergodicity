@@ -4,7 +4,7 @@ import akka.actor._
 import SupervisorStrategy._
 import com.ergodicity.marketdb.model.{Security => MarketDbSecurity}
 import org.joda.time.DateTime
-import akka.actor.FSM.{Failure => FSMFailure, Transition, UnsubscribeTransitionCallBack, SubscribeTransitionCallBack}
+import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, SubscribeTransitionCallBack}
 import akka.util.duration._
 import com.ergodicity.cgate._
 import config.Replication.ReplicationMode.Combined
@@ -36,6 +36,14 @@ object MarketCapture {
   case object Capture
 
   case object ShutDown
+
+  // Possible failures
+
+  case class ConnectionTimedOut() extends RuntimeException
+
+  case class InitializationTimedOut() extends RuntimeException
+
+  case class ConnectionTerminated() extends RuntimeException
 }
 
 sealed trait CaptureState
@@ -164,13 +172,13 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
       connection ! UnsubscribeTransitionCallBack(self)
       goto(CaptureState.InitializingMarketContents)
 
-    case Event(FSM.StateTimeout, _) => stop(FSMFailure("Connecting MarketCapture timed out"))
+    case Event(FSM.StateTimeout, _) => throw new ConnectionTimedOut
   }
 
   when(CaptureState.InitializingMarketContents, stateTimeout = 15.second) {
     case Event(MarketContentsInitialized, _) => goto(CaptureState.Capturing)
 
-    case Event(FSM.StateTimeout, _) => stop(FSMFailure("Initializing MarketCapture timed out"))
+    case Event(FSM.StateTimeout, _) => throw new InitializationTimedOut
   }
 
   when(CaptureState.Capturing) {
@@ -225,7 +233,7 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
   }
 
   whenUnhandled {
-    case Event(Terminated(ref), _) if (ref == connection) => stop(FSMFailure("Connection terminated"))
+    case Event(Terminated(ref), _) if (ref == connection) => throw new ConnectionTerminated
 
     // Handle Market contents updates
     case Event(FuturesContents(futures), Contents(contents)) => stay() using Contents(contents <+> futures)

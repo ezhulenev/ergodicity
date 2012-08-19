@@ -20,6 +20,10 @@ object Listener {
   case object Dispose
 
   def apply(underlying: WithListener, updateStateDuration: Option[Duration] = Some(100.millis)) = new Listener(underlying, updateStateDuration)
+
+  case class OpenTimedOut() extends RuntimeException
+
+  case class ListenerError() extends RuntimeException
 }
 
 protected[cgate] case class ListenerState(state: State)
@@ -61,7 +65,7 @@ class Listener(withListener: WithListener, updateStateDuration: Option[Duration]
   }
 
   when(Opening, stateTimeout = 3.second) {
-    case Event(FSM.StateTimeout, _) => stop(Failure("Connecting timeout"))
+    case Event(FSM.StateTimeout, _) => throw new OpenTimedOut
   }
 
   when(Active) {
@@ -78,7 +82,7 @@ class Listener(withListener: WithListener, updateStateDuration: Option[Duration]
   }
 
   whenUnhandled {
-    case Event(ListenerState(Error), _) => stop(Failure("Listener in Error state"))
+    case Event(ListenerState(Error), _) => throw new ListenerError
 
     case Event(ListenerState(state), _) if (state != stateName) => goto(state)
 

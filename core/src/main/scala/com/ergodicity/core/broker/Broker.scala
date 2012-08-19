@@ -42,6 +42,10 @@ object Broker {
 
   def Cancel[M <: Market](order: Order)(implicit protocol: Protocol[Cancel, Cancelled, M]): MarketCommand[Cancel, Cancelled, M] = MarketCommand(Action.Cancel(order))
 
+  case class OpenTimedOut() extends RuntimeException
+
+  case class BrokerError() extends RuntimeException
+
 }
 
 class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration] = Some(1.second))
@@ -70,7 +74,7 @@ class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration]
   }
 
   when(Opening, stateTimeout = 3.second) {
-    case Event(FSM.StateTimeout, _) => stop(Failure("Opening timeout"))
+    case Event(FSM.StateTimeout, _) => throw new OpenTimedOut
   }
 
   when(Active) {
@@ -98,7 +102,7 @@ class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration]
   }
 
   whenUnhandled {
-    case Event(PublisherState(com.ergodicity.cgate.Error), _) => stop(Failure("Publisher in Error state"))
+    case Event(PublisherState(com.ergodicity.cgate.Error), _) => throw new BrokerError
 
     case Event(PublisherState(state), _) if (state != stateName) => goto(state)
 

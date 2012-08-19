@@ -3,6 +3,7 @@ package com.ergodicity.core.order
 import com.ergodicity.core.{IsinId, OrderDirection, OrderType}
 import akka.actor.{FSM, Actor}
 import akka.actor.FSM.Failure
+import com.ergodicity.core.order.Order.IllegalLifeCycleEvent
 
 sealed trait OrderState
 
@@ -29,6 +30,10 @@ case class FillOrder(price: BigDecimal, amount: Int)
 
 case class CancelOrder(amount: Int)
 
+object Order {
+  case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
+}
+
 class Order(val order: OrderProps) extends Actor with FSM[OrderState, RestAmount] {
 
   import OrderState._
@@ -44,11 +49,11 @@ class Order(val order: OrderProps) extends Actor with FSM[OrderState, RestAmount
   }
 
   when(Filled) {
-    case Event(FillOrder(_, _), _) => stop(Failure("Order already Filled"))
+    case Event(e@FillOrder(_, _), _) => throw new IllegalLifeCycleEvent("Order already Filled", e)
   }
 
   when(Cancelled) {
-    case _ => stop(Failure("Order already Cancelled"))
+    case e => throw new IllegalLifeCycleEvent("Order already Cancelled", e)
   }
 
   whenUnhandled {

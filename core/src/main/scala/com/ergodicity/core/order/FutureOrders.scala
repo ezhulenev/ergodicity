@@ -14,6 +14,7 @@ import com.ergodicity.cgate.{DataStreamState, Reads}
 import akka.actor.FSM._
 import akka.util.Timeout
 import com.ergodicity.core.WhenUnhandled
+import order.FutureOrders.IllegalEvent
 
 private[order] sealed trait FutureOrdersState
 
@@ -25,6 +26,9 @@ private[order] object FutureOrdersState {
 
 }
 
+object FutureOrders {
+  case class IllegalEvent(event: Any) extends IllegalArgumentException
+}
 
 class FutureOrders(FutTradeStream: ActorRef) extends Actor with FSM[FutureOrdersState, Map[Int, ActorRef]] {
 
@@ -68,7 +72,7 @@ class FutureOrders(FutTradeStream: ActorRef) extends Actor with FSM[FutureOrders
 
     case Event(e@ClearDeleted(FutTrade.orders_log.TABLE_INDEX, replRev), _) => stay()
 
-    case Event(e@StreamData(FutTrade.orders_log.TABLE_INDEX, data), _) if (read(data).get_replAct() != 0) => stop(Failure("Illegal event: " + e))
+    case Event(e@StreamData(FutTrade.orders_log.TABLE_INDEX, data), _) if (read(data).get_replAct() != 0) => throw new IllegalEvent(e)
 
     case Event(StreamData(FutTrade.orders_log.TABLE_INDEX, data), _) if (stateData.contains(read(data).get_sess_id())) =>
       val record = read(data)

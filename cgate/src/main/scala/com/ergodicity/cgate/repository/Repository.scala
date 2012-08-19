@@ -1,7 +1,7 @@
 package com.ergodicity.cgate.repository
 
 import akka.actor.{LoggingFSM, ActorRef, FSM, Actor}
-import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, Snapshot}
+import com.ergodicity.cgate.repository.Repository.{IllegalLifeCycleEvent, SubscribeSnapshots, Snapshot}
 import akka.actor.FSM.Failure
 import com.ergodicity.cgate.Reads
 
@@ -26,6 +26,7 @@ object Repository {
     def filter(p: T => Boolean) = Snapshot(repository, data.filter(p))
   }
 
+  case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
 }
 
 class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) extends Actor with LoggingFSM[RepositoryState, Map[Long, T]] {
@@ -83,7 +84,7 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
         replica(rec).replRev < rev
     }
 
-    case Event(e, _) => stop(Failure("Unexpected event = " + e + " in state = " + stateName))
+    case Event(e, _) => throw new IllegalLifeCycleEvent("Unexpected event in state = " + stateName, e)
   }
 
   onTransition {

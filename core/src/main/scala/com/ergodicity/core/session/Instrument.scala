@@ -3,6 +3,7 @@ package com.ergodicity.core.session
 import akka.actor.{Actor, FSM}
 import akka.actor.FSM.Failure
 import com.ergodicity.core.Security
+import com.ergodicity.core.session.Instrument.IllegalLifeCycleEvent
 
 sealed trait InstrumentState
 
@@ -36,6 +37,9 @@ object InstrumentState {
   case object Suspended extends InstrumentState
 
 }
+object Instrument {
+  case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
+}
 
 case class Instrument[S <: Security](underlyingSecurity: S, state: InstrumentState) extends Actor with FSM[InstrumentState, Unit] {
 
@@ -53,12 +57,12 @@ case class Instrument[S <: Security](underlyingSecurity: S, state: InstrumentSta
 
   when(Canceled) {
     case Event(Canceled, _) => stay()
-    case Event(e, _) => stop(Failure("Unexpected event after cancellation: " + e))
+    case Event(e, _) => throw new IllegalLifeCycleEvent("Unexpected event after cancellation",  e)
   }
 
   when(Completed) {
     case Event(Completed, _) => stay()
-    case Event(e, _) => stop(Failure("Unexpected event after completion: " + e))
+    case Event(e, _) => throw new IllegalLifeCycleEvent("Unexpected event after completion",  e)
   }
 
   when(Suspended) {
