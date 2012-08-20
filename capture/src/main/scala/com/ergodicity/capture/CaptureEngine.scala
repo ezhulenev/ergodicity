@@ -34,15 +34,7 @@ object CaptureEngine {
 class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig, scheme: ReplicationScheme, database: CaptureDatabase, kestrel: KestrelConfig) extends Service {
   val log = LoggerFactory.getLogger(classOf[CaptureEngine])
 
-  val ConfigWithDetailedLogging = ConfigFactory.parseString( """
-    akka.loglevel = DEBUG
-    akka.actor.debug {
-      receive = on
-      lifecycle = on
-    }
-                                                             """)
-
-  implicit val system = ActorSystem("CaptureEngine", ConfigWithDetailedLogging)
+  implicit val system = ActorSystem("CaptureEngine")
 
   var marketCapture: ActorRef = _
 
@@ -66,7 +58,7 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
     marketCapture = system.actorOf(Props(newMarketCaptureInstance), "MarketCapture")
 
     // Let all actors to activate and perform all activities
-    Thread.sleep(TimeUnit.SECONDS.toMillis(1))
+    Thread.sleep(TimeUnit.DAYS.toMillis(1))
 
     // Watch for Market Capture is working
     val guardian = system.actorOf(Props(new Actor with FSM[GuardianState, ActorRef] {

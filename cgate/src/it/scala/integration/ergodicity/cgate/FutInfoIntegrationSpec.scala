@@ -151,7 +151,7 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
             log.info("Got SysEvents Contents snapshot, size = " + snapshot.data.size)
             snapshot.data foreach {
               rec =>
-                log.info("SysEvent; Event id = " + rec.get_event_id() + ", type = " + rec.get_event_type())
+                log.info("SysEvent; Event id = " + rec.get_event_id() + ", type = " + rec.get_event_type() + ", message = " + rec.get_message())
             }
         }
       }))

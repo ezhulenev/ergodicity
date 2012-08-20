@@ -107,6 +107,8 @@ class MarketCapture(val replication: ReplicationScheme,
 
   import MarketCapture._
 
+  val ReplicationDispatcher = "capture.dispatchers.replicationDispatcher"
+
   implicit def SecuritySemigroup: Semigroup[Security] = semigroup {
     case (s1, s2) => s2
   }
@@ -119,7 +121,7 @@ class MarketCapture(val replication: ReplicationScheme,
   val client = kestrel()
 
   // CGAte connection
-  val connection = context.actorOf(Props(Connection(underlyingConnection)), "Connection")
+  val connection = context.actorOf(Props(Connection(underlyingConnection)).withDispatcher(ReplicationDispatcher), "Connection")
   context.watch(connection)
 
   // Data Streams
@@ -134,11 +136,11 @@ class MarketCapture(val replication: ReplicationScheme,
   streams.foreach(_ ! SubscribeReplState(self))
 
   // Listeners
-  val FutInfoListener = context.actorOf(Props(new Listener(underlyingFutInfoListener)), "FutInfoListener")
-  val OptInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)), "OptInfoListener")
-  val FutTradeListener = context.actorOf(Props(new Listener(underlyingFutTradeListener)), "FutTradeListener")
-  val OptTradeListener = context.actorOf(Props(new Listener(underlyingOptTradeListener)), "OptTradeListener")
-  val OrdLogListener = context.actorOf(Props(new Listener(underlyingOrdLogListener, Some(100.millis))), "OrdLogListener")
+  val FutInfoListener = context.actorOf(Props(new Listener(underlyingFutInfoListener)).withDispatcher(ReplicationDispatcher), "FutInfoListener")
+  val OptInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)).withDispatcher(ReplicationDispatcher), "OptInfoListener")
+  val FutTradeListener = context.actorOf(Props(new Listener(underlyingFutTradeListener)).withDispatcher(ReplicationDispatcher), "FutTradeListener")
+  val OptTradeListener = context.actorOf(Props(new Listener(underlyingOptTradeListener)).withDispatcher(ReplicationDispatcher), "OptTradeListener")
+  val OrdLogListener = context.actorOf(Props(new Listener(underlyingOrdLogListener, Some(100.millis))).withDispatcher(ReplicationDispatcher), "OrdLogListener")
 
   val cgListeners = (FutInfoListener :: OptInfoListener :: FutTradeListener :: OptTradeListener :: OrdLogListener :: Nil)
 
