@@ -62,6 +62,8 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
       val capture = TestFSMRef(new MarketContentsCapture(FutInfoStream, OptInfoStream, repository), "MarketContentsCapture")
       val underlying = capture.underlyingActor.asInstanceOf[MarketContentsCapture]
 
+      Thread.sleep(100)
+
       capture ! SubscribeMarketContents(self)
       capture ! Snapshot(underlying.FutSessContentsRepository, gmkFuture :: Nil)
 
@@ -78,6 +80,8 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
 
       val capture = TestFSMRef(new MarketContentsCapture(FutInfoStream, OptInfoStream, repository), "MarketContentsCapture")
       val underlying = capture.underlyingActor.asInstanceOf[MarketContentsCapture]
+
+      Thread.sleep(100)
 
       capture ! SubscribeMarketContents(self)
       capture ! Snapshot(underlying.OptSessContentsRepository, rtsOption :: Nil)

@@ -9,6 +9,7 @@ import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.actor.{Terminated, ActorSystem}
 import com.ergodicity.core.OrderType._
 import com.ergodicity.core.OrderDirection._
+import com.ergodicity.core.order.Order.IllegalLifeCycleEvent
 
 
 class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -24,7 +25,7 @@ class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLoggi
     "create new futOrder in New state" in {
       val order = TestFSMRef(new Order(props), "TestOrder")
       val underlying = order.underlyingActor.asInstanceOf[Order]
-      
+
       assert(underlying.order.amount == 1)
       assert(order.stateName == OrderState.Active)
       assert(order.stateData == RestAmount(1))
@@ -69,9 +70,9 @@ class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLoggi
       order ! CancelOrder(1)
       assert(order.stateName == OrderState.Cancelled)
 
-      watch(order)
-      order ! CancelOrder(1)
-      expectMsg(Terminated(order))
+      intercept[IllegalLifeCycleEvent] {
+        order receive CancelOrder(1)
+      }
     }
   }
 }

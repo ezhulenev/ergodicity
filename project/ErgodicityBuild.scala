@@ -150,7 +150,7 @@ object Dependency {
     val MarketDb     = "0.1-SNAPSHOT"
 
     val Scalatest    = "1.6.1"
-    val Mockito      = "1.8.1"
+    val Mockito      = "1.9.0"
     val Scalaz       = "6.0.4"
     val Logback      = "1.0.3"
     val ScalaSTM     = "0.4"

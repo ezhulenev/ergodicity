@@ -44,14 +44,15 @@ class RepositorySpec extends TestKit(ActorSystem("RepositorySpec", AkkaConfigura
 
     "be initialized in Consistent state" in {
       val repository = TestFSMRef(Repository[FutInfo.session](), "Repository")
-      assert(repository.stateName == RepositoryState.Empty)
+      assert(repository.stateName == RepositoryState.Consistent)
     }
 
     "receive snapshot immediately in Consistent state" in {
       val repository = TestFSMRef(Repository[FutInfo.session](), "Repository")
+      val underlying = repository.underlyingActor.asInstanceOf[Repository[FutInfo.session]]
 
-      val map = Map(1l -> Session)
-      repository.setState(Consistent, map)
+      underlying.storage(1l) = Session
+      repository.setState(Consistent)
 
       repository ! SubscribeSnapshots(self)
       val snapshot = receiveOne(1.second).asInstanceOf[Snapshot[FutInfo.session]]
@@ -60,9 +61,10 @@ class RepositorySpec extends TestKit(ActorSystem("RepositorySpec", AkkaConfigura
 
     "clean on LifeNumChanged" in {
       val repository = TestFSMRef(Repository[FutInfo.session](), "Repository")
+      val underlying = repository.underlyingActor.asInstanceOf[Repository[FutInfo.session]]
 
-      val map = Map(1l -> Session)
-      repository.setState(Consistent, map)
+      underlying.storage(1l) = Session
+      repository.setState(Consistent)
 
       repository ! SubscribeSnapshots(self)
       var snapshot = receiveOne(1.second).asInstanceOf[Snapshot[FutInfo.session]]
@@ -75,6 +77,7 @@ class RepositorySpec extends TestKit(ActorSystem("RepositorySpec", AkkaConfigura
 
     "handle new data" in {
       val repository = TestFSMRef(Repository[FutInfo.session](), "Repository")
+      val underlying = repository.underlyingActor.asInstanceOf[Repository[FutInfo.session]]
 
       repository ! SubscribeSnapshots(self)
 
@@ -84,15 +87,15 @@ class RepositorySpec extends TestKit(ActorSystem("RepositorySpec", AkkaConfigura
       // Add two records
       repository ! StreamData(1, Session(1, 1, 0, 100).getData)
       repository ! StreamData(1, Session(2, 2, 0, 101).getData)
-      assert(repository.stateData.size == 2)
+      assert(underlying.storage.size == 2)
 
       // Delete one of them
       repository ! StreamData(1, Session(1, 3, 1, 100).getData)
-      assert(repository.stateData.size == 1)
+      assert(underlying.storage.size == 1)
 
       // Then insert another one
       repository ! StreamData(1, Session(3, 4, 0, 102).getData)
-      assert(repository.stateData.size == 2)
+      assert(underlying.storage.size == 2)
 
       // Close transaction
       repository ! TnCommit
@@ -103,8 +106,8 @@ class RepositorySpec extends TestKit(ActorSystem("RepositorySpec", AkkaConfigura
       repository ! TnBegin
       repository ! ClearDeleted(1, 4)
       repository ! TnCommit
-      log.info("Data: " + repository.stateData)
-      assert(repository.stateData.size == 1)
+      log.info("Data: " + underlying.storage)
+      assert(underlying.storage.size == 1)
     }
   }
 

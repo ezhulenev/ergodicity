@@ -2,7 +2,7 @@ package com.ergodicity.cgate
 
 import org.mockito.Mockito._
 import org.mockito.Matchers._
-import akka.actor.{FSM, Terminated, ActorSystem}
+import akka.actor.{FSM, ActorSystem}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
@@ -66,7 +66,7 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
       assert(connection.stateName == Active)
     }
 
-    "terminate after Connection disconnected" in {
+    "fail on Connection goes to Error state" in {
       val cg = mock(classOf[CGConnection])
       when(cg.getState).thenReturn(CGState.ACTIVE)
         .thenReturn(CGState.ERROR)
@@ -75,8 +75,9 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
       watch(connection)
       connection ! Open
 
-      connection ! ConnectionState(Error)
-      expectMsg(Terminated(connection))
+      intercept[ConnectionError] {
+        connection receive ConnectionState(Error)
+      }
     }
 
     "return to Closed state after Close connection sent" in {
@@ -89,15 +90,16 @@ class ConnectionSpec extends TestKit(ActorSystem("ConnectionSpec", AkkaConfigura
       assert(connection.stateName == Closed)
     }
 
-    "terminate on FSM.StateTimeout in Opening state" in {
+    "fail on FSM.StateTimeout in Opening state" in {
       val cg = mock(classOf[CGConnection])
       when(cg.getState).thenReturn(CGState.OPENING)
 
       val connection = TestFSMRef(new Connection(cg, None), "Connection")
       connection.setState(Opening)
       watch(connection)
-      connection ! FSM.StateTimeout
-      expectMsg(Terminated(connection))
+      intercept[ConnectionTimedOut] {
+        connection receive FSM.StateTimeout
+      }
     }
   }
 }

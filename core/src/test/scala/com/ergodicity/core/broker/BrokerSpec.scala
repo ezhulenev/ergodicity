@@ -48,13 +48,13 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
       assert(broker.stateName == Closed)
     }
 
-    "terminate after Publisher gone to Error state" in {
+    "fail on Publisher gone to Error state" in {
       val cg = mock(classOf[CGPublisher])
 
       val broker = TestFSMRef(new Broker(withPublisher(cg), None), "Broker")
-      watch(broker)
-      broker ! PublisherState(com.ergodicity.cgate.Error)
-      expectMsg(Terminated(broker))
+      intercept[BrokerError] {
+        broker receive PublisherState(com.ergodicity.cgate.Error)
+      }
     }
 
     "return to Closed state after Close broker sent" in {
@@ -66,14 +66,15 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
       assert(broker.stateName == Closed)
     }
 
-    "terminate on FSM.StateTimeout in Opening state" in {
+    "fail on FSM.StateTimeout in Opening state" in {
       val cg = mock(classOf[CGPublisher])
 
       val broker = TestFSMRef(new Broker(withPublisher(cg), None), "Broker")
       broker.setState(Opening)
-      watch(broker)
-      broker ! FSM.StateTimeout
-      expectMsg(Terminated(broker))
+
+      intercept[OpenTimedOut] {
+        broker receive FSM.StateTimeout
+      }
     }
 
     "execute market command" in {

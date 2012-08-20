@@ -1,15 +1,13 @@
 package com.ergodicity.cgate.repository
 
-import akka.actor.{LoggingFSM, ActorRef, FSM, Actor}
-import com.ergodicity.cgate.repository.Repository.{IllegalLifeCycleEvent, SubscribeSnapshots, Snapshot}
-import akka.actor.FSM.Failure
+import akka.actor.{LoggingFSM, ActorRef, Actor}
+import com.ergodicity.cgate.repository.Repository.{GetSnapshot, IllegalLifeCycleEvent, SubscribeSnapshots, Snapshot}
 import com.ergodicity.cgate.Reads
+import collection.mutable
 
 sealed trait RepositoryState
 
 object RepositoryState {
-
-  case object Empty extends RepositoryState
 
   case object Consistent extends RepositoryState
 
@@ -17,8 +15,22 @@ object RepositoryState {
 
 }
 
+case class RepositorySubscribers(private val subscribers: Seq[ActorRef] = Seq(), private val pending: Seq[ActorRef] = Seq()) {
+  def dispatch(snapshot: Snapshot[_]): RepositorySubscribers = {
+    subscribers foreach (_ ! snapshot)
+    pending foreach (_ ! snapshot)
+    copy(pending = Seq())
+  }
+
+  def subscribe(ref: ActorRef) = copy(subscribers = this.subscribers :+ ref)
+
+  def append(ref: ActorRef) = copy(pending = this.pending :+ ref)
+}
+
 object Repository {
   def apply[T]()(implicit reads: Reads[T], replica: ReplicaExtractor[T]) = new Repository[T]
+
+  case object GetSnapshot
 
   case class SubscribeSnapshots(ref: ActorRef)
 
@@ -27,76 +39,72 @@ object Repository {
   }
 
   case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
+
 }
 
-class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) extends Actor with LoggingFSM[RepositoryState, Map[Long, T]] {
-
+class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) extends Actor with LoggingFSM[RepositoryState, RepositorySubscribers] {
 
   import RepositoryState._
   import com.ergodicity.cgate.StreamEvent._
 
-  var snapshotSubscribers: Seq[ActorRef] = Seq()
+  val storage = mutable.Map[Long, T]()
 
-  startWith(Empty, Map())
-
-  when(Empty) {
-    case Event(LifeNumChanged(_), _) => stay()
-
-    case Event(ClearDeleted(_, _), _) => stay()
-
-    case Event(TnBegin, _) => goto(Synchronizing)
-  }
+  startWith(Consistent, RepositorySubscribers())
 
   when(Consistent) {
-    case Event(LifeNumChanged(_), map) =>
-      snapshotSubscribers.foreach(_ ! Snapshot[T](self, Seq()))
-      stay() using Map()
+    case Event(LifeNumChanged(_), subscribers) =>
+      stay() using subscribers.dispatch(Snapshot[T](self, Seq()))
+
+    case Event(GetSnapshot, map) =>
+      sender ! Snapshot[T](self, storage.values)
+      stay()
 
     case Event(TnBegin, _) => goto(Synchronizing)
   }
 
 
   when(Synchronizing) {
-    case Event(SubscribeSnapshots(ref), _) =>
-      snapshotSubscribers = snapshotSubscribers :+ ref
-      stay()
+    case Event(SubscribeSnapshots(ref), subscribers) =>
+      stay() using subscribers.subscribe(ref)
 
-    case Event(StreamData(_, data), map) =>
+    case Event(GetSnapshot, subscribers) =>
+      stay() using subscribers.append(sender)
+
+    case Event(StreamData(_, data), _) =>
       val rec = reads(data)
       val repl = replica(rec)
 
       if (repl.replID == repl.replAct) {
         // Delete record
-        stay() using map - repl.replID
-      } else stay() using map + (repl.replID -> rec)
+        storage.remove(repl.replID)
+      } else {
+        // Add or update record
+        storage(repl.replID) = rec
+      }
+      stay()
 
-    case Event(TnCommit, _) => goto(Consistent)
+    case Event(TnCommit, subscribers) =>
+      goto(Consistent) using subscribers.dispatch(Snapshot(self, storage.values))
   }
 
   whenUnhandled {
-    case Event(SubscribeSnapshots(ref), _) =>
-      snapshotSubscribers = snapshotSubscribers :+ ref
-      ref ! Snapshot(self, stateData.values)
-      stay()
+    case Event(SubscribeSnapshots(ref), subscribers) =>
+      ref ! Snapshot(self, storage.values)
+      stay() using subscribers.subscribe(ref)
 
-    case Event(ClearDeleted(_, rev), map) => stay() using map.filterNot {
-      case (id, rec) =>
-        replica(rec).replRev < rev
-    }
+    case Event(ClearDeleted(_, rev), map) =>
+      storage.retain {
+        case (id, rec) => replica(rec).replRev >= rev
+      }
+      stay()
 
     case Event(e, _) => throw new IllegalLifeCycleEvent("Unexpected event in state = " + stateName, e)
   }
 
   onTransition {
-    case Empty -> Synchronizing => log.info("Receive first data")
-
     case Consistent -> Synchronizing => log.info("Begin updating repository")
 
-    case Synchronizing -> Consistent =>
-      log.info("Completed transaction; Repository size = " + stateData.size)
-      snapshotSubscribers.foreach {
-        _ ! Snapshot(self, stateData.values)
-      }
+    case Synchronizing -> Consistent => log.info("Completed transaction; Repository size = " + storage.size)
   }
 
   initialize

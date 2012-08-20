@@ -20,7 +20,10 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfiguration
 
   def withListener(listener: CGListener) = new WithListener {
     implicit val ec = system.dispatcher
-    def apply[T](f: (cgate.Listener) => T)(implicit m: Manifest[T]) = Future {f(listener)}
+
+    def apply[T](f: (cgate.Listener) => T)(implicit m: Manifest[T]) = Future {
+      f(listener)
+    }
   }
 
   "Listener" must {
@@ -32,13 +35,14 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfiguration
       assert(listener.stateName == Closed)
     }
 
-    "terminate after Listener gone to Error state" in {
+    "fail on Listener gone to Error state" in {
       val cg = mock(classOf[CGListener])
 
       val listener = TestFSMRef(new Listener(withListener(cg), None), "Listener")
-      watch(listener)
-      listener ! ListenerState(Error)
-      expectMsg(Terminated(listener))
+
+      intercept[ListenerError] {
+        listener receive ListenerState(Error)
+      }
     }
 
     "return to Closed state after Close listener sent" in {
@@ -56,8 +60,9 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfiguration
       val listener = TestFSMRef(new Listener(withListener(cg), None), "Listener")
       listener.setState(Opening)
       watch(listener)
-      listener ! FSM.StateTimeout
-      expectMsg(Terminated(listener))
+      intercept[Listener.OpenTimedOut] {
+        listener receive FSM.StateTimeout
+      }
     }
   }
 

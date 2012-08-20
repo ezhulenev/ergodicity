@@ -36,14 +36,6 @@ object MarketCapture {
   case object Capture
 
   case object ShutDown
-
-  // Possible failures
-
-  case class ConnectionTimedOut() extends RuntimeException
-
-  case class InitializationTimedOut() extends RuntimeException
-
-  case class ConnectionTerminated() extends RuntimeException
 }
 
 sealed trait CaptureState
@@ -152,7 +144,9 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
 
   // Supervisor
   override val supervisorStrategy = AllForOneStrategy() {
-    case _: CGateException => Stop
+    case _: CGateException =>
+      log.info("GOT CGateException")
+      Stop
     case _: MarketCaptureException => Stop
   }
 
@@ -172,13 +166,17 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
       connection ! UnsubscribeTransitionCallBack(self)
       goto(CaptureState.InitializingMarketContents)
 
-    case Event(FSM.StateTimeout, _) => throw new ConnectionTimedOut
+    case Event(FSM.StateTimeout, _) =>
+      log.error("Connecting timed out")
+      throw new MarketCaptureException("Connecting timed out")
   }
 
   when(CaptureState.InitializingMarketContents, stateTimeout = 15.second) {
     case Event(MarketContentsInitialized, _) => goto(CaptureState.Capturing)
 
-    case Event(FSM.StateTimeout, _) => throw new InitializationTimedOut
+    case Event(FSM.StateTimeout, _) =>
+      log.error("Initialization timed out")
+      throw new MarketCaptureException("Initialization timed out")
   }
 
   when(CaptureState.Capturing) {
@@ -233,7 +231,9 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
   }
 
   whenUnhandled {
-    case Event(Terminated(ref), _) if (ref == connection) => throw new ConnectionTerminated
+    case Event(Terminated(ref), _) if (ref == connection) =>
+      log.error("Connection terminated")
+      throw new MarketCaptureException("Connection terminated")
 
     // Handle Market contents updates
     case Event(FuturesContents(futures), Contents(contents)) => stay() using Contents(contents <+> futures)
