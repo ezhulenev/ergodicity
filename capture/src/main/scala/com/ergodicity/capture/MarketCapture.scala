@@ -36,6 +36,7 @@ object MarketCapture {
   case object Capture
 
   case object ShutDown
+
 }
 
 sealed trait CaptureState
@@ -72,7 +73,7 @@ trait CaptureConnection {
   def underlyingConnection: CGConnection
 }
 
-trait CaptureListeners {
+trait UnderlyingListeners {
   self: MarketCapture =>
 
   def underlyingFutInfoListener: CGListener
@@ -86,24 +87,48 @@ trait CaptureListeners {
   def underlyingOrdLogListener: CGListener
 }
 
-trait CaptureListenersImpl extends CaptureListeners {
+trait UnderlyingListenersImpl extends UnderlyingListeners {
   self: MarketCapture with CaptureConnection =>
 
-  val underlyingFutInfoListener = new CGListener(underlyingConnection, replication.futInfo(), new DataStreamSubscriber(FutInfoStream))
+  lazy val underlyingFutInfoListener = new CGListener(underlyingConnection, replication.futInfo(), new DataStreamSubscriber(FutInfoStream))
 
-  val underlyingOptInfoListener = new CGListener(underlyingConnection, replication.optInfo(), new DataStreamSubscriber(OptInfoStream))
+  lazy val underlyingOptInfoListener = new CGListener(underlyingConnection, replication.optInfo(), new DataStreamSubscriber(OptInfoStream))
 
-  val underlyingFutTradeListener = new CGListener(underlyingConnection, replication.futTrade(), new DataStreamSubscriber(FutTradeStream))
+  lazy val underlyingFutTradeListener = new CGListener(underlyingConnection, replication.futTrade(), new DataStreamSubscriber(FutTradeStream))
 
-  val underlyingOptTradeListener = new CGListener(underlyingConnection, replication.optTrade(), new DataStreamSubscriber(OptTradeStream))
+  lazy val underlyingOptTradeListener = new CGListener(underlyingConnection, replication.optTrade(), new DataStreamSubscriber(OptTradeStream))
 
-  val underlyingOrdLogListener = new CGListener(underlyingConnection, replication.ordLog(), new DataStreamSubscriber(OrdLogStream))
+  lazy val underlyingOrdLogListener = new CGListener(underlyingConnection, replication.ordLog(), new DataStreamSubscriber(OrdLogStream))
+}
+
+trait CaptureListeners {
+  self: MarketCapture with UnderlyingListeners =>
+
+  def FutInfoListener: ActorRef
+
+  def OptInfoListener: ActorRef
+
+  def FutTradeListener: ActorRef
+
+  def OptTradeListener: ActorRef
+
+  def OrdLogListener: ActorRef
+}
+
+trait CaptureListenersImpl extends CaptureListeners {
+  self: MarketCapture with UnderlyingListeners =>
+
+  val FutInfoListener = context.actorOf(Props(new Listener(underlyingFutInfoListener)).withDispatcher(ReplicationDispatcher), "FutInfoListener")
+  val OptInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)).withDispatcher(ReplicationDispatcher), "OptInfoListener")
+  val FutTradeListener = context.actorOf(Props(new Listener(underlyingFutTradeListener)).withDispatcher(ReplicationDispatcher), "FutTradeListener")
+  val OptTradeListener = context.actorOf(Props(new Listener(underlyingOptTradeListener)).withDispatcher(ReplicationDispatcher), "OptTradeListener")
+  val OrdLogListener = context.actorOf(Props(new Listener(underlyingOrdLogListener, Some(100.millis))).withDispatcher(ReplicationDispatcher), "OrdLogListener")
 }
 
 class MarketCapture(val replication: ReplicationScheme,
                     repository: ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository,
                     kestrel: KestrelConfig) extends Actor with FSM[CaptureState, CaptureData] {
-  capture: CaptureConnection with CaptureListeners =>
+  capture: CaptureConnection with UnderlyingListeners with CaptureListeners =>
 
   import MarketCapture._
 
@@ -135,15 +160,6 @@ class MarketCapture(val replication: ReplicationScheme,
   val streams = FutInfoStream :: OptInfoStream :: FutTradeStream :: OptTradeStream :: OrdLogStream :: Nil
   streams.foreach(_ ! SubscribeReplState(self))
 
-  // Listeners
-  val FutInfoListener = context.actorOf(Props(new Listener(underlyingFutInfoListener)).withDispatcher(ReplicationDispatcher), "FutInfoListener")
-  val OptInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)).withDispatcher(ReplicationDispatcher), "OptInfoListener")
-  val FutTradeListener = context.actorOf(Props(new Listener(underlyingFutTradeListener)).withDispatcher(ReplicationDispatcher), "FutTradeListener")
-  val OptTradeListener = context.actorOf(Props(new Listener(underlyingOptTradeListener)).withDispatcher(ReplicationDispatcher), "OptTradeListener")
-  val OrdLogListener = context.actorOf(Props(new Listener(underlyingOrdLogListener, Some(100.millis))).withDispatcher(ReplicationDispatcher), "OrdLogListener")
-
-  val cgListeners = (FutInfoListener :: OptInfoListener :: FutTradeListener :: OptTradeListener :: OrdLogListener :: Nil)
-
   // Create captures
   implicit val ConvertOrder = new ConvertToMarketDb[OrdLog.orders_log, OrderPayload] {
     def apply(in: orders_log) = convertOrdersLog(in).toSuccess("Failed to find isin for id = " + in.get_isin_id() + "; Session id = " + in.get_sess_id())
@@ -162,6 +178,7 @@ class MarketCapture(val replication: ReplicationScheme,
   lazy val optionDealsBuncher = new TradesBuncher(client, kestrel.tradesQueue)
 
   import com.ergodicity.cgate.Protocol._
+
   val orderCapture = context.actorOf(Props(new MarketDbCapture[OrdLog.orders_log, OrderPayload](OrdLog.orders_log.TABLE_INDEX, OrdLogStream)(ordersBuncher)), "OrdersCapture")
   val futuresCapture = context.actorOf(Props(new MarketDbCapture[FutTrade.deal, TradePayload](FutTrade.deal.TABLE_INDEX, FutTradeStream)(futureDealsBuncher)), "FuturesCapture")
   val optionsCapture = context.actorOf(Props(new MarketDbCapture[OptTrade.deal, TradePayload](OptTrade.deal.TABLE_INDEX, OptTradeStream)(optionDealsBuncher)), "OptionsCapture")
@@ -172,9 +189,7 @@ class MarketCapture(val replication: ReplicationScheme,
 
   // Supervisor
   override val supervisorStrategy = AllForOneStrategy() {
-    case _: CGateException =>
-      log.info("GOT CGateException")
-      Stop
+    case _: CGateException => Stop
     case _: MarketCaptureException => Stop
   }
 
@@ -308,7 +323,9 @@ class MarketCapture(val replication: ReplicationScheme,
   }
 
   protected def handleStreamState(state: StreamStates): State = {
-    (state.futTrade.<***>(state.optTrade, state.ordLog)) {(_, _, _)} match {
+    (state.futTrade.<***>(state.optTrade, state.ordLog)) {
+      (_, _, _)
+    } match {
       case states@Some((_, _, _)) =>
         log.debug("Streams shutted down in states = " + states)
         closeConnection()
@@ -320,8 +337,11 @@ class MarketCapture(val replication: ReplicationScheme,
   }
 
   def closeConnection() {
+    log.info("Close listeners: " + cgListeners)
     cgListeners.foreach(_ ! Listener.Dispose)
     connection ! Connection.Close
     connection ! Connection.Dispose
   }
+
+  def cgListeners = (FutInfoListener :: OptInfoListener :: FutTradeListener :: OptTradeListener :: OrdLogListener :: Nil)
 }

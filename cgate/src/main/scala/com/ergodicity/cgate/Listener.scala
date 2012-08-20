@@ -32,7 +32,7 @@ class Listener(underlying: CGListener, updateStateDuration: Option[Duration] = S
 
   private val statusTracker = updateStateDuration.map {
     duration =>
-      context.system.scheduler.schedule(0 milliseconds, duration) {
+      context.system.scheduler.schedule(duration, duration) {
         self ! UpdateState
       }
   }
