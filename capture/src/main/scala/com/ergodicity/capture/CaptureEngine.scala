@@ -49,7 +49,11 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
   ServiceTracker.register(this)
 
   private val repo = new MarketCaptureRepository(database) with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
-  private def connection = new CGConnection(connectionConfig())
+  private def conn = new CGConnection(connectionConfig())
+
+  def newMarketCaptureInstance = new MarketCapture(scheme, repo, kestrel) with CaptureConnection with CaptureListenersImpl {
+    def underlyingConnection = conn
+  }
 
   def start() {
     log.info("Start CaptureEngine")
@@ -59,7 +63,7 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
     P2TypeParser.setCharset("windows-1251")
 
     // Create Market Capture system
-    marketCapture = system.actorOf(Props(new MarketCapture(connection, scheme, repo, kestrel)), "MarketCapture")
+    marketCapture = system.actorOf(Props(newMarketCaptureInstance), "MarketCapture")
 
     // Let all actors to activate and perform all activities
     Thread.sleep(TimeUnit.SECONDS.toMillis(1))
@@ -88,7 +92,7 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
           Thread.sleep(TimeUnit.SECONDS.toMillis(3))
 
           // Create new Market Capture system
-          marketCapture = system.actorOf(Props(new MarketCapture(connection, scheme, repo, kestrel)), "MarketCapture")
+          marketCapture = system.actorOf(Props(newMarketCaptureInstance), "MarketCapture")
           context.watch(marketCapture)
 
           // Wait for capture initialized

@@ -2,12 +2,9 @@ package com.ergodicity.core.broker
 
 import akka.actor.{FSM, ActorRef, Actor}
 import akka.util.duration._
-import akka.pattern.ask
-import akka.dispatch.Future
 import ru.micexrts.cgate.{Publisher => CGPublisher, PublishFlag}
 import com.ergodicity.cgate._
-import akka.util.{Duration, Timeout}
-import com.ergodicity.cgate.Connection.Execute
+import akka.util.Duration
 import akka.actor.FSM.Failure
 import scala.Some
 import com.ergodicity.core.{Market, OrderDirection, OrderType, Isin}
@@ -30,9 +27,11 @@ object Broker {
 
   case object Dispose
 
+  case object UpdateState
 
-  def apply(withPublisher: WithPublisher, updateStateDuration: Option[Duration] = Some(1.second))
-           (implicit config: Broker.Config) = new Broker(withPublisher, updateStateDuration)(config)
+
+  def apply(underlying: CGPublisher, updateStateDuration: Option[Duration] = Some(1.second))
+           (implicit config: Broker.Config) = new Broker(underlying, updateStateDuration)(config)
 
   def Buy[M <: Market](isin: Isin, amount: Int, price: BigDecimal, orderType: OrderType)
                       (implicit protocol: Protocol[AddOrder, Order, M]): MarketCommand[AddOrder, Order, M] = MarketCommand(AddOrder(isin, amount, price, orderType, OrderDirection.Buy))
@@ -48,7 +47,7 @@ object Broker {
 
 }
 
-class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration] = Some(1.second))
+class Broker(underlying: CGPublisher, updateStateDuration: Option[Duration] = Some(1.second))
             (implicit val config: Broker.Config) extends Actor with FSM[State, Map[Int, (ActorRef, Broker.Decoder)]] {
 
   import Broker._
@@ -58,9 +57,7 @@ class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration]
   private val statusTracker = updateStateDuration.map {
     duration =>
       context.system.scheduler.schedule(0 milliseconds, duration) {
-        withPublisher(publisher => publisher.getState) onSuccess {
-          case state => self ! PublisherState(State(state))
-        }
+        self ! UpdateState
       }
   }
 
@@ -69,7 +66,7 @@ class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration]
   when(Closed) {
     case Event(Open, _) =>
       log.info("Open publisher")
-      withPublisher(_.open(""))
+      underlying.open("")
       stay()
   }
 
@@ -80,18 +77,15 @@ class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration]
   when(Active) {
     case Event(Close, _) =>
       log.info("Close Publisher")
-      withPublisher(_.close())
+      underlying.close()
       stay()
 
     case Event(command: MarketCommand[_, _, _], pending) =>
       log.debug("Execute command: " + command)
       val counter = if (pending.isEmpty) InitialId else pending.keys.max + 1
-      withPublisher(publisher => {
-        val message = command.encode(publisher)
-        message.setUserId(counter)
-        publisher.post(message, PublishFlag.NEED_REPLY)
-      })
-
+      val message = command.encode(underlying)
+      message.setUserId(counter)
+      underlying.post(message, PublishFlag.NEED_REPLY)
       stay() using pending + (counter ->(sender, command.decode _))
   }
 
@@ -108,9 +102,13 @@ class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration]
 
     case Event(PublisherState(state), _) if (state == stateName) => stay()
 
+    case Event(UpdateState, _) =>
+      self ! PublisherState(State(underlying.getState))
+      stay()
+
     case Event(Dispose, _) =>
       log.info("Dispose publisher")
-      withPublisher(_.dispose())
+      underlying.dispose()
       stop(Failure("Disposed"))
 
     case Event(TimeoutMessage(id), pending) if (pending.contains(id)) =>
@@ -133,19 +131,5 @@ class Broker(withPublisher: WithPublisher, updateStateDuration: Option[Duration]
   override def postStop() {
     statusTracker.foreach(_.cancel())
     super.postStop()
-  }
-}
-
-trait WithPublisher {
-  def apply[T](f: CGPublisher => T)(implicit m: Manifest[T]): Future[T]
-}
-
-object BindPublisher {
-  implicit val timeout = Timeout(1.second)
-
-  def apply(publisher: CGPublisher) = new {
-    def to(connection: ActorRef) = new WithPublisher {
-      def apply[T](f: (CGPublisher) => T)(implicit m: Manifest[T]) = (connection ? Execute(_ => f(publisher))).mapTo[T]
-    }
   }
 }

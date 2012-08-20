@@ -4,7 +4,7 @@ import com.ergodicity.engine._
 import akka.actor.{Stash, ActorRef, Actor, Props}
 import akka.util.duration._
 import com.ergodicity.core.{Sessions => CoreSessions, SessionsState, WhenUnhandled}
-import com.ergodicity.cgate.{BindListener, Listener, DataStreamSubscriber, DataStream}
+import com.ergodicity.cgate.{Listener, DataStreamSubscriber, DataStream}
 import akka.event.Logging
 import com.ergodicity.engine.Components.{CreateListener, FutInfoReplication, OptInfoReplication}
 import service.Service.{Stop, Start}
@@ -46,10 +46,10 @@ protected[service] class SessionsManager(engine: Engine with Connection with Ses
 
   // Listeners
   val underlyingFutInfoListener = listener(underlyingConnection, futInfoReplication(), new DataStreamSubscriber(FutInfoStream))
-  val futInfoListener = context.actorOf(Props(new Listener(BindListener(underlyingFutInfoListener) to Connection)), "FutInfoListener")
+  val futInfoListener = context.actorOf(Props(new Listener(underlyingFutInfoListener)), "FutInfoListener")
 
   val underlyingOptInfoListener = listener(underlyingConnection, optInfoReplication(), new DataStreamSubscriber(OptInfoStream))
-  val optInfoListener = context.actorOf(Props(new Listener(BindListener(underlyingOptInfoListener) to Connection)), "OptInfoListener")
+  val optInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)), "OptInfoListener")
 
   protected def receive = {
     case ServiceStarted(ConnectionService) =>

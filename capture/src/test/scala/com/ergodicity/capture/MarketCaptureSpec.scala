@@ -7,7 +7,7 @@ import akka.testkit._
 import akka.actor._
 import com.ergodicity.cgate.config.Replication
 import java.io.File
-import ru.micexrts.cgate.{Connection => CGConnection, CGate, CGateException}
+import ru.micexrts.cgate.{Connection => CGConnection, CGate, CGateException, Listener => CGListener}
 import com.ergodicity.capture.Mocking._
 import com.twitter.finagle.kestrel.Client
 import org.slf4j.{Logger, LoggerFactory}
@@ -57,9 +57,9 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
 
     "be initialized in Idle state" in {
       val repository = mock(classOf[Repo])
-      val conn = spy(new CGConnection(RouterConnection()))
-
-      val marketCapture = TestFSMRef(new MarketCapture(conn, replication, repository, KestrelMock), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(replication, repository, KestrelMock) with CaptureConnection with MockedListeners {
+        def underlyingConnection = mock(classOf[CGConnection])
+      }, "MarketCapture")
       log.info("State: " + marketCapture.stateName)
       assert(marketCapture.stateName == CaptureState.Idle)
     }
@@ -67,7 +67,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
     "fail in case of underlying CGateException" in {
       val repository = mock(classOf[Repo])
 
-      val conn = spy(new CGConnection(RouterConnection()))
+      val conn = mock(classOf[CGConnection])
       val err = mock(classOf[CGateException])
       doThrow(err).when(conn).open(any())
 
@@ -80,7 +80,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
 
     "terminate after Connection terminated" in {
       val repository = mock(classOf[Repo])
-      val conn = spy(new CGConnection(RouterConnection()))
+      val conn = mock(classOf[CGConnection])
 
       val guardian = guardMarketCapture(conn, repository)
       val connection = guardian.underlyingActor.connection
@@ -94,8 +94,9 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       val gmkFuture = mockFuture(4023, 166911, "GMKR-6.12", "GMM2", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
 
       val repository = mock(classOf[Repo])
-      val conn = spy(new CGConnection(RouterConnection()))
-      val marketCapture = TestFSMRef(new MarketCapture(conn, replication, repository, KestrelMock), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(replication, repository, KestrelMock) with CaptureConnection with MockedListeners {
+        def underlyingConnection = mock(classOf[CGConnection])
+      }, "MarketCapture")
 
       Thread.sleep(300)
 
@@ -110,8 +111,9 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       val rtsOption = mockOption(3550, 160734, "RTS-6.12M150612PA 175000", "RI175000BR2", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
 
       val repository = mock(classOf[Repo])
-      val conn = spy(new CGConnection(RouterConnection()))
-      val marketCapture = TestFSMRef(new MarketCapture(conn, replication, repository, KestrelMock), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(replication, repository, KestrelMock) with CaptureConnection with MockedListeners {
+        def underlyingConnection = mock(classOf[CGConnection])
+      }, "MarketCapture")
 
       Thread.sleep(300)
 
@@ -128,8 +130,9 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       val lukFuture = mockFuture(4023, 166912, "LUKH-6.12", "LUK2", "Фьючерсный контракт LUKH-06.12", 115, 2, 0)
 
       val repository = mock(classOf[Repo])
-      val conn = spy(new CGConnection(RouterConnection()))
-      val marketCapture = TestFSMRef(new MarketCapture(conn, replication, repository, KestrelMock), "MarketCapture")
+      val marketCapture = TestFSMRef(new MarketCapture(replication, repository, KestrelMock) with CaptureConnection with MockedListeners {
+        def underlyingConnection = mock(classOf[CGConnection])
+      }, "MarketCapture")
 
       Thread.sleep(300)
 
@@ -149,8 +152,10 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
 
     "wait for all data streams closed" in {
       val repository = mock(classOf[Repo])
-      val conn = spy(new CGConnection(RouterConnection()))
-      val marketCapture = TestFSMRef(new MarketCapture(conn, replication, repository, KestrelMock), "MarketCapture")
+      val conn = mock(classOf[CGConnection])
+      val marketCapture = TestFSMRef(new MarketCapture(replication, repository, KestrelMock) with CaptureConnection with MockedListeners {
+        def underlyingConnection = conn
+      }, "MarketCapture")
       val underlying = marketCapture.underlyingActor.asInstanceOf[MarketCapture]
 
       doNothing().when(conn).close()
@@ -166,8 +171,8 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       marketCapture ! DataStreamReplState(underlying.FutTradeStream, "FutTradeState")
       marketCapture ! DataStreamReplState(underlying.OptTradeStream, "OptTradeState")
       marketCapture ! DataStreamReplState(underlying.OrdLogStream, "OrdLogState")
-
-      Thread.sleep(300)
+      
+      
 
       verify(repository).setReplicationState("FORTS_FUTTRADE_REPL", "FutTradeState")
       verify(repository).setReplicationState("FORTS_OPTTRADE_REPL", "OptTradeState")
@@ -184,7 +189,9 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
         case _: MarketCaptureException => Stop
       }
 
-      private lazy val capture: MarketCapture = new MarketCapture(conn, replication, repository, KestrelMock)
+      private lazy val capture: MarketCapture = new MarketCapture(replication, repository, KestrelMock) with CaptureConnection with MockedListeners {
+        def underlyingConnection = conn
+      }
 
       lazy val connection = capture.connection
 
@@ -203,6 +210,20 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
     def tradesQueue = "trades"
 
     def ordersQueue = "orders"
+  }
+
+  trait MockedListeners extends CaptureListeners {
+    self: MarketCapture =>
+
+    lazy val  underlyingFutInfoListener = mock(classOf[CGListener])
+
+    lazy val  underlyingOptInfoListener = mock(classOf[CGListener])
+
+    lazy val  underlyingFutTradeListener = mock(classOf[CGListener])
+
+    lazy val  underlyingOptTradeListener = mock(classOf[CGListener])
+
+    lazy val underlyingOrdLogListener = mock(classOf[CGListener])
   }
 
 }

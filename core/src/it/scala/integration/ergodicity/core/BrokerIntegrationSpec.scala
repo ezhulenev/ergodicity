@@ -59,10 +59,10 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
       val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/forts_messages.ini"))
       val underlyingPublisher = new CGPublisher(underlyingConnection, messagesConfig())
 
-      val broker = system.actorOf(Props(new Broker(BindPublisher(underlyingPublisher) to connection)), "Broker")
+      val broker = system.actorOf(Props(new Broker(underlyingPublisher)), "Broker")
 
       val underlyingListener = new CGListener(underlyingConnection, Replies(BrokerName)(), new ReplySubscriber(broker))
-      val replyListener = system.actorOf(Props(new Listener(BindListener(underlyingListener) to connection)), "ReplyListener")
+      val replyListener = system.actorOf(Props(new Listener(underlyingListener)), "ReplyListener")
 
       // On connection Activated open listeners etc
       connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
@@ -93,10 +93,10 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
     val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/forts_messages.ini"))
     val underlyingPublisher = new CGPublisher(underlyingConnection, messagesConfig())
 
-    val broker = system.actorOf(Props(new Broker(BindPublisher(underlyingPublisher) to connection)), "Broker")
+    val broker = system.actorOf(Props(new Broker(underlyingPublisher)), "Broker")
 
     val underlyingListener = new CGListener(underlyingConnection, Replies(BrokerName)(), new ReplySubscriber(broker))
-    val replyListener = system.actorOf(Props(new Listener(BindListener(underlyingListener) to connection)), "ReplyListener")
+    val replyListener = system.actorOf(Props(new Listener(underlyingListener)), "ReplyListener")
 
     // On connection Activated open listeners etc
     connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
@@ -140,10 +140,10 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
     val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/forts_messages.ini"))
     val underlyingPublisher = new CGPublisher(underlyingConnection, messagesConfig())
 
-    val broker = system.actorOf(Props(new Broker(BindPublisher(underlyingPublisher) to connection)), "Broker")
+    val broker = system.actorOf(Props(new Broker(underlyingPublisher)), "Broker")
 
     val underlyingListener = new CGListener(underlyingConnection, Replies(BrokerName)(), new ReplySubscriber(broker))
-    val replyListener = system.actorOf(Props(new Listener(BindListener(underlyingListener) to connection)), "ReplyListener")
+    val replyListener = system.actorOf(Props(new Listener(underlyingListener)), "ReplyListener")
 
     // On connection Activated open listeners etc
     connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {

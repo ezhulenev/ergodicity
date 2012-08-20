@@ -110,7 +110,7 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
       // Listener
       val listenerConfig = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
       val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(FutInfoDataStream))
-      val listener = TestFSMRef(new Listener(BindListener(underlyingListener) to connection), "Listener")
+      val listener = TestFSMRef(new Listener(underlyingListener), "Listener")
 
       // Repository
       val sessionsRepository = TestFSMRef(Repository[FutInfo.session], "SessionsRepository")

@@ -58,7 +58,7 @@ class FutOrderbookIntegrationSpec extends TestKit(ActorSystem("FutOrderBookInteg
       // Listener
       val listenerConfig = Replication("FORTS_FUTORDERBOOK_REPL", new File("cgate/scheme/orderbook.ini"), "CustReplScheme")
       val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(FutOrderBookDataStream))
-      val listener = system.actorOf(Props(new Listener(BindListener(underlyingListener) to connection)), "Listener")
+      val listener = system.actorOf(Props(new Listener(underlyingListener)), "Listener")
 
       // Repository
       val ordersRepository = system.actorOf(Props(Repository[OrderBook.orders]), "OrdersRepository")

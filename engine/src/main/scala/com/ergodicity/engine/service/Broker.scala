@@ -4,8 +4,8 @@ import com.ergodicity.engine.Components.CreateListener
 import com.ergodicity.engine.Engine
 import akka.actor.{Stash, Actor, Props, ActorRef}
 import akka.util.duration._
-import com.ergodicity.core.broker.{Broker => BrokerCore, ReplySubscriber, BindPublisher}
-import com.ergodicity.cgate.{Listener => ErgodicityListener, Active, BindListener}
+import com.ergodicity.core.broker.{Broker => BrokerCore, ReplySubscriber}
+import com.ergodicity.cgate.{Listener => ErgodicityListener, Active}
 import ru.micexrts.cgate.{Publisher => CGPublisher}
 import com.ergodicity.cgate.config.Replies
 import com.ergodicity.core.WhenUnhandled
@@ -32,7 +32,7 @@ trait Broker {
 trait ManagedBroker extends Broker {
   engine: Engine with CreateListener with BrokerConnections =>
 
-  val Broker = context.actorOf(Props(new BrokerCore(BindPublisher(underlyingPublisher) to PublisherConnection)), "Broker")
+  val Broker = context.actorOf(Props(new BrokerCore(underlyingPublisher)), "Broker")
 
   private[this] val brokerManager = context.actorOf(Props(new BrokerManager(this)).withDispatcher("deque-dispatcher"), "BrokerManager")
 
@@ -47,7 +47,7 @@ protected[service] class BrokerManager(engine: Engine with CreateListener with B
   val ManagedBroker = Broker
 
   private[this] val underlyingRepliesListener = listener(underlyingRepliesConnection, Replies(BrokerName)(), new ReplySubscriber(Broker))
-  private[this] val replyListener = context.actorOf(Props(new ErgodicityListener(BindListener(underlyingRepliesListener) to RepliesConnection)), "RepliesListener")
+  private[this] val replyListener = context.actorOf(Props(new ErgodicityListener(underlyingRepliesListener)), "RepliesListener")
 
   protected def receive = {
     case ServiceStarted(BrokerConnectionsService) =>

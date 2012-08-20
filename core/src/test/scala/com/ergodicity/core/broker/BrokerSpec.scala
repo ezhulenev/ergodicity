@@ -3,13 +3,13 @@ package com.ergodicity.core.broker
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import com.ergodicity.core.{Isin, OrderType, AkkaConfigurations}
-import akka.actor.{FSM, Terminated, ActorSystem}
+import akka.actor.{FSM, ActorSystem}
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.util.Timeout
 import akka.util.duration._
-import akka.dispatch.Future
 import ru.micexrts.cgate.{Publisher => CGPublisher, MessageKeyType}
 import org.mockito.Mockito._
+import org.mockito.Matchers._
 import com.ergodicity.cgate.{scheme, Active, Closed, Opening}
 import com.ergodicity.core.Market.Futures
 import ru.micexrts.cgate.messages.DataMessage
@@ -29,21 +29,13 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
     system.shutdown()
   }
 
-  def withPublisher(publisher: CGPublisher) = new WithPublisher {
-    implicit val ec = system.dispatcher
-
-    def apply[T](f: (CGPublisher) => T)(implicit m: Manifest[T]) = Future {
-      f(publisher)
-    }
-  }
-
   implicit val config = Broker.Config("000")
 
   "Broker" must {
     "be initialized in Closed state" in {
       val cg = mock(classOf[CGPublisher])
 
-      val broker = TestFSMRef(new Broker(withPublisher(cg), None), "Broker")
+      val broker = TestFSMRef(new Broker(cg, None), "Broker")
       log.info("State: " + broker.stateName)
       assert(broker.stateName == Closed)
     }
@@ -51,7 +43,7 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
     "fail on Publisher gone to Error state" in {
       val cg = mock(classOf[CGPublisher])
 
-      val broker = TestFSMRef(new Broker(withPublisher(cg), None), "Broker")
+      val broker = TestFSMRef(new Broker(cg, None), "Broker")
       intercept[BrokerError] {
         broker receive PublisherState(com.ergodicity.cgate.Error)
       }
@@ -60,7 +52,7 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
     "return to Closed state after Close broker sent" in {
       val cg = mock(classOf[CGPublisher])
 
-      val broker = TestFSMRef(new Broker(withPublisher(cg), None), "Broker")
+      val broker = TestFSMRef(new Broker(cg, None), "Broker")
       watch(broker)
       broker ! Broker.Close
       assert(broker.stateName == Closed)
@@ -69,7 +61,7 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
     "fail on FSM.StateTimeout in Opening state" in {
       val cg = mock(classOf[CGPublisher])
 
-      val broker = TestFSMRef(new Broker(withPublisher(cg), None), "Broker")
+      val broker = TestFSMRef(new Broker(cg, None), "Broker")
       broker.setState(Opening)
 
       intercept[OpenTimedOut] {
@@ -85,7 +77,7 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
       val publisher = mock(classOf[CGPublisher])
       when(publisher.newMessage(MessageKeyType.KEY_ID, com.ergodicity.cgate.scheme.Message.FutAddOrder.MSG_ID)).thenReturn(dataMessage)
 
-      val broker = TestFSMRef(new Broker(withPublisher(publisher), None), "Broker")
+      val broker = TestFSMRef(new Broker(publisher, None), "Broker")
       broker.setState(Active)
 
       broker ! Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
@@ -103,8 +95,8 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
     }
 
     "handle Timeout failures" in {
-      val publisher = mock(classOf[CGPublisher])
-      val broker = TestFSMRef(new Broker(withPublisher(publisher), None), "Broker")
+      val publisher = mockPublisher
+      val broker = TestFSMRef(new Broker(publisher, None), "Broker")
       broker.setState(Active)
 
       broker ! Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
@@ -121,8 +113,8 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
       errorMsg.set_penalty_remain(50)
       errorMsg.set_message("Flood")
 
-      val publisher = mock(classOf[CGPublisher])
-      val broker = TestFSMRef(new Broker(withPublisher(publisher), None), "Broker")
+      val publisher = mockPublisher
+      val broker = TestFSMRef(new Broker(publisher, None), "Broker")
       broker.setState(Active)
 
       broker ! Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
@@ -137,8 +129,8 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
       val errorMsg = new Message.FORTS_MSG100(data)
       errorMsg.set_message("Error")
 
-      val publisher = mock(classOf[CGPublisher])
-      val broker = TestFSMRef(new Broker(withPublisher(publisher), None), "Broker")
+      val publisher = mockPublisher
+      val broker = TestFSMRef(new Broker(publisher, None), "Broker")
       broker.setState(Active)
 
       broker ! Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
@@ -153,8 +145,8 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
       val orderMsg = new Message.FORTS_MSG101(data)
       orderMsg.set_order_id(111)
 
-      val publisher = mock(classOf[CGPublisher])
-      val broker = TestFSMRef(new Broker(withPublisher(publisher), None), "Broker")
+      val publisher = mockPublisher
+      val broker = TestFSMRef(new Broker(publisher, None), "Broker")
       broker.setState(Active)
 
       broker ! Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
@@ -164,4 +156,11 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
     }
   }
 
+  def mockPublisher = {
+    val publisher = mock(classOf[CGPublisher])
+    val dataMsg = mock(classOf[DataMessage])
+    when(publisher.newMessage(any(), any())).thenReturn(dataMsg)
+    when(dataMsg.getData).thenReturn(ByteBuffer.allocate(1000))
+    publisher
+  }
 }

@@ -47,7 +47,7 @@ class FutureOrdersIntegrationSpec extends TestKit(ActorSystem("FutureOrdersInteg
       // Listeners
       val listenerConfig = Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/fut_trades.ini"), "CustReplScheme")
       val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(dataStream))
-      val listener = TestFSMRef(new Listener(BindListener(underlyingListener) to connection), "FutTradeListener")
+      val listener = TestFSMRef(new Listener(underlyingListener), "FutTradeListener")
 
       // Construct FutureOrders
       val futureOrders = TestFSMRef(new FutureOrders(dataStream), "FutureOrders")

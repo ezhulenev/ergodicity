@@ -1,7 +1,6 @@
 package com.ergodicity.cgate
 
 import akka.util.duration._
-import akka.pattern.ask
 import akka.actor.FSM.Failure
 import akka.actor.{FSM, Actor}
 import ru.micexrts.cgate.{Connection => CGConnection}
@@ -15,9 +14,9 @@ object Connection {
 
   case object Dispose
 
-  case class StartMessageProcessing(timeout: Duration)
+  case object UpdateState
 
-  case class Execute[T](f: CGConnection => T)
+  case class StartMessageProcessing(timeout: Duration)
 
   private[Connection] case class ProcessMessages(timeout: Duration)
 
@@ -50,9 +49,7 @@ class Connection(protected[cgate] val underlying: CGConnection, updateStateDurat
 
   private val statusTracker = updateStateDuration.map {duration =>
     context.system.scheduler.schedule(0 milliseconds, duration) {
-      (self ? Execute(_.getState)).mapTo[Int] onSuccess {
-        case state => self ! ConnectionState(State(state))
-      }
+      self ! UpdateState
     }
   }
 
@@ -88,8 +85,8 @@ class Connection(protected[cgate] val underlying: CGConnection, updateStateDurat
 
     case Event(ConnectionState(state), _) if (state == stateName) => stay()
 
-    case Event(Execute(f), _) =>
-      sender ! f(underlying)
+    case Event(UpdateState, _) =>
+      self ! ConnectionState(State(underlying.getState))
       stay()
 
     case Event(Close, _) =>

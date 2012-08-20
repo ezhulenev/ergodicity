@@ -5,10 +5,8 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 import ru.micexrts.cgate.{Listener => CGListener}
-import akka.actor.{Terminated, FSM, ActorSystem}
+import akka.actor.{FSM, ActorSystem}
 import Listener._
-import ru.micexrts.cgate
-import akka.dispatch.Future
 
 
 class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
@@ -18,19 +16,11 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfiguration
     system.shutdown()
   }
 
-  def withListener(listener: CGListener) = new WithListener {
-    implicit val ec = system.dispatcher
-
-    def apply[T](f: (cgate.Listener) => T)(implicit m: Manifest[T]) = Future {
-      f(listener)
-    }
-  }
-
   "Listener" must {
     "be initialized in Closed state" in {
       val cg = mock(classOf[CGListener])
 
-      val listener = TestFSMRef(new Listener(withListener(cg), None), "Listener")
+      val listener = TestFSMRef(new Listener(cg, None), "Listener")
       log.info("State: " + listener.stateName)
       assert(listener.stateName == Closed)
     }
@@ -38,7 +28,7 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfiguration
     "fail on Listener gone to Error state" in {
       val cg = mock(classOf[CGListener])
 
-      val listener = TestFSMRef(new Listener(withListener(cg), None), "Listener")
+      val listener = TestFSMRef(new Listener(cg, None), "Listener")
 
       intercept[ListenerError] {
         listener receive ListenerState(Error)
@@ -48,7 +38,7 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfiguration
     "return to Closed state after Close listener sent" in {
       val cg = mock(classOf[CGListener])
 
-      val listener = TestFSMRef(new Listener(withListener(cg), None), "Listener")
+      val listener = TestFSMRef(new Listener(cg, None), "Listener")
       watch(listener)
       listener ! Close
       assert(listener.stateName == Closed)
@@ -57,7 +47,7 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec", AkkaConfiguration
     "terminate on FSM.StateTimeout in Opening state" in {
       val cg = mock(classOf[CGListener])
 
-      val listener = TestFSMRef(new Listener(withListener(cg), None), "Listener")
+      val listener = TestFSMRef(new Listener(cg, None), "Listener")
       listener.setState(Opening)
       watch(listener)
       intercept[Listener.OpenTimedOut] {

@@ -5,7 +5,7 @@ import com.ergodicity.engine.Engine
 import com.ergodicity.core.position.{Positions => PositionsCore, PositionsState}
 import akka.actor.{Stash, Actor, Props, ActorRef}
 import akka.util.duration._
-import com.ergodicity.cgate.{BindListener, Listener, DataStreamSubscriber, DataStream}
+import com.ergodicity.cgate.{Listener, DataStreamSubscriber, DataStream}
 import com.ergodicity.core.WhenUnhandled
 import akka.event.Logging
 import com.ergodicity.engine.service.Service.{Stop, Start}
@@ -42,7 +42,7 @@ protected[service] class PositionsManager(engine: Engine with Connection with Po
   val ManagedPositions = Positions
 
   val underlyingPosListener = listener(underlyingConnection, posReplication(), new DataStreamSubscriber(PosStream))
-  val posListener = context.actorOf(Props(new Listener(BindListener(underlyingPosListener) to Connection)), "PosListener")
+  val posListener = context.actorOf(Props(new Listener(underlyingPosListener)), "PosListener")
 
   protected def receive = {
     case ServiceStarted(ConnectionService) =>

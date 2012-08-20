@@ -1,15 +1,11 @@
 package com.ergodicity.cgate
 
 import akka.util.duration._
-import akka.pattern.ask
 import config.ListenerOpenParams
 import ru.micexrts.cgate.{Listener => CGListener}
 import akka.actor.FSM.Failure
-import akka.actor.{ActorRef, Actor, FSM}
-import akka.dispatch.Future
-import ru.micexrts.cgate
-import com.ergodicity.cgate.Connection.Execute
-import akka.util.{Duration, Timeout}
+import akka.actor.{Actor, FSM}
+import akka.util.Duration
 
 object Listener {
 
@@ -19,7 +15,9 @@ object Listener {
 
   case object Dispose
 
-  def apply(underlying: WithListener, updateStateDuration: Option[Duration] = Some(100.millis)) = new Listener(underlying, updateStateDuration)
+  case object UpdateState
+
+  def apply(underlying: CGListener, updateStateDuration: Option[Duration] = Some(100.millis)) = new Listener(underlying, updateStateDuration)
 
   case class OpenTimedOut() extends RuntimeException
 
@@ -28,30 +26,14 @@ object Listener {
 
 protected[cgate] case class ListenerState(state: State)
 
-trait WithListener {
-  def apply[T](f: CGListener => T)(implicit m: Manifest[T]): Future[T]
-}
-
-object BindListener {
-  implicit val timeout = Timeout(1.second)
-
-  def apply(listener: CGListener) = new {
-    def to(connection: ActorRef) = new WithListener {
-      def apply[T](f: (cgate.Listener) => T)(implicit m: Manifest[T]) = (connection ? Execute(_ => f(listener))).mapTo[T]
-    }
-  }
-}
-
-class Listener(withListener: WithListener, updateStateDuration: Option[Duration] = Some(1.second)) extends Actor with FSM[State, Option[ListenerOpenParams]] {
+class Listener(underlying: CGListener, updateStateDuration: Option[Duration] = Some(1.second)) extends Actor with FSM[State, Option[ListenerOpenParams]] {
 
   import Listener._
 
   private val statusTracker = updateStateDuration.map {
     duration =>
       context.system.scheduler.schedule(0 milliseconds, duration) {
-        withListener(listener => listener.getState) onSuccess {
-          case state => self ! ListenerState(State(state))
-        }
+        self ! UpdateState
       }
   }
 
@@ -60,7 +42,7 @@ class Listener(withListener: WithListener, updateStateDuration: Option[Duration]
   when(Closed) {
     case Event(Open(config), None) =>
       log.info("Open listener with config = " + config())
-      withListener(_.open(config()))
+      underlying.open(config())
       stay() using Some(config)
   }
 
@@ -71,7 +53,7 @@ class Listener(withListener: WithListener, updateStateDuration: Option[Duration]
   when(Active) {
     case Event(Close, _) =>
       log.info("Close Listener")
-      withListener(_.close())
+      underlying.close()
       stay() using None
   }
 
@@ -88,9 +70,13 @@ class Listener(withListener: WithListener, updateStateDuration: Option[Duration]
 
     case Event(ListenerState(state), _) if (state == stateName) => stay()
 
+    case Event(UpdateState, _) =>
+      self ! ListenerState(State(underlying.getState))
+      stay()
+
     case Event(Dispose, _) =>
       log.info("Dispose listener")
-      withListener(_.dispose())
+      underlying.dispose()
       stop(Failure("Disposed"))
   }
 

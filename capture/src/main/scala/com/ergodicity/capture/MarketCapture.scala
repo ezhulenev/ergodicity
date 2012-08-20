@@ -66,9 +66,44 @@ object CaptureData {
 
 }
 
-class MarketCapture(underlyingConnection: CGConnection, replication: ReplicationScheme,
+trait CaptureConnection {
+  self: MarketCapture =>
+
+  def underlyingConnection: CGConnection
+}
+
+trait CaptureListeners {
+  self: MarketCapture =>
+
+  def underlyingFutInfoListener: CGListener
+
+  def underlyingOptInfoListener: CGListener
+
+  def underlyingFutTradeListener: CGListener
+
+  def underlyingOptTradeListener: CGListener
+
+  def underlyingOrdLogListener: CGListener
+}
+
+trait CaptureListenersImpl extends CaptureListeners {
+  self: MarketCapture with CaptureConnection =>
+
+  val underlyingFutInfoListener = new CGListener(underlyingConnection, replication.futInfo(), new DataStreamSubscriber(FutInfoStream))
+
+  val underlyingOptInfoListener = new CGListener(underlyingConnection, replication.optInfo(), new DataStreamSubscriber(OptInfoStream))
+
+  val underlyingFutTradeListener = new CGListener(underlyingConnection, replication.futTrade(), new DataStreamSubscriber(FutTradeStream))
+
+  val underlyingOptTradeListener = new CGListener(underlyingConnection, replication.optTrade(), new DataStreamSubscriber(OptTradeStream))
+
+  val underlyingOrdLogListener = new CGListener(underlyingConnection, replication.ordLog(), new DataStreamSubscriber(OrdLogStream))
+}
+
+class MarketCapture(val replication: ReplicationScheme,
                     repository: ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository,
                     kestrel: KestrelConfig) extends Actor with FSM[CaptureState, CaptureData] {
+  capture: CaptureConnection with CaptureListeners =>
 
   import MarketCapture._
 
@@ -99,20 +134,11 @@ class MarketCapture(underlyingConnection: CGConnection, replication: Replication
   streams.foreach(_ ! SubscribeReplState(self))
 
   // Listeners
-  val underlyingFutInfoListener = new CGListener(underlyingConnection, replication.futInfo(), new DataStreamSubscriber(FutInfoStream))
-  val FutInfoListener = context.actorOf(Props(new Listener(BindListener(underlyingFutInfoListener) to connection)), "FutInfoListener")
-
-  val underlyingOptInfoListener = new CGListener(underlyingConnection, replication.optInfo(), new DataStreamSubscriber(OptInfoStream))
-  val OptInfoListener = context.actorOf(Props(new Listener(BindListener(underlyingOptInfoListener) to connection)), "OptInfoListener")
-
-  val underlyingFutTradeListener = new CGListener(underlyingConnection, replication.futTrade(), new DataStreamSubscriber(FutTradeStream))
-  val FutTradeListener = context.actorOf(Props(new Listener(BindListener(underlyingFutTradeListener) to connection)), "FutTradeListener")
-
-  val underlyingOptTradeListener = new CGListener(underlyingConnection, replication.optTrade(), new DataStreamSubscriber(OptTradeStream))
-  val OptTradeListener = context.actorOf(Props(new Listener(BindListener(underlyingOptTradeListener) to connection)), "OptTradeListener")
-
-  val underlyingOrdLogListener = new CGListener(underlyingConnection, replication.ordLog(), new DataStreamSubscriber(OrdLogStream))
-  val OrdLogListener = context.actorOf(Props(new Listener(BindListener(underlyingOrdLogListener) to connection, Some(100.millis))), "OrdLogListener")
+  val FutInfoListener = context.actorOf(Props(new Listener(underlyingFutInfoListener)), "FutInfoListener")
+  val OptInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)), "OptInfoListener")
+  val FutTradeListener = context.actorOf(Props(new Listener(underlyingFutTradeListener)), "FutTradeListener")
+  val OptTradeListener = context.actorOf(Props(new Listener(underlyingOptTradeListener)), "OptTradeListener")
+  val OrdLogListener = context.actorOf(Props(new Listener(underlyingOrdLogListener, Some(100.millis))), "OrdLogListener")
 
   val cgListeners = (FutInfoListener :: OptInfoListener :: FutTradeListener :: OptTradeListener :: OrdLogListener :: Nil)
 
