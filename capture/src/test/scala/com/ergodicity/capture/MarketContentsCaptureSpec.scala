@@ -67,7 +67,7 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
       capture ! SubscribeMarketContents(self)
       capture ! Snapshot(underlying.FutSessContentsRepository, gmkFuture :: Nil)
 
-      expectMsg(FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.FutureConverter(gmkFuture))))
+      expectMsg(FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutInfoToFuture.convert(gmkFuture))))
 
       verify(repository).saveSessionContents(gmkFuture)
     }
@@ -86,7 +86,7 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
       capture ! SubscribeMarketContents(self)
       capture ! Snapshot(underlying.OptSessContentsRepository, rtsOption :: Nil)
 
-      expectMsg(OptionsContents(Map(rtsOption.get_isin_id() -> com.ergodicity.core.session.OptionConverter(rtsOption))))
+      expectMsg(OptionsContents(Map(rtsOption.get_isin_id() -> com.ergodicity.core.session.Implicits.OptInfoToOption.convert(rtsOption))))
       verify(repository).saveSessionContents(rtsOption)
     }
   }

@@ -4,7 +4,7 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.actor.ActorSystem
-import repository.Repository.{Snapshot, SubscribeSnapshots}
+import repository.Repository.{GetSnapshot, Snapshot, SubscribeSnapshots}
 import repository.RepositoryState.Consistent
 import repository.{RepositoryState, Repository}
 import scheme.FutInfo
@@ -73,6 +73,31 @@ class RepositorySpec extends TestKit(ActorSystem("RepositorySpec", AkkaConfigura
       repository ! LifeNumChanged(1)
       snapshot = receiveOne(1.second).asInstanceOf[Snapshot[FutInfo.session]]
       assert(snapshot.data.size == 0)
+    }
+
+    "return snapshot immediatly in consistend state on GetSnapshot" in {
+      val repository = TestFSMRef(Repository[FutInfo.session](), "Repository")
+      val underlying = repository.underlyingActor.asInstanceOf[Repository[FutInfo.session]]
+      underlying.storage(1l) = Session
+      underlying.storage(2l) = Session
+      repository ! GetSnapshot
+      val snapshot = receiveOne(100.millis).asInstanceOf[Snapshot[FutInfo.session]]
+      assert(snapshot.data.size == 2)
+    }
+
+    "return snapshot after returned to consistend state on GetSnapshot" in {
+      val repository = TestFSMRef(Repository[FutInfo.session](), "Repository")
+      val underlying = repository.underlyingActor.asInstanceOf[Repository[FutInfo.session]]
+
+      repository ! TnBegin
+      underlying.storage(1l) = Session
+      underlying.storage(2l) = Session
+      repository ! GetSnapshot
+      expectNoMsg(300.millis)
+      repository ! TnCommit
+
+      val snapshot = receiveOne(100.millis).asInstanceOf[Snapshot[FutInfo.session]]
+      assert(snapshot.data.size == 2)
     }
 
     "handle new data" in {

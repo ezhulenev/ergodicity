@@ -1,7 +1,7 @@
 package com.ergodicity.core
 
 import session.Session.{OptInfoSessionContents, FutInfoSessionContents}
-import session.{Session, SessionState, IntClearingState, SessionContent}
+import session.{Session, SessionState, IntradayClearingState, SessionContent}
 import akka.actor._
 import akka.util.duration._
 import akka.pattern.ask
@@ -75,7 +75,7 @@ object SessionsData {
             records.find((r: FutInfo.session) => r.get_sess_id() == i1 && r.get_opt_sess_id() == i2) foreach {
               record =>
                 session ! SessionState(record.get_state())
-                session ! IntClearingState(record.get_inter_cl_state())
+                session ! IntradayClearingState(record.get_inter_cl_state())
             }
         }
 
@@ -84,7 +84,7 @@ object SessionsData {
           newRecord =>
             val sessionId = newRecord.get_sess_id()
             val state = SessionState(newRecord.get_state())
-            val intClearingState = IntClearingState(newRecord.get_inter_cl_state())
+            val intClearingState = IntradayClearingState(newRecord.get_inter_cl_state())
             val content = new SessionContent(newRecord)
             val session = context.actorOf(Props(new Session(content, state, intClearingState)), sessionId.toString)
 

@@ -1,14 +1,14 @@
 package com.ergodicity.core.session
 
 import org.joda.time.Interval
-import akka.actor.{ActorRef, Props, Actor, FSM}
+import akka.actor._
 import akka.pattern.ask
-import akka.actor.FSM._
-import com.ergodicity.core.{Isins, FutureContract, OptionContract}
 import akka.util.Timeout
 import java.util.concurrent.TimeUnit
-import com.ergodicity.cgate.repository.Repository.Snapshot
 import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
+import com.ergodicity.cgate.repository.Repository.Snapshot
+import scala.Some
+import com.ergodicity.core.Isins
 
 
 case class SessionContent(id: Int, optionsSessionId: Int, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval) {
@@ -22,7 +22,6 @@ case class SessionContent(id: Int, optionsSessionId: Int, primarySession: Interv
   )
 }
 
-
 object Session {
   implicit val timeout = Timeout(1, TimeUnit.SECONDS)
 
@@ -30,9 +29,11 @@ object Session {
     new Session(
       new SessionContent(rec),
       SessionState(rec.get_state()),
-      IntClearingState(rec.get_inter_cl_state())
+      IntradayClearingState(rec.get_inter_cl_state())
     )
   }
+
+  case object GetState
 
   case class FutInfoSessionContents(snapshot: Snapshot[FutInfo.fut_sess_contents])
 
@@ -43,55 +44,45 @@ object Session {
 
 case class GetSessionInstrument(isin: Isins)
 
-case class Session(content: SessionContent, state: SessionState, intClearingState: IntClearingState) extends Actor with FSM[SessionState, ActorRef] {
+case class Session(content: SessionContent, initialState: SessionState, initialIntradayClearingState: IntradayClearingState) extends Actor with LoggingFSM[SessionState, Unit] {
 
   import Session._
   import SessionState._
 
-  val intClearing = context.actorOf(Props(new IntClearing(intClearingState)), "IntClearing")
+  val intradayClearing = context.actorOf(Props(new IntradayClearing(initialIntradayClearingState)), "IntradayClearing")
 
   // Session contents
-  val futures = context.actorOf(Props(new StatefulSessionContents[FutureContract, FutInfo.fut_sess_contents]), "Futures")
-  val options = context.actorOf(Props(new StatelessSessionContents[OptionContract, OptInfo.opt_sess_contents]), "Options")
+  import Implicits._
+  val futures = context.actorOf(Props(new SessionContents[FutInfo.fut_sess_contents](self) with FuturesContentsManager), "Futures")
+  val options = context.actorOf(Props(new SessionContents[OptInfo.opt_sess_contents](self) with OptionsContentsManager), "Options")
 
-  self ! SubscribeTransitionCallBack(futures)
-  self ! SubscribeTransitionCallBack(options)
-
-  startWith(state, intClearing)
+  startWith(initialState, ())
 
   when(Assigned) {
-    handleSessionState orElse handleClearingState orElse handleSessContents
+    handleSessionState orElse handleIntradayClearingState orElse handleSessContents
   }
   when(Online) {
-    handleSessionState orElse handleClearingState orElse handleSessContents
+    handleSessionState orElse handleIntradayClearingState orElse handleSessContents
   }
   when(Suspended) {
-    handleSessionState orElse handleClearingState orElse handleSessContents
+    handleSessionState orElse handleIntradayClearingState orElse handleSessContents
   }
 
-  when(Canceled) {
+  when(Canceled)(handleIntradayClearingState orElse handleSessContents orElse {
     case Event(SessionState.Canceled, _) => stay()
     case Event(e: SessionState, _) => throw new IllegalLifeCycleEvent("Unexpected event after canceled", e)
-  }
+  })
 
-  when(Canceled) {
-    handleClearingState orElse handleSessContents
-  }
-
-  when(Completed) {
+  when(Completed)(handleIntradayClearingState orElse handleSessContents orElse {
     case Event(SessionState.Completed, _) => stay()
     case Event(e: SessionState, _) => throw new IllegalLifeCycleEvent("Unexpected event after completion", e)
-  }
-
-  when(Completed) {
-    handleClearingState orElse handleSessContents
-  }
-
-  onTransition {
-    case from -> to => log.info("Session updated from " + from + " -> " + to)
-  }
+  })
 
   whenUnhandled {
+    case Event(GetState, _) =>
+      sender ! stateName
+      stay()
+
     case Event(GetSessionInstrument(isin), _) =>
       val replyTo = sender
 
@@ -109,27 +100,37 @@ case class Session(content: SessionContent, state: SessionState, intClearingStat
 
   initialize
 
-  log.info("Created session; Id = " + content.id + "; State = " + state + "; content = " + content)
-
   private def handleSessContents: StateFunction = {
-    case Event(FutInfoSessionContents(snapshot), _) => futures ! snapshot.filter(isFuture _); stay()
-    case Event(OptInfoSessionContents(snapshot), _) => options ! snapshot; stay()
+    case Event(FutInfoSessionContents(snapshot), _) =>
+      futures ! snapshot.filter(_.isFuture)
+      stay()
+
+    case Event(OptInfoSessionContents(snapshot), _) =>
+      options ! snapshot
+      stay()
   }
 
   private def handleSessionState: StateFunction = {
-    case Event(state: SessionState, _) => goto(state)
+    case Event(state: SessionState, _) =>
+      goto(state)
   }
 
-  private def handleClearingState: StateFunction = {
-    case Event(state: IntClearingState, clearing) => clearing ! state; stay()
+  private def handleIntradayClearingState: StateFunction = {
+    case Event(state: IntradayClearingState, _) =>
+      intradayClearing ! state
+      stay()
   }
 }
 
-case class IntClearing(state: IntClearingState) extends Actor with FSM[IntClearingState, Unit] {
+case class IntradayClearing(initialState: IntradayClearingState) extends Actor with LoggingFSM[IntradayClearingState, Unit] {
 
-  import IntClearingState._
+  import IntradayClearingState._
 
-  startWith(state, ())
+  override def preStart() {
+    log.info("Start IntradayClearing actor in state = " + initialState)
+  }
+
+  startWith(initialState, ())
 
   when(Undefined) {
     handleState
@@ -150,13 +151,9 @@ case class IntClearing(state: IntClearingState) extends Actor with FSM[IntCleari
     handleState
   }
 
-  onTransition {
-    case from -> to => log.info("Intermediate clearing updated from " + from + " -> " + to)
-  }
-
   initialize
 
   private def handleState: StateFunction = {
-    case Event(s: IntClearingState, _) => goto(s)
+    case Event(s: IntradayClearingState, _) => goto(s)
   }
 }

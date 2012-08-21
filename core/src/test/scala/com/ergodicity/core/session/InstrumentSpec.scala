@@ -8,6 +8,7 @@ import com.ergodicity.core.AkkaConfigurations
 import AkkaConfigurations._
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import com.ergodicity.core.{Isins, FutureContract}
+import com.ergodicity.core.session.InstrumentData.Limits
 
 class InstrumentSpec extends TestKit(ActorSystem("InstrumentSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -19,13 +20,13 @@ class InstrumentSpec extends TestKit(ActorSystem("InstrumentSpec", ConfigWithDet
   "Instrument" must {
     "support state inialization" in {
       val future = FutureContract(Isins(166911, "GMKR-6.12", "GMM2"), "Фьючерсный контракт GMKR-06.12")
-      val instrument = TestFSMRef(new Instrument[FutureContract](future, Assigned))
+      val instrument = TestFSMRef(new Instrument(Assigned, InstrumentData(future, Limits(100, 200))))
       assert(instrument.stateName == Assigned)
     }
 
     "support state updates" in {
       val future = FutureContract(Isins(166911, "GMKR-6.12", "GMM2"), "Фьючерсный контракт GMKR-06.12")
-      val instrument = TestFSMRef(new Instrument[FutureContract](future, Assigned))
+      val instrument = TestFSMRef(new Instrument(Assigned, InstrumentData(future, Limits(100, 200))))
 
       instrument ! Online
       assert(instrument.stateName == Online)

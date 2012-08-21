@@ -188,13 +188,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
     
     val buffer = ByteBuffer.allocate(1000)
 
-    val stateValue = sessionState match {
-      case Assigned => 0
-      case Online => 1
-      case Suspended => 2
-      case Canceled => 3
-      case Completed => 4
-    }
+    val stateValue = SessionState.decode(sessionState)
     
     val session = new FutInfo.session(buffer)
     session.set_replID(replID)

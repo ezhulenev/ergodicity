@@ -8,6 +8,7 @@ object AkkaConfigurations {
     akka.actor.debug {
       receive = on
       lifecycle = on
+      fsm = on
     }
-    """)
+                                                            """)
 }

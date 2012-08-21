@@ -1,21 +1,51 @@
 package com.ergodicity.core
 
 import com.ergodicity.cgate._
+import scheme.FutInfo.fut_sess_contents
+import scheme.OptInfo.opt_sess_contents
 import scheme.{OptInfo, FutInfo}
 
 package object session {
-  type SessContents = {def get_isin_id(): Int; def get_isin(): String; def get_short_isin(): String}
-  type StatefulSessContents = SessContents {def get_state(): Int}
-  type StatelessSessContents = SessContents
 
-  def isFuture(record: FutInfo.fut_sess_contents) = {
-    val signs = com.ergodicity.cgate.Signs(record.get_signs())
-    !signs.spot && !signs.moneyMarket && signs.anonymous
+  trait RichFutInfoContents {
+    def isFuture: Boolean
+
+    def isin: Isins
   }
 
-  def record2isin(record: SessContents) = Isins(record.get_isin_id(), record.get_isin().trim, record.get_short_isin().trim)
+  trait RichOptInfoContents {
+    def isin: Isins
+  }
 
-  implicit val FutureConverter = (record: FutInfo.fut_sess_contents) => new FutureContract(record2isin(record), record.get_name().trim)
+  sealed trait ToSecurity[T] {
+    def convert(record: T): Security
+  }
 
-  implicit val OptionConverter = (record: OptInfo.opt_sess_contents) => new OptionContract(record2isin(record), record.get_name().trim)
+  object Implicits {
+    implicit def enrichOptInfoContents(contents: OptInfo.opt_sess_contents) = new RichOptInfoContents {
+      def isin = Isins(contents.get_isin_id(), contents.get_isin().trim, contents.get_short_isin().trim)
+    }
+
+    implicit def enrichFutInfoContents(contents: FutInfo.fut_sess_contents) = new RichFutInfoContents {
+      def isFuture = {
+        val signs = com.ergodicity.cgate.Signs(contents.get_signs())
+        !signs.spot && !signs.moneyMarket && signs.anonymous
+      }
+
+      def isin = Isins(contents.get_isin_id(), contents.get_isin().trim, contents.get_short_isin().trim)
+    }
+
+    implicit val FutInfoToFuture = new ToSecurity[FutInfo.fut_sess_contents] {
+      def convert(record: fut_sess_contents) = {
+        new FutureContract(enrichFutInfoContents(record).isin, record.get_name().trim)
+      }
+    }
+
+    implicit val OptInfoToOption = new ToSecurity[OptInfo.opt_sess_contents] {
+      def convert(record: opt_sess_contents) =
+        new OptionContract(enrichOptInfoContents(record).isin, record.get_name().trim)
+    }
+  }
+
+
 }

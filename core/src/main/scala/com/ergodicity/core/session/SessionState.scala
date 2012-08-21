@@ -21,11 +21,19 @@ object SessionState {
 
   case object Completed extends SessionState
 
+  def decode(state: SessionState) = state match {
+    case Assigned => 0
+    case Online => 1
+    case Suspended => 2
+    case Canceled => 3
+    case Completed => 4
+  }
+
 }
 
-sealed trait IntClearingState
+sealed trait IntradayClearingState
 
-object IntClearingState {
+object IntradayClearingState {
   private val UndefinedMask = 0x0
   private val OncomingMask = 0x01
   private val CanceledMask = 0x02
@@ -42,16 +50,16 @@ object IntClearingState {
     case i if (i & CompletedMask) != 0 => Completed
   }
 
-  case object Undefined extends IntClearingState
+  case object Undefined extends IntradayClearingState
 
-  case object Oncoming extends IntClearingState
+  case object Oncoming extends IntradayClearingState
 
-  case object Canceled extends IntClearingState
+  case object Canceled extends IntradayClearingState
 
-  case object Running extends IntClearingState
+  case object Running extends IntradayClearingState
 
-  case object Finalizing extends IntClearingState
+  case object Finalizing extends IntradayClearingState
 
-  case object Completed extends IntClearingState
+  case object Completed extends IntradayClearingState
 
 }

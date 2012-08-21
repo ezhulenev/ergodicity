@@ -39,56 +39,49 @@ class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedL
     }
   }
 
-  "IntClearing" must {
+  "IntradayClearing" must {
     "handle state updates" in {
-      val clearing = TestFSMRef(new IntClearing(IntClearingState.Finalizing), "IntClearing")
-      assert(clearing.stateName == IntClearingState.Finalizing)
+      val clearing = TestFSMRef(new IntradayClearing(IntradayClearingState.Finalizing), "IntradayClearing")
+      assert(clearing.stateName == IntradayClearingState.Finalizing)
 
-      clearing ! IntClearingState.Completed
+      clearing ! IntradayClearingState.Completed
       log.info("State: " + clearing.stateName)
-      assert(clearing.stateName == IntClearingState.Completed)
+      assert(clearing.stateName == IntradayClearingState.Completed)
     }
   }
 
   "Session" must {
     "be inititliazed in given state and terminate child clearing actor" in {
       val content = SessionContent(100, 101, primaryInterval, None, None, positionTransferInterval)
-      val session = TestFSMRef(Session(content, SessionState.Online, IntClearingState.Oncoming))
+      val session = TestFSMRef(Session(content, SessionState.Online, IntradayClearingState.Oncoming), "Session")
 
       assert(session.stateName == SessionState.Online)
-      val intClearing = session.stateData
+      val intClearing = session.underlyingActor.asInstanceOf[Session].intradayClearing
 
-      watch(session)
-      watch(intClearing)
+      intClearing ! SubscribeTransitionCallBack(self)
 
-      session.stop()
-
-      expectMsgType[Terminated]
-      expectMsgType[Terminated]
-
-      assert(session.isTerminated)
-      assert(intClearing.isTerminated)
+      expectMsg(CurrentState(intClearing, IntradayClearingState.Oncoming))
     }
 
     "apply state and int. clearing updates" in {
       val content = SessionContent(100, 101, primaryInterval, None, None, positionTransferInterval)
-      val session = TestFSMRef(Session(content, SessionState.Online, IntClearingState.Oncoming), "Session")
+      val session = TestFSMRef(Session(content, SessionState.Online, IntradayClearingState.Oncoming), "Session")
 
       // Subscribe for clearing transitions
-      val intClearing = session.stateData
+      val intClearing = session.underlyingActor.asInstanceOf[Session].intradayClearing
       intClearing ! SubscribeTransitionCallBack(self)
-      expectMsg(CurrentState(intClearing, IntClearingState.Oncoming))
+      expectMsg(CurrentState(intClearing, IntradayClearingState.Oncoming))
 
       session ! SessionState.Suspended
       assert(session.stateName == SessionState.Suspended)
 
-      session ! IntClearingState.Running
-      expectMsg(Transition(intClearing, IntClearingState.Oncoming, IntClearingState.Running))
+      session ! IntradayClearingState.Running
+      expectMsg(Transition(intClearing, IntradayClearingState.Oncoming, IntradayClearingState.Running))
     }
 
     "handle SessContentsRecord from FutInfo and return instument on request" in {
       val content = SessionContent(100, 101, primaryInterval, None, None, positionTransferInterval)
-      val session = TestActorRef(new Session(content, SessionState.Online, IntClearingState.Oncoming), "Session2")
+      val session = TestActorRef(new Session(content, SessionState.Online, IntradayClearingState.Oncoming), "Session2")
 
       val future = mockFuture(4023, 166911, "GMKR-6.12", "GMM2", "Фьючерсный контракт GMKR-06.12", 115, 2)
       val repo = mockFuture(4023, 170971, "HYDR-16.04.12R3", "HYDRT0T3", "Репо инструмент на ОАО \"ГидроОГК\"", 4965, 2, 1)

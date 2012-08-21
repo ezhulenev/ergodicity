@@ -2,16 +2,20 @@ package com.ergodicity.core.session
 
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
-import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
-import com.ergodicity.core.OptionContract
 import com.ergodicity.core.Mocking._
 import com.ergodicity.cgate.scheme.OptInfo
+import akka.testkit._
+import akka.actor.FSM.Transition
 import com.ergodicity.cgate.repository.Repository.Snapshot
-import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
+import akka.actor.FSM.CurrentState
+import akka.actor.FSM.SubscribeTransitionCallBack
+import akka.testkit.TestActor.AutoPilot
+import com.ergodicity.core.session.Session.GetState
+import Implicits._
 
-class StatelessSessionContentsSpec extends TestKit(ActorSystem("StatelessSessionContentsSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class OptionsContentsManagerSpec extends TestKit(ActorSystem("OptionsContentsManagerSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
 
   val log = Logging(system, self)
 
@@ -24,10 +28,8 @@ class StatelessSessionContentsSpec extends TestKit(ActorSystem("StatelessSession
   "StatelessSessionContents" must {
 
     "should track session state updates and propagate to instrument state" in {
-      val contents = TestActorRef(new StatelessSessionContents[OptionContract, OptInfo.opt_sess_contents], "Options")
-
-      contents ! CurrentState(self, SessionState.Online)
-
+      val session: ActorRef = onlineSession
+      val contents = TestActorRef(new SessionContents[OptInfo.opt_sess_contents](session) with OptionsContentsManager, "Options")
       contents ! Snapshot(self, rtsOption :: Nil)
 
       val instrument = system.actorFor("user/Options/" + contents.underlyingActor.conformIsinToActorName("RTS-6.12M150612PA 175000"))
@@ -35,17 +37,29 @@ class StatelessSessionContentsSpec extends TestKit(ActorSystem("StatelessSession
       expectMsg(CurrentState(instrument, InstrumentState.Online))
 
       // Session suspended
-      contents ! Transition(self, SessionState.Online, SessionState.Suspended)
+      contents ! Transition(session, SessionState.Online, SessionState.Suspended)
       expectMsg(Transition(instrument, InstrumentState.Online, InstrumentState.Suspended))
 
       // Session Assigned
-      contents ! Transition(self, SessionState.Suspended, SessionState.Assigned)
+      contents ! Transition(session, SessionState.Suspended, SessionState.Assigned)
       expectMsg(Transition(instrument, InstrumentState.Suspended, InstrumentState.Assigned))
 
       // Session Canceled
-      contents ! Transition(self, SessionState.Assigned, SessionState.Canceled)
+      contents ! Transition(session, SessionState.Assigned, SessionState.Canceled)
       expectMsg(Transition(instrument, InstrumentState.Assigned, InstrumentState.Canceled))
     }
+  }
+
+  def onlineSession = {
+    val session = TestProbe()
+    session.setAutoPilot(new AutoPilot {
+      def run(sender: ActorRef, msg: Any) = msg match {
+        case GetState =>
+          sender ! SessionState.Online
+          None
+      }
+    })
+    session.ref
   }
 
 }
