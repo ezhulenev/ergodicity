@@ -1,17 +1,15 @@
 package com.ergodicity.engine.strategy
 
-import akka.actor.{Actor, ActorRef}
+import akka.actor.{ActorLogging, Actor, ActorRef}
 import akka.pattern.ask
 import akka.util.duration._
-import com.ergodicity.core.{WhenUnhandled, OrderType, Isin, Market}
+import com.ergodicity.cgate.WhenUnhandled
+import com.ergodicity.core.Market
 import com.ergodicity.engine.Engine
 import com.ergodicity.engine.service.{Broker, Positions}
-import com.ergodicity.core.broker.{Broker => BrokerCore}
-import akka.event.Logging
 import com.ergodicity.core.position.Positions.{OpenPositions, GetOpenPositions}
 import akka.util.Timeout
 import akka.dispatch.Await
-import com.ergodicity.core.Market.Futures
 
 
 case object CloseAllPositionsStrategy extends Strategy
@@ -21,9 +19,7 @@ trait CloseAllPositions {
 
 }
 
-class CloseAllPositionsManager(engine: Engine with Positions) extends Actor with WhenUnhandled {
-  val log = Logging(context.system, self)
-
+class CloseAllPositionsManager(engine: Engine with Positions) extends Actor with ActorLogging with WhenUnhandled {
   import Strategy._
   import engine._
 

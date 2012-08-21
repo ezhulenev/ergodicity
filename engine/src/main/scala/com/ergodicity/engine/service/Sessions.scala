@@ -1,11 +1,11 @@
 package com.ergodicity.engine.service
 
 import com.ergodicity.engine._
-import akka.actor.{Stash, ActorRef, Actor, Props}
+import akka.actor._
 import akka.util.duration._
-import com.ergodicity.core.{Sessions => CoreSessions, SessionsState, WhenUnhandled}
+import com.ergodicity.cgate.WhenUnhandled
+import com.ergodicity.core.{Sessions => CoreSessions, SessionsState}
 import com.ergodicity.cgate.{Listener, DataStreamSubscriber, DataStream}
-import akka.event.Logging
 import com.ergodicity.engine.Components.{CreateListener, FutInfoReplication, OptInfoReplication}
 import service.Service.{Stop, Start}
 import com.ergodicity.cgate.config.Replication.ReplicationParams
@@ -37,9 +37,7 @@ trait ManagedSessions extends Sessions {
   registerService(SessionsService, sessionsManager)
 }
 
-protected[service] class SessionsManager(engine: Engine with Connection with Sessions with CreateListener with FutInfoReplication with OptInfoReplication) extends Actor with WhenUnhandled with Stash {
-  val log = Logging(context.system, self)
-
+protected[service] class SessionsManager(engine: Engine with Connection with Sessions with CreateListener with FutInfoReplication with OptInfoReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
   import engine._
 
   val ManagedSessions = Sessions

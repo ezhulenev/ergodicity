@@ -1,10 +1,9 @@
-package com.ergodicity.core
+package com.ergodicity.cgate
 
-import akka.actor.Actor
+import akka.actor.{ActorLogging, Actor}
 import akka.event.LoggingAdapter
 
-trait WhenUnhandled {
-  this: Actor {def log: LoggingAdapter} =>
+trait WhenUnhandled { this: Actor with ActorLogging =>
 
   def whenUnhandled: Receive = {
     case e => log.warning("Unhandled event: " + e)

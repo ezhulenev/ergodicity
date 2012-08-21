@@ -3,10 +3,9 @@ package com.ergodicity.engine.service
 import com.ergodicity.engine.Components.{CreateListener, PosReplication}
 import com.ergodicity.engine.Engine
 import com.ergodicity.core.position.{Positions => PositionsCore, PositionsState}
-import akka.actor.{Stash, Actor, Props, ActorRef}
+import akka.actor._
 import akka.util.duration._
-import com.ergodicity.cgate.{Listener, DataStreamSubscriber, DataStream}
-import com.ergodicity.core.WhenUnhandled
+import com.ergodicity.cgate.{WhenUnhandled, Listener, DataStreamSubscriber, DataStream}
 import akka.event.Logging
 import com.ergodicity.engine.service.Service.{Stop, Start}
 import com.ergodicity.cgate.config.Replication.ReplicationParams
@@ -34,9 +33,7 @@ trait ManagedPositions extends Positions {
   registerService(PositionsService, positionsManager)
 }
 
-protected[service] class PositionsManager(engine: Engine with Connection with Positions with CreateListener with PosReplication) extends Actor with WhenUnhandled with Stash {
-  val log = Logging(context.system, self)
-
+protected[service] class PositionsManager(engine: Engine with Connection with Positions with CreateListener with PosReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
   import engine._
 
   val ManagedPositions = Positions

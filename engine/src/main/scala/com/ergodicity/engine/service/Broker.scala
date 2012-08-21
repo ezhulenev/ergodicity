@@ -2,17 +2,18 @@ package com.ergodicity.engine.service
 
 import com.ergodicity.engine.Components.CreateListener
 import com.ergodicity.engine.Engine
-import akka.actor.{Stash, Actor, Props, ActorRef}
+import akka.actor._
 import akka.util.duration._
 import com.ergodicity.core.broker.{Broker => BrokerCore, ReplySubscriber}
-import com.ergodicity.cgate.{Listener => ErgodicityListener, Active}
+import com.ergodicity.cgate.{Listener => ErgodicityListener, WhenUnhandled, Active}
 import ru.micexrts.cgate.{Publisher => CGPublisher}
 import com.ergodicity.cgate.config.Replies
-import com.ergodicity.core.WhenUnhandled
-import akka.event.Logging
 import com.ergodicity.engine.service.Service.{Stop, Start}
-import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
 import com.ergodicity.cgate.config.Replies.RepliesParams
+import akka.actor.FSM.Transition
+import akka.actor.FSM.CurrentState
+import akka.actor.FSM.UnsubscribeTransitionCallBack
+import akka.actor.FSM.SubscribeTransitionCallBack
 
 
 case object BrokerService extends Service
@@ -39,9 +40,7 @@ trait ManagedBroker extends Broker {
   registerService(BrokerService, brokerManager)
 }
 
-protected[service] class BrokerManager(engine: Engine with CreateListener with BrokerConnections with Broker) extends Actor with WhenUnhandled with Stash {
-  val log = Logging(context.system, self)
-
+protected[service] class BrokerManager(engine: Engine with CreateListener with BrokerConnections with Broker) extends Actor with ActorLogging with WhenUnhandled with Stash {
   import engine._
 
   val ManagedBroker = Broker

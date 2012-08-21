@@ -1,7 +1,5 @@
 package com.ergodicity.core.order
 
-import akka.event.Logging
-import com.ergodicity.core._
 import akka.actor._
 import akka.util.duration._
 import akka.pattern.ask
@@ -10,11 +8,10 @@ import com.ergodicity.cgate.Protocol.ReadsFutTradeOrders
 import com.ergodicity.cgate.StreamEvent._
 import com.ergodicity.cgate.scheme.FutTrade
 import akka.dispatch.Await
-import com.ergodicity.cgate.{DataStreamState, Reads}
+import com.ergodicity.cgate.{WhenUnhandled, DataStreamState, Reads}
 import akka.actor.FSM._
 import akka.util.Timeout
-import com.ergodicity.core.WhenUnhandled
-import order.FutureOrders.IllegalEvent
+
 
 private[order] sealed trait FutureOrdersState
 
@@ -32,6 +29,7 @@ object FutureOrders {
 
 class FutureOrders(FutTradeStream: ActorRef) extends Actor with FSM[FutureOrdersState, Map[Int, ActorRef]] {
 
+  import FutureOrders._
   import FutureOrdersState._
 
   implicit val timeout = Timeout(1.second)
@@ -107,9 +105,7 @@ class FutureOrders(FutTradeStream: ActorRef) extends Actor with FSM[FutureOrders
   }
 }
 
-class FutureSessionOrders(sessionId: Int) extends Actor with WhenUnhandled {
-  val log = Logging(context.system, self)
-
+class FutureSessionOrders(sessionId: Int) extends Actor with ActorLogging with WhenUnhandled {
   protected[order] var orders: Map[Long, ActorRef] = Map()
 
   protected def receive = handleCreateOrder orElse handleDeleteOrder orElse handleFillOrder orElse whenUnhandled

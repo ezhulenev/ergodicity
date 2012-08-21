@@ -8,7 +8,7 @@ import akka.pattern.ask
 import scalaz._
 import Scalaz._
 import akka.actor.FSM.{UnsubscribeTransitionCallBack, Transition, CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.cgate.DataStreamState
+import com.ergodicity.cgate.{DataStreamState}
 import com.ergodicity.cgate.repository.Repository
 import com.ergodicity.cgate.repository.ReplicaExtractor._
 import com.ergodicity.cgate.Protocol._
@@ -17,14 +17,13 @@ import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, Snapshot}
 import com.ergodicity.cgate.scheme.{FutInfo, OptInfo}
 import akka.dispatch.Await
 import akka.util.Timeout
+import collection.mutable
 
 
 protected[core] case class SessionId(id: Long, optionSessionId: Long)
 
 object Sessions {
   def apply(FutInfoStream: ActorRef, OptInfoStream: ActorRef) = new Sessions(FutInfoStream, OptInfoStream)
-
-  // Tracking ongoing sessions
 
   case class SubscribeOngoingSessions(ref: ActorRef)
 
@@ -115,6 +114,8 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   
   // Subscribers for ongoing sessions
   var subscribers: List[ActorRef] = Nil
+
+  val trackingSessions = mutable.Map[SessionId, ActorRef]()
   
   // Repositories
   val SessionRepository = context.actorOf(Props(Repository[FutInfo.session]), "SessionRepository")

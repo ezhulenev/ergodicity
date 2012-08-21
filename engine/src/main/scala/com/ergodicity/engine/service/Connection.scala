@@ -1,12 +1,10 @@
 package com.ergodicity.engine.service
 
 import com.ergodicity.engine.{ServiceFailedException, Engine}
-import com.ergodicity.cgate.{Connection => CgateConnection}
-import akka.event.Logging
-import akka.actor.{ActorRef, Terminated, Actor, Props}
+import com.ergodicity.cgate.{Connection => CgateConnection, WhenUnhandled}
+import akka.actor._
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import akka.util.duration._
-import com.ergodicity.core.WhenUnhandled
 import ru.micexrts.cgate.{Connection => CGConnection}
 
 case object ConnectionService extends Service
@@ -28,9 +26,7 @@ trait ManagedConnection extends Connection {
   registerService(ConnectionService, connectionManager)
 }
 
-protected[service] class ConnectionManager(engine: Engine with Connection) extends Actor with WhenUnhandled {
-  val log = Logging(context.system, self)
-
+protected[service] class ConnectionManager(engine: Engine with Connection) extends Actor with ActorLogging with WhenUnhandled {
   import engine._
 
   val ManagedConnection = Connection

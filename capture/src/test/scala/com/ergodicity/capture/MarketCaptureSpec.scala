@@ -19,7 +19,7 @@ import com.ergodicity.capture.CaptureData.Contents
 import akka.actor.Terminated
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import akka.actor.SupervisorStrategy.Stop
-import com.ergodicity.core.WhenUnhandled
+import com.ergodicity.cgate.WhenUnhandled
 
 class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketCaptureSpec])

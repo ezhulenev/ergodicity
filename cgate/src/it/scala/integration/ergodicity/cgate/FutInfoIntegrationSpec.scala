@@ -4,7 +4,7 @@ import java.io.File
 import integration._
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import akka.actor.{Actor, Props, ActorSystem}
+import akka.actor.{ActorLogging, Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.util.duration._
 import com.ergodicity.cgate.Connection.StartMessageProcessing
@@ -21,6 +21,8 @@ import com.ergodicity.cgate.Protocol._
 import com.ergodicity.cgate.repository.ReplicaExtractor._
 import com.ergodicity.cgate.DataStream.BindTable
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
+import sysevents.SysEventDispatcher
+import sysevents.SysEventDispatcher.SubscribeSysEvents
 
 
 class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -122,6 +124,9 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
       val sysEventsRepository = system.actorOf(Props(Repository[FutInfo.sys_events]), "SysEventsRepository")
       FutInfoDataStream ! BindTable(FutInfo.sys_events.TABLE_INDEX, sysEventsRepository)
 
+      val sysEventsDispatcher = system.actorOf(Props(new SysEventDispatcher[FutInfo.sys_events](FutInfoDataStream)), "SysEventsDispatcher")
+      FutInfoDataStream ! BindTable(FutInfo.sys_events.TABLE_INDEX, sysEventsDispatcher)
+
       // Handle repository data
       sessionsRepository ! SubscribeSnapshots(system.actorOf(Props(new Actor {
         protected def receive = {
@@ -151,8 +156,14 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
             log.info("Got SysEvents Contents snapshot, size = " + snapshot.data.size)
             snapshot.data foreach {
               rec =>
-                log.info("SysEvent; Event id = " + rec.get_event_id() + ", type = " + rec.get_event_type() + ", message = " + rec.get_message()+", session = "+rec.get_sess_id())
+                log.info("SysEvent; Event id = " + rec.get_event_id() + ", type = " + rec.get_event_type() + ", message = " + rec.get_message() + ", session = " + rec.get_sess_id())
             }
+        }
+      })))
+
+      sysEventsDispatcher ! SubscribeSysEvents(system.actorOf(Props(new Actor with ActorLogging {
+        protected def receive = {
+          case e => log.info("SysEvent = " + e)
         }
       })))
 

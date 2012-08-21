@@ -5,7 +5,8 @@ import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack, Transition}
 import akka.pattern.ask
 import akka.util.duration._
 import com.ergodicity.cgate.repository.Repository.Snapshot
-import com.ergodicity.core.{WhenUnhandled, Isin, Isins}
+import com.ergodicity.cgate.WhenUnhandled
+import com.ergodicity.core.{Isin, Isins}
 import collection.mutable
 import com.ergodicity.core.session.Session.GetState
 import akka.dispatch.Await
