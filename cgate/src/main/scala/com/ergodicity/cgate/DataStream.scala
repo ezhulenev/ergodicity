@@ -6,6 +6,7 @@ import ru.micexrts.cgate.messages._
 import scalaz._
 import Scalaz._
 import java.nio.{ByteOrder, ByteBuffer}
+import akka.event.Logging
 
 
 sealed trait DataStreamState
@@ -82,7 +83,9 @@ class DataStreamSubscriber(dataStream: ActorRef) extends Subscriber {
   }
 
   def handleMessage(msg: Message) = {
-    dataStream ! decode(msg)
+    val decoded = decode(msg)
+    System.out.println("Got message: "+msg.toString.take(150).replaceAll("\n", "")+"; Decoded = "+decoded)
+    dataStream ! decoded
     ErrorCode.OK
   }
 }

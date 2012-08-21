@@ -14,7 +14,7 @@ import repository.Repository
 import repository.Repository.{Snapshot, SubscribeSnapshots}
 import scheme.FutInfo
 import com.ergodicity.cgate.config.Replication._
-import akka.testkit.{TestActorRef, TestFSMRef, ImplicitSender, TestKit}
+import akka.testkit.{ImplicitSender, TestKit}
 import akka.event.Logging
 import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.Protocol._
@@ -103,27 +103,27 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
     "load contents to Reportitory" in {
       val underlyingConnection = new CGConnection(RouterConnection())
 
-      val connection = TestFSMRef(new Connection(underlyingConnection), "Connection")
+      val connection = system.actorOf(Props(new Connection(underlyingConnection)), "Connection")
 
-      val FutInfoDataStream = TestFSMRef(new DataStream, "FutInfoDataStream")
+      val FutInfoDataStream = system.actorOf(Props(new DataStream), "FutInfoDataStream")
 
       // Listener
       val listenerConfig = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
       val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(FutInfoDataStream))
-      val listener = TestFSMRef(new Listener(underlyingListener), "Listener")
+      val listener = system.actorOf(Props(new Listener(underlyingListener)), "Listener")
 
       // Repository
-      val sessionsRepository = TestFSMRef(Repository[FutInfo.session], "SessionsRepository")
+      val sessionsRepository = system.actorOf(Props(Repository[FutInfo.session]), "SessionsRepository")
       FutInfoDataStream ! BindTable(FutInfo.session.TABLE_INDEX, sessionsRepository)
 
-      val futuresRepository = TestFSMRef(Repository[FutInfo.fut_sess_contents], "FuturesRepository")
+      val futuresRepository = system.actorOf(Props(Repository[FutInfo.fut_sess_contents]), "FuturesRepository")
       FutInfoDataStream ! BindTable(FutInfo.fut_sess_contents.TABLE_INDEX, futuresRepository)
 
-      val sysEventsRepository = TestFSMRef(Repository[FutInfo.sys_events], "SysEventsRepository")
+      val sysEventsRepository = system.actorOf(Props(Repository[FutInfo.sys_events]), "SysEventsRepository")
       FutInfoDataStream ! BindTable(FutInfo.sys_events.TABLE_INDEX, sysEventsRepository)
 
       // Handle repository data
-      sessionsRepository ! SubscribeSnapshots(TestActorRef(new Actor {
+      sessionsRepository ! SubscribeSnapshots(system.actorOf(Props(new Actor {
         protected def receive = {
           case snapshot: Snapshot[FutInfo.session] =>
             log.info("Got Sessions snapshot, size = " + snapshot.data.size)
@@ -132,9 +132,9 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
                 log.info("SessionRecord; Session id = " + rec.get_sess_id() + ", option session id = " + rec.get_opt_sess_id() + ", state = " + SessionState(rec.get_state()))
             }
         }
-      }))
+      })))
 
-      futuresRepository ! SubscribeSnapshots(TestActorRef(new Actor {
+      futuresRepository ! SubscribeSnapshots(system.actorOf(Props(new Actor {
         protected def receive = {
           case snapshot: Snapshot[FutInfo.fut_sess_contents] =>
             log.info("Got Futures Contents snapshot, size = " + snapshot.data.size)
@@ -143,18 +143,18 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
                 log.info("ContentsRecord; Future isin = " + rec.get_isin() + ", isin id = " + rec.get_isin_id() + ", name = " + rec.get_name() + ", session = " + rec.get_sess_id() + ", state = " + InstrumentState(rec.get_state()))
             }
         }
-      }))
+      })))
 
-      sysEventsRepository ! SubscribeSnapshots(TestActorRef(new Actor {
+      sysEventsRepository ! SubscribeSnapshots(system.actorOf(Props(new Actor {
         protected def receive = {
           case snapshot: Snapshot[FutInfo.sys_events] =>
             log.info("Got SysEvents Contents snapshot, size = " + snapshot.data.size)
             snapshot.data foreach {
               rec =>
-                log.info("SysEvent; Event id = " + rec.get_event_id() + ", type = " + rec.get_event_type() + ", message = " + rec.get_message())
+                log.info("SysEvent; Event id = " + rec.get_event_id() + ", type = " + rec.get_event_type() + ", message = " + rec.get_message()+", session = "+rec.get_sess_id())
             }
         }
-      }))
+      })))
 
       // On connection Activated open listeners etc
       connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
