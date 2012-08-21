@@ -47,17 +47,17 @@ object Instrument {
   case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
 }
 
-class Instrument(initialState: InstrumentState, initialData: InstrumentData) extends Actor with LoggingFSM[InstrumentState, InstrumentData] {
+class Instrument(initialState: InstrumentState, data: InstrumentData) extends Actor with LoggingFSM[InstrumentState, Unit] {
 
   import Instrument._
   import InstrumentState._
 
   override def preStart() {
-    log.info("Started instrument in state = " + initialState + "; security = " + initialData.underlying)
+    log.info("Started instrument in state = " + initialState + "; security = " + data.underlying)
     super.preStart()
   }
 
-  startWith(initialState, initialData)
+  startWith(initialState, ())
 
   when(Assigned) {
     handleInstrumentState

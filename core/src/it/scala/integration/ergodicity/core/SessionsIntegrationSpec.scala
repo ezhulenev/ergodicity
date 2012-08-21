@@ -9,13 +9,14 @@ import integration.ergodicity.core.AkkaIntegrationConfigurations._
 import com.ergodicity.core.Sessions
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
-import akka.testkit.{ImplicitSender, TestActorRef, TestKit}
+import akka.testkit.{ImplicitSender, TestKit}
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate.config.Replication._
 import com.ergodicity.cgate._
 import config.{Replication, CGateConfig}
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
+import com.ergodicity.core.Sessions.SubscribeOngoingSessions
 
 
 class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -55,7 +56,13 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
       val underlyingOptInfoListener = new CGListener(underlyingConnection, optInfoListenerConfig(), new DataStreamSubscriber(OptInfoDataStream))
       val optInfoListener = system.actorOf(Props(new Listener(underlyingOptInfoListener)), "OptInfoListener")
 
-      val sessions = TestActorRef(new Sessions(FutInfoDataStream, OptInfoDataStream), "Sessions")
+      val sessions = system.actorOf(Props(new Sessions(FutInfoDataStream, OptInfoDataStream)), "Sessions")
+
+      sessions ! SubscribeOngoingSessions(system.actorOf(Props(new Actor {
+        protected def receive = {
+          case e => log.info("ONGOING SESSION EVENT = " + e)
+        }
+      })))
 
       Thread.sleep(1000)
 

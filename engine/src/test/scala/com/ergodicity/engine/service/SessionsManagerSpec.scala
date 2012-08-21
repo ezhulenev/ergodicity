@@ -62,7 +62,7 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
       sessions.expectMsg(SubscribeTransitionCallBack(manager))
 
       when("Sessions goes online")
-      manager ! Transition(sessions.ref, SessionsState.LoadingOptionsContents, SessionsState.Online)
+      manager ! Transition(sessions.ref, SessionsState.Binded, SessionsState.Online)
 
       then("Service Manager should be notified")
       serviceManager.expectMsg(ServiceStarted(SessionsService))

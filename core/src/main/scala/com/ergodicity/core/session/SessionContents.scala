@@ -30,7 +30,7 @@ class SessionContents[T](Session: ActorRef)(implicit val toSecurity: ToSecurity[
 
   protected[core] val instruments = mutable.Map[Isin, ActorRef]()
 
-  var sessionState = Await.result((Session ? GetState).mapTo[SessionState], 100.millis)
+  var sessionState = Await.result((Session ? GetState).mapTo[SessionState], 500.millis)
 
   override def preStart() {
     log.info("Start SessionContents with parent session state = " + sessionState)

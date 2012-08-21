@@ -5,15 +5,13 @@ import com.ergodicity.cgate.repository.ReplicaExtractor
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.{WhenUnhandled, Reads}
 
-case class SourcedSysEvent(source: ActorRef, event: SysEvent)
-
 object SysEventDispatcher {
 
   case class SubscribeSysEvents(ref: ActorRef)
 
 }
 
-class SysEventDispatcher[T <: SysEvent.SysEventType](source: ActorRef)(implicit reads: Reads[T], replica: ReplicaExtractor[T]) extends Actor with ActorLogging with WhenUnhandled {
+class SysEventDispatcher[T <: SysEvent.SysEventType](implicit reads: Reads[T], replica: ReplicaExtractor[T]) extends Actor with ActorLogging with WhenUnhandled {
 
   import SysEventDispatcher._
 

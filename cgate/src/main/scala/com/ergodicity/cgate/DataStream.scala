@@ -83,9 +83,7 @@ class DataStreamSubscriber(dataStream: ActorRef) extends Subscriber {
   }
 
   def handleMessage(msg: Message) = {
-    val decoded = decode(msg)
-    System.out.println("Got message: "+msg.toString.take(150).replaceAll("\n", "")+"; Decoded = "+decoded)
-    dataStream ! decoded
+    dataStream ! decode(msg)
     ErrorCode.OK
   }
 }

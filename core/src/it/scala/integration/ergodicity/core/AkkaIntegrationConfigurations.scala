@@ -7,6 +7,7 @@ object AkkaIntegrationConfigurations {
     akka.actor.debug {
       receive = on
       lifecycle = on
+      fsm = on
     }
 
     akka {

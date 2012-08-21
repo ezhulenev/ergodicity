@@ -124,7 +124,7 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
       val sysEventsRepository = system.actorOf(Props(Repository[FutInfo.sys_events]), "SysEventsRepository")
       FutInfoDataStream ! BindTable(FutInfo.sys_events.TABLE_INDEX, sysEventsRepository)
 
-      val sysEventsDispatcher = system.actorOf(Props(new SysEventDispatcher[FutInfo.sys_events](FutInfoDataStream)), "SysEventsDispatcher")
+      val sysEventsDispatcher = system.actorOf(Props(new SysEventDispatcher[FutInfo.sys_events]), "SysEventsDispatcher")
       FutInfoDataStream ! BindTable(FutInfo.sys_events.TABLE_INDEX, sysEventsDispatcher)
 
       // Handle repository data

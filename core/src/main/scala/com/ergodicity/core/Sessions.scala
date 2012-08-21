@@ -14,13 +14,14 @@ import com.ergodicity.cgate.repository.Repository
 import com.ergodicity.cgate.repository.ReplicaExtractor._
 import com.ergodicity.cgate.Protocol._
 import com.ergodicity.cgate.DataStream._
-import com.ergodicity.cgate.repository.Repository.{GetSnapshot, Snapshot}
+import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, GetSnapshot, Snapshot}
 import com.ergodicity.cgate.scheme.{FutInfo, OptInfo}
 import akka.dispatch.Await
 import akka.util.Timeout
 import collection.mutable
-import com.ergodicity.cgate.sysevents.{SourcedSysEvent, SysEventDispatcher}
+import com.ergodicity.cgate.sysevents.{SysEvent, SysEventDispatcher}
 import com.ergodicity.cgate.sysevents.SysEvent.SessionDataReady
+import com.ergodicity.cgate.sysevents.SysEventDispatcher.SubscribeSysEvents
 
 
 protected[core] case class SessionId(id: Long, optionSessionId: Long)
@@ -36,6 +37,15 @@ object Sessions {
 
   case class UpdateOngoingSessions(snapshot: Snapshot[FutInfo.session])
 
+  private[Sessions] case class StreamSysEvent(source: ActorRef, event: SysEvent)
+
+  private[Sessions] class StreamSysEvents(stream: ActorRef) extends Actor {
+    protected def receive = {
+      case event: SysEvent =>
+        context.parent ! StreamSysEvent(stream, event)
+    }
+  }
+
 }
 
 sealed trait SessionsState
@@ -50,7 +60,7 @@ object SessionsState {
 
 case class StreamStates(futures: Option[DataStreamState] = None, options: Option[DataStreamState] = None)
 
-class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor with FSM[SessionsState, StreamStates] {
+class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor with LoggingFSM[SessionsState, StreamStates] {
 
   import Sessions._
   import SessionsState._
@@ -70,7 +80,8 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   val OptSessContentsRepository = context.actorOf(Props(Repository[OptInfo.opt_sess_contents]), "OptSessContentsRepository")
 
   // SysEventsDispatcher
-  val sysEventsDispatcher = context.actorOf(Props(new SysEventDispatcher[FutInfo.sys_events](FutInfoStream)), "FutInfoSysEventsDispatcher")
+  val sysEventsDispatcher = context.actorOf(Props(new SysEventDispatcher[FutInfo.sys_events]), "FutInfoSysEventsDispatcher")
+  sysEventsDispatcher ! SubscribeSysEvents(context.actorOf(Props(new StreamSysEvents(FutInfoStream)), "FutInfoEventsWrapper"))
   FutInfoStream ? BindTable(FutInfo.sys_events.TABLE_INDEX, sysEventsDispatcher)
 
   log.debug("Bind to FutInfo and OptInfo data streams")
@@ -95,6 +106,11 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
     log.debug("Subscribe for FutInfo and OptInfo states")
     FutInfoStream ! SubscribeTransitionCallBack(self)
     OptInfoStream ! SubscribeTransitionCallBack(self)
+
+    // Subscribe for snapshots data
+    SessionRepository ! SubscribeSnapshots(self)
+    FutSessContentsRepository ! SubscribeSnapshots(self)
+    OptSessContentsRepository ! SubscribeSnapshots(self)
   }
 
   startWith(Binded, StreamStates(None, None))
@@ -115,16 +131,22 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   }
 
   when(Online) {
+    case Event(t@Transition(OptInfoStream, _, _), _) =>
+      throw new RuntimeException("Unexpected OptInfo data stream transtition = ")
+
+    case Event(t@Transition(FutInfoStream, _, _), _) =>
+      throw new RuntimeException("Unexpected FutInfo data stream transtition = ")
+  }
+
+  whenUnhandled {
     case Event(SubscribeOngoingSessions(ref), _) =>
       subscribers = ref +: subscribers
       ref ! OngoingSession(ongoingSession)
       stay()
-  }
 
-  whenUnhandled {
-    case Event(SourcedSysEvent(FutInfoStream, SessionDataReady(id)), _) if (!trackingSessions.exists(_._1.id == id)) =>
-      log.info("Session id = " + id + " data ready")
-      (SessionRepository ? GetSnapshot).mapTo[Snapshot[FutInfo.session]].map(UpdateOngoingSessions(_)) pipeTo self
+    case Event(StreamSysEvent(FutInfoStream, SessionDataReady(id)), _) if (!trackingSessions.exists(_._1.id == id)) =>
+      log.info("Session data ready; Id = " + id)
+      (SessionRepository ? GetSnapshot).mapTo[Snapshot[FutInfo.session]].map(s => UpdateOngoingSessions(s.filter(_.get_sess_id() <= id))) pipeTo self
       stay()
 
     case Event(UpdateOngoingSessions(snapshot), _) =>
@@ -171,7 +193,9 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
 
     // Kill all dropped sessions
     dropped.foreach {
-      case (id, session) => session ! PoisonPill
+      case (id, session) =>
+        session ! PoisonPill
+        trackingSessions.remove(id)
     }
 
     // Create actors for new sessions
@@ -187,11 +211,13 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
     }
 
     // Select ongoing session
-    records.find(session => SessionState(session.get_state()) match {
+    records.toList.sortBy(_.get_sess_id()).filter(session => SessionState(session.get_state()) match {
       case SessionState.Assigned | SessionState.Online | SessionState.Suspended => true
       case _ => false
-    }).map(session => SessionId(session.get_sess_id(), session.get_opt_sess_id()))
-      .flatMap(sessionId => trackingSessions.get(sessionId) map ((sessionId, _)))
+    }).map(s => SessionId(s.get_sess_id(), s.get_opt_sess_id()))
+      .map(id => trackingSessions.get(id) map ((id, _)))
+      .collect({case Some(x) => x})
+      .headOption
   }
 
   protected def dispatchSessions(snapshot: Snapshot[FutInfo.session]) {
@@ -206,6 +232,7 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   }
 
   protected def dispatchOptionsContents(snapshot: Snapshot[OptInfo.opt_sess_contents]) {
+    log.debug("Dispatch Options contents, size = " + snapshot.data.size)
     trackingSessions.foreach {
       case (SessionId(_, id), session) =>
         session ! OptInfoSessionContents(snapshot.filter(_.get_sess_id() == id))
@@ -213,6 +240,7 @@ class Sessions(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor w
   }
 
   protected def dispatchFuturesContents(snapshot: Snapshot[FutInfo.fut_sess_contents]) {
+    log.debug("Dispatch Futures contents, size = " + snapshot.data.size)
     trackingSessions.foreach {
       case (SessionId(id, _), session) =>
         session ! FutInfoSessionContents(snapshot.filter(_.get_sess_id() == id))

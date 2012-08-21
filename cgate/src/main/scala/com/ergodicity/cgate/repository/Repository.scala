@@ -1,6 +1,6 @@
 package com.ergodicity.cgate.repository
 
-import akka.actor.{LoggingFSM, ActorRef, Actor}
+import akka.actor.{FSM, ActorRef, Actor}
 import com.ergodicity.cgate.repository.Repository.{GetSnapshot, IllegalLifeCycleEvent, SubscribeSnapshots, Snapshot}
 import com.ergodicity.cgate.Reads
 import collection.mutable
@@ -42,7 +42,7 @@ object Repository {
 
 }
 
-class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) extends Actor with LoggingFSM[RepositoryState, RepositorySubscribers] {
+class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) extends Actor with FSM[RepositoryState, RepositorySubscribers] {
 
   import RepositoryState._
   import com.ergodicity.cgate.StreamEvent._
@@ -56,7 +56,7 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
       stay() using subscribers.dispatch(Snapshot[T](self, Seq()))
 
     case Event(GetSnapshot, map) =>
-      sender ! Snapshot[T](self, storage.values)
+      sender ! Snapshot[T](self, storage.values.take(10))
       stay()
 
     case Event(TnBegin, _) => goto(Synchronizing)
@@ -84,12 +84,12 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
       stay()
 
     case Event(TnCommit, subscribers) =>
-      goto(Consistent) using subscribers.dispatch(Snapshot(self, storage.values))
+      goto(Consistent) using subscribers.dispatch(Snapshot(self, storage.values.take(10)))
   }
 
   whenUnhandled {
     case Event(SubscribeSnapshots(ref), subscribers) =>
-      ref ! Snapshot(self, storage.values)
+      ref ! Snapshot(self, storage.values.take(10))
       stay() using subscribers.subscribe(ref)
 
     case Event(ClearDeleted(_, rev), map) =>
