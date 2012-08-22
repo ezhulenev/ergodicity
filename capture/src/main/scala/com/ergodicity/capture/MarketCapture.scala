@@ -4,7 +4,7 @@ import akka.actor._
 import SupervisorStrategy._
 import com.ergodicity.marketdb.model.{Security => MarketDbSecurity}
 import org.joda.time.DateTime
-import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, SubscribeTransitionCallBack}
+import akka.actor.FSM.{Normal, Transition, UnsubscribeTransitionCallBack, SubscribeTransitionCallBack}
 import akka.util.duration._
 import com.ergodicity.cgate._
 import config.Replication.ReplicationMode.Combined
@@ -26,6 +26,7 @@ import com.ergodicity.marketdb.model.OrderPayload
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate.scheme._
 import ru.micexrts.cgate.{CGateException, Listener => CGListener, Connection => CGConnection}
+import java.util.concurrent.TimeUnit
 
 
 case class MarketCaptureException(msg: String) extends RuntimeException(msg)
@@ -239,6 +240,10 @@ class MarketCapture(val replication: ReplicationScheme,
       repository.setReplicationState(replication.ordLog.stream, state)
       handleStreamState(s.copy(ordLog = Some(ReplState(state))))
 
+    case Event(Terminated(ref), _) if (ref == connection) =>
+      log.error("Connection terminated in ShuttingDown state")
+      stop(Normal)
+
     case Event(FSM.StateTimeout, _) =>
       closeConnection()
       stay()
@@ -323,9 +328,7 @@ class MarketCapture(val replication: ReplicationScheme,
   }
 
   protected def handleStreamState(state: StreamStates): State = {
-    (state.futTrade.<***>(state.optTrade, state.ordLog)) {
-      (_, _, _)
-    } match {
+    (state.futTrade.<***>(state.optTrade, state.ordLog))((_, _, _)) match {
       case states@Some((_, _, _)) =>
         log.debug("Streams shutted down in states = " + states)
         closeConnection()
@@ -339,6 +342,8 @@ class MarketCapture(val replication: ReplicationScheme,
   def closeConnection() {
     log.info("Close listeners: " + cgListeners)
     cgListeners.foreach(_ ! Listener.Dispose)
+    // Let all listeners to be closed before connection
+    Thread.sleep(TimeUnit.SECONDS.toMillis(3))
     connection ! Connection.Close
     connection ! Connection.Dispose
   }

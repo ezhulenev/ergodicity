@@ -45,7 +45,7 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
   private def conn = new CGConnection(connectionConfig())
 
   def newMarketCaptureInstance = new MarketCapture(scheme, repo, kestrel) with CaptureConnection with UnderlyingListenersImpl with CaptureListenersImpl {
-    def underlyingConnection = conn
+    lazy val underlyingConnection = conn
   }
 
   var guardian: ActorRef = system.deadLetters
@@ -113,7 +113,7 @@ class Guardian(engine: CaptureEngine) extends Actor with FSM[GuardianState, Acto
   when(Restarting) {
     case Event(Terminated(ref), mc) if (ref == mc) =>
       // Let connection to be closed
-      Thread.sleep(TimeUnit.SECONDS.toMillis(3))
+      Thread.sleep(TimeUnit.SECONDS.toMillis(10))
 
       // Create new Market Capture system
       marketCapture = system.actorOf(Props(newMarketCaptureInstance), "MarketCapture")
@@ -122,9 +122,13 @@ class Guardian(engine: CaptureEngine) extends Actor with FSM[GuardianState, Acto
       // Wait for capture initialized
       Thread.sleep(TimeUnit.SECONDS.toMillis(1))
 
+      goto(Working) using (marketCapture)
+  }
+
+  onTransition {
+    case Restarting -> Working =>
       // Start capturing
       marketCapture ! Capture
-      goto(Working) using (marketCapture)
   }
 
   whenUnhandled {

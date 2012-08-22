@@ -56,7 +56,7 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
       stay() using subscribers.dispatch(Snapshot[T](self, Seq()))
 
     case Event(GetSnapshot, map) =>
-      sender ! Snapshot[T](self, storage.values.take(10))
+      sender ! Snapshot[T](self, storage.values)
       stay()
 
     case Event(TnBegin, _) => goto(Synchronizing)
@@ -84,12 +84,12 @@ class Repository[T](implicit reads: Reads[T], replica: ReplicaExtractor[T]) exte
       stay()
 
     case Event(TnCommit, subscribers) =>
-      goto(Consistent) using subscribers.dispatch(Snapshot(self, storage.values.take(10)))
+      goto(Consistent) using subscribers.dispatch(Snapshot(self, storage.values))
   }
 
   whenUnhandled {
     case Event(SubscribeSnapshots(ref), subscribers) =>
-      ref ! Snapshot(self, storage.values.take(10))
+      ref ! Snapshot(self, storage.values)
       stay() using subscribers.subscribe(ref)
 
     case Event(ClearDeleted(_, rev), map) =>
