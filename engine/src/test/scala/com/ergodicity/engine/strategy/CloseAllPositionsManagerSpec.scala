@@ -6,7 +6,7 @@ import akka.event.Logging
 import akka.testkit._
 import com.ergodicity.engine.Engine
 import com.ergodicity.engine.service.Positions
-import com.ergodicity.core.position.Positions.{OpenPositions, GetOpenPositions}
+import com.ergodicity.core.position.PositionsTracking.{OpenPositions, GetOpenPositions}
 import akka.testkit.TestActor.AutoPilot
 
 class CloseAllPositionsManagerSpec extends TestKit(ActorSystem("CloseAllPositionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {

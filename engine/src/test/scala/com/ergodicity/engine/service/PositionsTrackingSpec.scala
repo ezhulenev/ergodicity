@@ -1,4 +1,4 @@
-package com.ergodicity.core.position
+package com.ergodicity.engine.service
 
 import akka.pattern._
 import akka.event.Logging
@@ -12,12 +12,13 @@ import java.nio.ByteBuffer
 import com.ergodicity.cgate.scheme.Pos
 import java.math.BigDecimal
 import com.ergodicity.cgate.{DataStreamState, DataStream}
-import com.ergodicity.cgate.repository.Repository.Snapshot
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack, CurrentState}
 import org.scalatest.{BeforeAndAfter, GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import com.ergodicity.core.position.Positions.{OpenPositions, GetOpenPositions, GetPosition}
+import com.ergodicity.core.position.{PositionData, PositionUpdated, SubscribePositionUpdates, PositionState}
+import com.ergodicity.cgate.repository.Repository.Snapshot
+import com.ergodicity.engine.service.PositionsTracking.{GetOpenPositions, GetPosition, OpenPositions}
 
-class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll with BeforeAndAfter {
+class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll with BeforeAndAfter {
   val log = Logging(system, self)
 
   implicit val TimeOut = akka.util.Timeout(100, TimeUnit.MILLISECONDS)
@@ -51,19 +52,19 @@ class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurati
     pos
   }
 
-  "Positions" must {
+  "Positions Tracking" must {
 
     import PositionState._
-    import PositionsState._
+    import PositionsTrackingState._
 
     "initialized in Binded state" in {
-      val positions = TestFSMRef(new Positions(TestFSMRef(new DataStream, "DataStream")), "Positions")
+      val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
       assert(positions.stateName == Binded)
     }
 
     "bind to stream and go to LoadingPositions later" in {
       val PosDS = TestFSMRef(new DataStream, "DataStream")
-      val positions = TestFSMRef(new Positions(PosDS), "Positions")
+      val positions = TestFSMRef(new PositionsTracking(PosDS), "Positions")
 
       when("PosRepl data Streams goes online")
       positions ! Transition(PosDS, DataStreamState.Opened, DataStreamState.Online)
@@ -71,11 +72,11 @@ class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurati
       then("should go to LoadingPositions state")
       assert(positions.stateName == LoadingPositions)
     }
-    
+
     "go to online state after first snapshot received" in {
       val PosDS = TestFSMRef(new DataStream, "DataStream")
-      val positions = TestFSMRef(new Positions(PosDS), "Positions")
-      val underlying = positions.underlyingActor.asInstanceOf[Positions]
+      val positions = TestFSMRef(new PositionsTracking(PosDS), "Positions")
+      val underlying = positions.underlyingActor.asInstanceOf[PositionsTracking]
 
       when("PosRepl data Streams goes online")
       positions ! Transition(PosDS, DataStreamState.Opened, DataStreamState.Online)
@@ -88,58 +89,57 @@ class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurati
 
       then("should go to Online state")
       assert(positions.stateName == Online)
-      
+
       and("hande snapshot values")
-      assert(positions.stateData.positions.size == 1)
+      assert(underlying.positions.size == 1)
     }
 
     "handle first repository snapshot" in {
-      val positions = TestFSMRef(new Positions(TestFSMRef(new DataStream, "DataStream")), "Positions")
-      val underlying = positions.underlyingActor.asInstanceOf[Positions]
+      val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
+      val underlying = positions.underlyingActor.asInstanceOf[PositionsTracking]
 
-      positions.setState(Online, TrackingPositions())
+      positions.setState(Online)
 
       val snapshot = Snapshot(underlying.PositionsRepository, position :: Nil)
       positions ! snapshot
 
-      assert(positions.stateData.positions.size == 1)
+      assert(underlying.positions.size == 1)
 
-      val positionRef = positions.stateData.positions(IsinId(isin))
+      val positionRef = underlying.positions(IsinId(isin))
       positionRef ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(positionRef, OpenedPosition))
     }
 
     "terminate outdated positions" in {
-      val positions = TestFSMRef(new Positions(TestFSMRef(new DataStream, "DataStream")), "Positions")
-      val underlying = positions.underlyingActor.asInstanceOf[Positions]
+      val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
+      val underlying = positions.underlyingActor.asInstanceOf[PositionsTracking]
 
-      positions.setState(Online, TrackingPositions())
+      positions.setState(Online)
 
       positions ! Snapshot(underlying.PositionsRepository, position :: Nil)
 
-      assert(positions.stateData.positions.size == 1)
+      assert(underlying.positions.size == 1)
 
-      val positionRef = positions.stateData.positions(IsinId(isin))
+      val positionRef = underlying.positions(IsinId(isin))
       positionRef ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(positionRef, OpenedPosition))
 
       positions ! Snapshot(underlying.PositionsRepository, List[Pos.position]())
 
-      assert(positions.stateData.positions.size == 1)
+      assert(underlying.positions.size == 1)
       expectMsg(Transition(positionRef, OpenedPosition, UndefinedPosition))
     }
 
     "update existing positions" in {
-      val positions = TestFSMRef(new Positions(TestFSMRef(new DataStream, "DataStream")), "Positions")
+      val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
+      val underlying = positions.underlyingActor.asInstanceOf[PositionsTracking]
 
-      val underlying = positions.underlyingActor.asInstanceOf[Positions]
-
-      positions.setState(Online, TrackingPositions())
+      positions.setState(Online)
       positions ! Snapshot(underlying.PositionsRepository, position :: Nil)
 
-      assert(positions.stateData.positions.size == 1)
+      assert(underlying.positions.size == 1)
 
-      val positionRef = positions.stateData.positions(IsinId(isin))
+      val positionRef = underlying.positions(IsinId(isin))
       positionRef ! SubscribePositionUpdates(self)
 
       positions ! Snapshot(underlying.PositionsRepository, updatedPosition :: Nil)
@@ -147,22 +147,23 @@ class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurati
     }
 
     "create new positions if it doesn't exists" in {
-      val positions = TestFSMRef(new Positions(TestFSMRef(new DataStream, "DataStream")), "Positions")
-      positions.setState(Online, TrackingPositions())
+      val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
+      val underlying = positions.underlyingActor.asInstanceOf[PositionsTracking]
+      positions.setState(Online)
 
       val position = Await.result((positions ? GetPosition(IsinId(isin))).mapTo[ActorRef], TimeOut.duration)
 
-      assert(positions.stateData.positions.size == 1)
+      assert(underlying.positions.size == 1)
 
       position ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(position, UndefinedPosition))
     }
 
     "return existing position on track position event" in {
-      val positions = TestFSMRef(new Positions(TestFSMRef(new DataStream, "DataStream")), "Positions")
-      positions.setState(Online, TrackingPositions())
+      val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
+      positions.setState(Online)
 
-      val underlying = positions.underlyingActor.asInstanceOf[Positions]
+      val underlying = positions.underlyingActor.asInstanceOf[PositionsTracking]
 
       positions ! Snapshot(underlying.PositionsRepository, position :: Nil)
 
@@ -172,10 +173,10 @@ class PositionsSpec extends TestKit(ActorSystem("PositionsSpec", AkkaConfigurati
     }
 
     "get all opened positions" in {
-      val positions = TestFSMRef(new Positions(TestFSMRef(new DataStream, "DataStream")), "Positions")
-      positions.setState(Online, TrackingPositions())
+      val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
+      positions.setState(Online)
 
-      val underlying = positions.underlyingActor.asInstanceOf[Positions]
+      val underlying = positions.underlyingActor.asInstanceOf[PositionsTracking]
 
       positions ! Snapshot(underlying.PositionsRepository, position :: Nil)
 

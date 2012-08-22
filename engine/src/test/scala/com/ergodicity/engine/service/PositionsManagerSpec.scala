@@ -12,7 +12,6 @@ import com.ergodicity.engine.Components.{PosReplication, CreateListener}
 import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, ISubscriber}
 import com.ergodicity.cgate.config.Replication
 import com.ergodicity.engine.service.Service.Start
-import com.ergodicity.core.position.PositionsState
 
 class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -59,7 +58,7 @@ class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", c
       positions.expectMsg(SubscribeTransitionCallBack(manager))
 
       when("Positions goes online")
-      manager ! Transition(positions.ref, PositionsState.Binded, PositionsState.Online)
+      manager ! Transition(positions.ref, PositionsTrackingState.Binded, PositionsTrackingState.Online)
 
       then("Service Manager should be notified")
       serviceManager.expectMsg(ServiceStarted(PositionsServiceId))

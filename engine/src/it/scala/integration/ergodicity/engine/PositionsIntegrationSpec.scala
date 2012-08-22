@@ -1,21 +1,23 @@
-package integration.ergodicity.core
+package integration.ergodicity.engine
 
 import java.io.File
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
 import akka.util.duration._
-import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import integration.ergodicity.core.AkkaIntegrationConfigurations._
-import com.ergodicity.core.position.Positions
-import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import ru.micexrts.cgate.{CGate, Connection => CGConnection, Listener => CGListener}
 import com.ergodicity.cgate.Connection.StartMessageProcessing
-import com.ergodicity.cgate.config.Replication._
 import com.ergodicity.cgate._
+import config.ConnectionConfig.Tcp
+import config.Replication.{ReplicationParams, ReplicationMode}
 import config.{Replication, CGateConfig}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 import akka.event.Logging
+import akka.actor.FSM.Transition
+import scala.Some
+import akka.actor.FSM.SubscribeTransitionCallBack
+import com.ergodicity.engine.service.PositionsTracking
 
 class PositionsIntegrationSpec extends TestKit(ActorSystem("PositionsIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = Logging(system, self)
@@ -49,7 +51,7 @@ class PositionsIntegrationSpec extends TestKit(ActorSystem("PositionsIntegration
       val listener = TestFSMRef(new Listener(underlyingListener), "PosListener")
 
       // Create Positions actor
-      val positions = TestFSMRef(new Positions(dataStream), "Positions")
+      val positions = TestFSMRef(new PositionsTracking(dataStream), "Positions")
 
       Thread.sleep(1000)
 

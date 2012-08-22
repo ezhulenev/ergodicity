@@ -7,7 +7,7 @@ import com.ergodicity.cgate.WhenUnhandled
 import com.ergodicity.core.Market
 import com.ergodicity.engine.Engine
 import com.ergodicity.engine.service.{Broker, Positions}
-import com.ergodicity.core.position.Positions.{OpenPositions, GetOpenPositions}
+import com.ergodicity.core.position.PositionsTracking.{OpenPositions, GetOpenPositions}
 import akka.util.Timeout
 import akka.dispatch.Await
 
