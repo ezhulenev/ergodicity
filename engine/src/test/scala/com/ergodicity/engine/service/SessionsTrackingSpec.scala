@@ -1,32 +1,42 @@
-package com.ergodicity.core
+package com.ergodicity.engine.service
 
-import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.core.Sessions._
 import akka.event.Logging
 import akka.util.duration._
-import session.Session.{OptInfoSessionContents, FutInfoSessionContents}
-import session.SessionState
 import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import com.ergodicity.cgate.scheme.FutInfo
-import Mocking._
-import com.ergodicity.cgate.repository.Repository.Snapshot
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.{DataStream, DataStreamState}
-import akka.actor.{Kill, Terminated, ActorSystem}
+import akka.actor.{Kill, ActorSystem}
+import com.ergodicity.core.AkkaConfigurations
+import com.ergodicity.core.session.SessionState
+import com.ergodicity.core.Mocking.{mockOption, mockFuture}
+import com.ergodicity.engine.service.SessionsTracking._
+import com.ergodicity.core.session.Session.OptInfoSessionContents
+import akka.actor.FSM.Transition
+import com.ergodicity.cgate.repository.Repository.Snapshot
+import com.ergodicity.engine.service.SessionsTracking.StreamStates
+import akka.actor.FSM.CurrentState
+import scala.Some
+import com.ergodicity.engine.service.SessionsTracking.OngoingSession
+import com.ergodicity.engine.service.SessionsTracking.UpdateOngoingSessions
+import com.ergodicity.engine.service.SessionsTracking.SubscribeOngoingSessions
+import com.ergodicity.core.session.Session.FutInfoSessionContents
 import com.ergodicity.cgate.StreamEvent.StreamData
+import akka.actor.Terminated
+import akka.actor.FSM.SubscribeTransitionCallBack
 
-class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
+class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)
-  
+
   val OptionSessionId = 3547
 
   override def afterAll() {
     system.shutdown()
   }
 
-  private def underlyingSessions(ref: TestFSMRef[SessionsState, StreamStates, Sessions]) = {
-    val underlying = ref.underlyingActor.asInstanceOf[Sessions]
+  private def underlyingSessions(ref: TestFSMRef[SessionsTrackingState, StreamStates, SessionsTracking]) = {
+    val underlying = ref.underlyingActor.asInstanceOf[SessionsTracking]
 
     // Kill all repositories to prevent Snapshot's from Empty state
     underlying.SessionRepository ! Kill
@@ -47,26 +57,26 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
     StreamData(FutInfo.sys_events.TABLE_INDEX, event.getData)
   }
 
-  "Sessions" must {
+  "SessionsTracking" must {
 
     "track sessions state" in {
       val FutInfoDS = TestFSMRef(new DataStream(), "FutInfoDS")
       val OptInfoDS = TestFSMRef(new DataStream(), "OptInfoDS")
 
-      val sessions = TestFSMRef(new Sessions(FutInfoDS, OptInfoDS), "Sessions")
+      val sessions = TestFSMRef(new SessionsTracking(FutInfoDS, OptInfoDS), "SessionsTracking")
       val underlying = underlyingSessions(sessions)
 
       val sessionRepository = underlying.SessionRepository
 
       then("should initialized in Binded state")
-      assert(sessions.stateName == SessionsState.Binded)
+      assert(sessions.stateName == SessionsTrackingState.Binded)
 
       when("both data Streams goes online")
       sessions ! Transition(FutInfoDS, DataStreamState.Opened, DataStreamState.Online)
       sessions ! Transition(OptInfoDS, DataStreamState.Opened, DataStreamState.Online)
-      
+
       then("should go to Online state")
-      assert(sessions.stateName == SessionsState.Online)
+      assert(sessions.stateName == SessionsTrackingState.Online)
 
       when("subscribe for ongoing sessions")
       sessions ! SubscribeOngoingSessions(self)
@@ -156,11 +166,11 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
     "should forward FutInfo.SessContentsRecord snapshot to child sessions" in {
       val FutInfoDS = TestFSMRef(new DataStream())
       val OptInfoDS = TestFSMRef(new DataStream())
-      val sessions = TestFSMRef(new Sessions(FutInfoDS, OptInfoDS), "Sessions")
+      val sessions = TestFSMRef(new SessionsTracking(FutInfoDS, OptInfoDS), "SessionsTracking")
 
       val underlying = underlyingSessions(sessions)
 
-      sessions.setState(SessionsState.Online)
+      sessions.setState(SessionsTrackingState.Online)
       underlying.trackingSessions(SessionId(100l, 0l)) = self
 
       val future1 = mockFuture(100, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
@@ -173,11 +183,11 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
     "should forward OptInfo.SessContentsRecord snapshot to child sessions" in {
       val FutInfoDS = TestFSMRef(new DataStream)
       val OptInfoDS = TestFSMRef(new DataStream)
-      val sessions = TestFSMRef(new Sessions(FutInfoDS, OptInfoDS), "Sessions")
+      val sessions = TestFSMRef(new SessionsTracking(FutInfoDS, OptInfoDS), "SessionsTracking")
 
       val underlying = underlyingSessions(sessions)
 
-      sessions.setState(SessionsState.Online)
+      sessions.setState(SessionsTrackingState.Online)
       underlying.trackingSessions(SessionId(0, 100l)) = self
 
       val option1 = mockOption(100, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
@@ -192,7 +202,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
     val buffer = ByteBuffer.allocate(1000)
 
     val stateValue = SessionState.decode(sessionState)
-    
+
     val session = new FutInfo.session(buffer)
     session.set_replID(replID)
     session.set_replRev(revId)
@@ -201,7 +211,7 @@ class SessionsSpec extends TestKit(ActorSystem("SessionsSpec", AkkaConfiguration
     session.set_begin(0l)
     session.set_end(0l)
     session.set_opt_sess_id(OptionSessionId)
-    session.set_state(stateValue)        
-    session   
+    session.set_state(stateValue)
+    session
   }
 }

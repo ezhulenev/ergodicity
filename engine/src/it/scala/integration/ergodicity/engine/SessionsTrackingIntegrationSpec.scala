@@ -1,25 +1,27 @@
-package integration.ergodicity.core
+package integration.ergodicity.engine
 
 import java.io.File
 import java.util.concurrent.TimeUnit
 import akka.actor.{Actor, Props, ActorSystem}
-import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.util.duration._
 import integration.ergodicity.core.AkkaIntegrationConfigurations._
-import com.ergodicity.core.Sessions
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit.{ImplicitSender, TestKit}
-import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.Connection.StartMessageProcessing
-import com.ergodicity.cgate.config.Replication._
 import com.ergodicity.cgate._
+import config.ConnectionConfig.Tcp
+import config.Replication.{ReplicationParams, ReplicationMode}
 import config.{Replication, CGateConfig}
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
-import com.ergodicity.core.Sessions.SubscribeOngoingSessions
+import akka.actor.FSM.Transition
+import scala.Some
+import akka.actor.FSM.SubscribeTransitionCallBack
+import com.ergodicity.engine.service.SessionsTracking
+import com.ergodicity.engine.service.SessionsTracking.SubscribeOngoingSessions
 
 
-class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class SessionsTrackingIntegrationSpec extends TestKit(ActorSystem("SessionsTrackingIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   val Host = "localhost"
@@ -38,7 +40,7 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
     CGate.close()
   }
 
-  "Sessions" must {
+  "SessionsTracking" must {
     "should work" in {
       val underlyingConnection = new CGConnection(RouterConnection())
 
@@ -56,7 +58,7 @@ class SessionsIntegrationSpec extends TestKit(ActorSystem("SessionsIntegrationSp
       val underlyingOptInfoListener = new CGListener(underlyingConnection, optInfoListenerConfig(), new DataStreamSubscriber(OptInfoDataStream))
       val optInfoListener = system.actorOf(Props(new Listener(underlyingOptInfoListener)), "OptInfoListener")
 
-      val sessions = system.actorOf(Props(new Sessions(FutInfoDataStream, OptInfoDataStream)), "Sessions")
+      val sessions = system.actorOf(Props(new SessionsTracking(FutInfoDataStream, OptInfoDataStream)), "SessionsTracking")
 
       sessions ! SubscribeOngoingSessions(system.actorOf(Props(new Actor {
         protected def receive = {

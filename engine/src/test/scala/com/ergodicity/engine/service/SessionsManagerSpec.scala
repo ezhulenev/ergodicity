@@ -12,7 +12,6 @@ import com.ergodicity.engine.Components.{OptInfoReplication, FutInfoReplication,
 import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, ISubscriber}
 import com.ergodicity.cgate.config.Replication
 import com.ergodicity.engine.service.Service.Start
-import com.ergodicity.core.SessionsState
 
 class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -62,7 +61,7 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
       sessions.expectMsg(SubscribeTransitionCallBack(manager))
 
       when("Sessions goes online")
-      manager ! Transition(sessions.ref, SessionsState.Binded, SessionsState.Online)
+      manager ! Transition(sessions.ref, SessionsTrackingState.Binded, SessionsTrackingState.Online)
 
       then("Service Manager should be notified")
       serviceManager.expectMsg(ServiceStarted(SessionsService))
