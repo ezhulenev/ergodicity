@@ -19,7 +19,7 @@ import scala.Some
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.engine.service.PositionsTracking
 
-class PositionsIntegrationSpec extends TestKit(ActorSystem("PositionsIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
+class PositionsTrackingIntegrationSpec extends TestKit(ActorSystem("PositionsTrackingIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = Logging(system, self)
 
   val Host = "localhost"
@@ -37,7 +37,7 @@ class PositionsIntegrationSpec extends TestKit(ActorSystem("PositionsIntegration
     CGate.close()
   }
 
-  "Positions" must {
+  "Positions Tracking" must {
     "should work" in {
       val underlyingConnection = new CGConnection(RouterConnection())
 
