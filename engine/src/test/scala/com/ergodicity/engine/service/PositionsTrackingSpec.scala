@@ -14,9 +14,10 @@ import java.math.BigDecimal
 import com.ergodicity.cgate.{DataStreamState, DataStream}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack, CurrentState}
 import org.scalatest.{BeforeAndAfter, GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import com.ergodicity.core.position.{PositionData, PositionUpdated, SubscribePositionUpdates, PositionState}
 import com.ergodicity.cgate.repository.Repository.Snapshot
 import com.ergodicity.engine.service.PositionsTracking.{GetOpenPositions, GetPosition, OpenPositions}
+import com.ergodicity.core.position.Position.{CurrentPosition, PositionUpdated, SubscribePositionUpdates}
+import com.ergodicity.core.position.Position
 
 class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll with BeforeAndAfter {
   val log = Logging(system, self)
@@ -54,7 +55,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
 
   "Positions Tracking" must {
 
-    import PositionState._
+    import com.ergodicity.core.position.PositionState._
     import PositionsTrackingState._
 
     "initialized in Binded state" in {
@@ -110,7 +111,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
       expectMsg(CurrentState(positionRef, OpenedPosition))
     }
 
-    "terminate outdated positions" in {
+    "close discarded positions" in {
       val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
       val underlying = positions.underlyingActor.asInstanceOf[PositionsTracking]
 
@@ -127,7 +128,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
       positions ! Snapshot(underlying.PositionsRepository, List[Pos.position]())
 
       assert(underlying.positions.size == 1)
-      expectMsg(Transition(positionRef, OpenedPosition, UndefinedPosition))
+      expectMsg(Transition(positionRef, OpenedPosition, ClosedPosition))
     }
 
     "update existing positions" in {
@@ -141,9 +142,10 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
 
       val positionRef = underlying.positions(IsinId(isin))
       positionRef ! SubscribePositionUpdates(self)
+      expectMsg(CurrentPosition(positionRef, Position.Data(0, 1, 0, 1, 100, None)))
 
       positions ! Snapshot(underlying.PositionsRepository, updatedPosition :: Nil)
-      expectMsg(PositionUpdated(positionRef, PositionData(0, 2, 0, 2, new BigDecimal(200), 0)))
+      expectMsg(PositionUpdated(positionRef, Position.Data(0, 1, 0, 1, 100, None), Position.Data(0, 2, 0, 2, 200, None)))
     }
 
     "create new positions if it doesn't exists" in {
@@ -156,7 +158,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
       assert(underlying.positions.size == 1)
 
       position ! SubscribeTransitionCallBack(self)
-      expectMsg(CurrentState(position, UndefinedPosition))
+      expectMsg(CurrentState(position, ClosedPosition))
     }
 
     "return existing position on track position event" in {

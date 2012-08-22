@@ -19,42 +19,44 @@ class PositionSpec extends TestKit(ActorSystem("PositionSpec", ConfigWithDetaile
 
   "Position" must {
 
+    import Position._
     import PositionState._
 
     "initialied in closed state" in {
       val position = TestFSMRef(new Position(isin))
-      assert(position.stateName == UndefinedPosition)
+      assert(position.stateName == ClosedPosition)
     }
 
-    "go to OpenedPosition on update" in {
+    "stay in ClosedPosition on update with position = 0" in {
       val position = TestFSMRef(new Position(isin))
-      position ! UpdatePosition(PositionData(0, 0, 0, 0, BigDecimal(0), 0))
+      position ! UpdatePosition(Data(position = 0))
+      assert(position.stateName == ClosedPosition)
+    }
+
+    "go to OpenedPosition on update with position > 0" in {
+      val position = TestFSMRef(new Position(isin))
+      position ! UpdatePosition(Data(position = 10))
       assert(position.stateName == OpenedPosition)
-    }
-
-    "termindate position" in {
-      val position = TestFSMRef(new Position(isin))
-      position ! UpdatePosition(PositionData(0, 0, 0, 0, BigDecimal(0), 0))
-      position ! TerminatePosition
-      assert(position.stateName == UndefinedPosition)
     }
 
     "handle position updates" in {
       val position = TestFSMRef(new Position(isin))
       position ! SubscribePositionUpdates(self)
+      expectMsg(CurrentPosition(position, Data()))
 
-      val data1 = PositionData(0, 0, 0, 0, BigDecimal(0), 0)
+      val data1 = Data(position = 1)
       position ! UpdatePosition(data1)
-      expectMsg(PositionOpened)
-      expectMsg(PositionUpdated(position, data1))
+      assert(position.stateName == OpenedPosition)
+      expectMsg(PositionUpdated(position, Data(), data1))
 
-      val data2 = PositionData(1, 0, 0, 0, BigDecimal(0), 0)
+      val data2 = Data(position = 2)
       position ! UpdatePosition(data2)
-      expectMsg(PositionUpdated(position, data2))
+      expectMsg(PositionUpdated(position, data1, data2))
 
-      position ! TerminatePosition
-      expectMsg(PositionTerminated)
-      assert(position.stateName == UndefinedPosition)
+      val data3 = Data(position = 0)
+      position ! UpdatePosition(data3)
+      assert(position.stateName == ClosedPosition)
+      expectMsg(PositionUpdated(position, data2, data3))
     }
   }
 }

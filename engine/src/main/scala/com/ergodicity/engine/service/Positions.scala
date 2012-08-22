@@ -2,7 +2,6 @@ package com.ergodicity.engine.service
 
 import com.ergodicity.engine.Components.{CreateListener, PosReplication}
 import com.ergodicity.engine.Engine
-import com.ergodicity.core.position.{TerminatePosition, UpdatePosition, PositionData, Position}
 import akka.actor._
 import akka.util.duration._
 import akka.pattern.ask
@@ -25,6 +24,8 @@ import com.ergodicity.cgate.DataStream.BindingFailed
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.DataStream.BindTable
 import repository.Repository.{SubscribeSnapshots, Snapshot}
+import com.ergodicity.core.position.Position
+import com.ergodicity.core.position.Position.UpdatePosition
 
 case object PositionsServiceId extends ServiceId
 
@@ -48,6 +49,7 @@ trait ManagedPositions extends Positions {
 }
 
 protected[service] class PositionsManager(engine: Engine with Connection with Positions with CreateListener with PosReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
+
   import engine._
 
   val ManagedPositions = Positions
@@ -128,7 +130,9 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
   val positions = mutable.Map[IsinId, ActorRef]()
 
   // Repositories
+
   import com.ergodicity.cgate.Protocol.ReadsPosPositions
+
   val PositionsRepository = context.actorOf(Props(Repository[Pos.position]), "PositionsRepository")
 
   log.debug("Bind to Pos data stream")
@@ -169,18 +173,18 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       val snapshot = s.asInstanceOf[Snapshot[Pos.position]]
       log.debug("Got positions repository snapshot, size = " + snapshot.data.size)
 
-      // First terminate discarded positions
-      val (_, terminated) = positions.partition {
+      // First send empty data for all discarded positions
+      val (_, discarded) = positions.partition {
         case key => snapshot.data.find(_.get_isin_id() == key._1.id).isDefined
       }
-      terminated.values.foreach(_ ! TerminatePosition)
+      discarded.values.foreach(_ ! UpdatePosition(Position.Data()))
 
       // Update alive positions and open new one
       snapshot.data.map {
         case position =>
           val id = IsinId(position.get_isin_id())
-          val data = PositionData(position.get_open_qty(), position.get_buys_qty(), position.get_sells_qty(),
-            position.get_pos(), position.get_net_volume_rur(), position.get_last_deal_id())
+          val data = Position.Data(position.get_open_qty(), position.get_buys_qty(), position.get_sells_qty(),
+            position.get_pos(), position.get_net_volume_rur(), if (position.get_last_deal_id() == 0) None else Some(position.get_last_deal_id()))
 
           val positionActor = positions.getOrElseUpdate(id, context.actorOf(Props(new Position(id)), id.id.toString))
           positionActor ! UpdatePosition(data)
