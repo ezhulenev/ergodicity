@@ -10,7 +10,7 @@ import com.ergodicity.engine.service.BrokerConnectionsManager.{ManagerData, Mana
 import scalaz._
 import Scalaz._
 
-case object BrokerConnectionsService extends Service
+case object BrokerConnectionsServiceId extends ServiceId
 
 trait BrokerConnections {
   this: Engine =>
@@ -33,7 +33,7 @@ trait ManagedBrokerConnections extends BrokerConnections {
 
   private[this] val connectionManager = context.actorOf(Props(new BrokerConnectionsManager(this)), "BrokerConnectionsManager")
 
-  registerService(BrokerConnectionsService, connectionManager)
+  registerService(BrokerConnectionsServiceId, connectionManager)
 }
 
 
@@ -109,19 +109,19 @@ protected[service] class BrokerConnectionsManager(engine: Engine with BrokerConn
 
   when(Stopping) {
     case Event(FSM.StateTimeout, _) =>
-      ServiceManager ! ServiceStopped(BrokerConnectionsService)
+      ServiceManager ! ServiceStopped(BrokerConnectionsServiceId)
       stop(FSM.Shutdown)
   }
 
   whenUnhandled {
     case Event(Terminated(ManagedPublisherConnection | ManagedRepliesConnection), _) =>
-      throw new ServiceFailedException(ConnectionService, "Broker connection unexpected terminated")
+      throw new ServiceFailedException(ConnectionServiceId, "Broker connection unexpected terminated")
 
     case Event(CurrentState(ManagedPublisherConnection | ManagedRepliesConnection, com.ergodicity.cgate.Error), _) =>
-      throw new ServiceFailedException(ConnectionService, "Broker connection switched to Error state")
+      throw new ServiceFailedException(ConnectionServiceId, "Broker connection switched to Error state")
 
     case Event(Transition(ManagedPublisherConnection | ManagedRepliesConnection, _, com.ergodicity.cgate.Error), _) =>
-      throw new ServiceFailedException(ConnectionService, "Broker connection switched to Error state")
+      throw new ServiceFailedException(ConnectionServiceId, "Broker connection switched to Error state")
   }
 
   private def handleConnectionsStates(states: ConnectionsStates) = (states.publisher <**> states.replies)((_, _)) match {
@@ -130,6 +130,6 @@ protected[service] class BrokerConnectionsManager(engine: Engine with BrokerConn
   }
 
   onTransition {
-    case Starting -> Connected => ServiceManager ! ServiceStarted(BrokerConnectionsService)
+    case Starting -> Connected => ServiceManager ! ServiceStarted(BrokerConnectionsServiceId)
   }
 }

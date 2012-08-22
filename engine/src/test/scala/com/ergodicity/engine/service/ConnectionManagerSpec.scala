@@ -52,7 +52,7 @@ class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec",
       val engine = mockEngine(serviceTracker, connection).underlyingActor
       val manager = TestActorRef(new ConnectionManager(engine))
       manager ! CurrentState(connection.ref, com.ergodicity.cgate.Active)
-      serviceTracker.expectMsg(ServiceStarted(ConnectionService))
+      serviceTracker.expectMsg(ServiceStarted(ConnectionServiceId))
     }
 
     "stop itselt of Service.Stop message" in {
@@ -63,7 +63,7 @@ class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec",
       val manager = TestActorRef(new ConnectionManager(engine))
       watch(manager)
       manager ! Service.Stop
-      serviceTracker.expectMsg(ServiceStopped(ConnectionService))
+      serviceTracker.expectMsg(ServiceStopped(ConnectionServiceId))
       expectMsg(Terminated(manager))
     }
   }

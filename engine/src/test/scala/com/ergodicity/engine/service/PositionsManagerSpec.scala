@@ -53,7 +53,7 @@ class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", c
       positions.expectNoMsg(300.millis)
 
       when("Connection Service started")
-      manager ! ServiceStarted(ConnectionService)
+      manager ! ServiceStarted(ConnectionServiceId)
 
       then("should track Positions state")
       positions.expectMsg(SubscribeTransitionCallBack(manager))
@@ -62,7 +62,7 @@ class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", c
       manager ! Transition(positions.ref, PositionsState.Binded, PositionsState.Online)
 
       then("Service Manager should be notified")
-      serviceManager.expectMsg(ServiceStarted(PositionsService))
+      serviceManager.expectMsg(ServiceStarted(PositionsServiceId))
     }
 
     "stop actor on Service.Stop message" in {
@@ -72,14 +72,14 @@ class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", c
       val engine = mockEngine(serviceManager, positions).underlyingActor
       val manager: ActorRef = TestActorRef(Props(new PositionsManager(engine)).withDispatcher("deque-dispatcher"), "PositionsManager")
 
-      manager ! ServiceStarted(ConnectionService)
+      manager ! ServiceStarted(ConnectionServiceId)
       watch(manager)
 
       when("stop Service")
       manager ! Service.Stop
 
       when("service manager should be notified")
-      serviceManager.expectMsg(ServiceStopped(PositionsService))
+      serviceManager.expectMsg(ServiceStopped(PositionsServiceId))
 
       and("positions manager actor terminated")
       expectMsg(Terminated(manager))

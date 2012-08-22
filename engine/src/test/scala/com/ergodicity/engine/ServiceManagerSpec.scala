@@ -5,7 +5,7 @@ import akka.event.Logging
 import akka.actor.{Terminated, ActorSystem}
 import akka.testkit.{TestFSMRef, TestProbe, ImplicitSender, TestKit}
 import service.Service.{Stop, Start}
-import service.{ServiceStopped, ServiceStarted, Service}
+import service.{ServiceStopped, ServiceStarted, ServiceId}
 
 class ServiceManagerSpec extends TestKit(ActorSystem("ServiceManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -14,9 +14,9 @@ class ServiceManagerSpec extends TestKit(ActorSystem("ServiceManagerSpec", com.e
     system.shutdown()
   }
 
-  case object Service1 extends Service
+  case object ServiceId extends ServiceId
 
-  case object Service2 extends Service
+  case object ServiceId2 extends ServiceId
 
   "Service Manager" must {
     "start all registered services" in {
@@ -25,8 +25,8 @@ class ServiceManagerSpec extends TestKit(ActorSystem("ServiceManagerSpec", com.e
       val service2 = TestProbe()
 
       val serviceManager = TestFSMRef(new ServiceManager, "ServiceManager")
-      serviceManager ! RegisterService(Service1, service1.ref)
-      serviceManager ! RegisterService(Service2, service2.ref)
+      serviceManager ! RegisterService(ServiceId, service1.ref)
+      serviceManager ! RegisterService(ServiceId2, service2.ref)
 
       when("service manager starts all services")
       serviceManager ! StartAllServices
@@ -36,16 +36,16 @@ class ServiceManagerSpec extends TestKit(ActorSystem("ServiceManagerSpec", com.e
       service2.expectMsg(Start)
 
       when("Service1 started")
-      serviceManager ! ServiceStarted(Service1)
+      serviceManager ! ServiceStarted(ServiceId)
 
       then("service2 should be notofied")
-      service2.expectMsg(ServiceStarted(Service1))
+      service2.expectMsg(ServiceStarted(ServiceId))
 
       when("Service2 started")
-      serviceManager ! ServiceStarted(Service2)
+      serviceManager ! ServiceStarted(ServiceId2)
 
       then("service1 should be notofied")
-      service1.expectMsg(ServiceStarted(Service2))
+      service1.expectMsg(ServiceStarted(ServiceId2))
 
       and("Service Manager should go to Active state")
 
@@ -59,8 +59,8 @@ class ServiceManagerSpec extends TestKit(ActorSystem("ServiceManagerSpec", com.e
       val service2 = TestProbe()
 
       val serviceManager = TestFSMRef(new ServiceManager, "ServiceManager")
-      serviceManager ! RegisterService(Service1, service1.ref)
-      serviceManager ! RegisterService(Service2, service2.ref)
+      serviceManager ! RegisterService(ServiceId, service1.ref)
+      serviceManager ! RegisterService(ServiceId2, service2.ref)
 
       watch(serviceManager)
       serviceManager.setState(ServiceManagerState.Active)
@@ -76,16 +76,16 @@ class ServiceManagerSpec extends TestKit(ActorSystem("ServiceManagerSpec", com.e
       service2.expectMsg(Stop)
 
       when("Service1 stopped")
-      serviceManager ! ServiceStopped(Service1)
+      serviceManager ! ServiceStopped(ServiceId)
 
       then("service2 should be notofied")
-      service2.expectMsg(ServiceStopped(Service1))
+      service2.expectMsg(ServiceStopped(ServiceId))
 
       when("Service2 stopped")
-      serviceManager ! ServiceStopped(Service2)
+      serviceManager ! ServiceStopped(ServiceId2)
 
       then("service1 should be notofied")
-      service1.expectMsg(ServiceStopped(Service2))
+      service1.expectMsg(ServiceStopped(ServiceId2))
 
       and("Service Manager should be termindated")
       expectMsg(Terminated(serviceManager))

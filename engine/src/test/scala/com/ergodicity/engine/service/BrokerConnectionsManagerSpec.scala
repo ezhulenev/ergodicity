@@ -80,7 +80,7 @@ class BrokerConnectionsManagerSpec extends TestKit(ActorSystem("BrokerConnection
       manager ! CurrentState(publisherConnection.ref, com.ergodicity.cgate.Active)
       manager ! CurrentState(repliesConnection.ref, com.ergodicity.cgate.Active)
 
-      serviceManager.expectMsg(ServiceStarted(BrokerConnectionsService))
+      serviceManager.expectMsg(ServiceStarted(BrokerConnectionsServiceId))
       assert(manager.stateName == BrokerConnectionsManager.Connected)
     }
 
@@ -95,7 +95,7 @@ class BrokerConnectionsManagerSpec extends TestKit(ActorSystem("BrokerConnection
       manager.setState(BrokerConnectionsManager.Connected)
       watch(manager)
       manager ! Service.Stop
-      serviceManager.expectMsg(ServiceStopped(BrokerConnectionsService))
+      serviceManager.expectMsg(ServiceStopped(BrokerConnectionsServiceId))
       expectMsg(Terminated(manager))
     }
   }

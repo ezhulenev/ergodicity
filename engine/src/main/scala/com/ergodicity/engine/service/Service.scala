@@ -1,6 +1,6 @@
 package com.ergodicity.engine.service
 
-trait Service
+trait ServiceId
 
 object Service {
 
@@ -10,9 +10,9 @@ object Service {
 
 }
 
-case class ServiceStarted(service: Service)
+case class ServiceStarted(service: ServiceId)
 
-case class ServiceStopped(service: Service)
+case class ServiceStopped(service: ServiceId)
 
 
 

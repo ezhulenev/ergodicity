@@ -57,7 +57,7 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
       broker.expectNoMsg(300.millis)
 
       when("Broker Connection Service started")
-      manager ! ServiceStarted(BrokerConnectionsService)
+      manager ! ServiceStarted(BrokerConnectionsServiceId)
 
       then("should track Broker state")
       broker.expectMsg(SubscribeTransitionCallBack(manager))
@@ -66,7 +66,7 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
       manager ! Transition(broker.ref, Opening, Active)
 
       then("Service Manager should be notified")
-      serviceManager.expectMsg(ServiceStarted(BrokerService))
+      serviceManager.expectMsg(ServiceStarted(BrokerServiceId))
     }
 
     "stop actor on Service.Stop message" in {
@@ -76,14 +76,14 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
       val engine = mockEngine(serviceManager, broker).underlyingActor
       val manager: ActorRef = TestActorRef(Props(new BrokerManager(engine)).withDispatcher("deque-dispatcher"), "BrokerManager")
 
-      manager ! ServiceStarted(BrokerConnectionsService)
+      manager ! ServiceStarted(BrokerConnectionsServiceId)
       watch(manager)
 
       when("stop Service")
       manager ! Service.Stop
 
       when("service manager should be notified")
-      serviceManager.expectMsg(ServiceStopped(BrokerService))
+      serviceManager.expectMsg(ServiceStopped(BrokerServiceId))
 
       and("broker manager actor terminated")
       expectMsg(Terminated(manager))

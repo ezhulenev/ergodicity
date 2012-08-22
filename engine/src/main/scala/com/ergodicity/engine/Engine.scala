@@ -2,7 +2,7 @@ package com.ergodicity.engine
 
 import akka.actor._
 import com.ergodicity.engine.Engine.StartEngine
-import service.Service
+import service.ServiceId
 import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
 import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection, CGateException, ISubscriber}
 import com.ergodicity.cgate.config.Replication
@@ -10,7 +10,7 @@ import akka.actor.SupervisorStrategy.Stop
 import strategy.Strategy
 
 
-class ServiceFailedException(service: Service, message: String) extends RuntimeException
+class ServiceFailedException(service: ServiceId, message: String) extends RuntimeException
 
 object Engine {
 
@@ -18,7 +18,7 @@ object Engine {
 
   case object StopEngine
 
-  case class CareOf(service: Service, msg: Any)
+  case class CareOf(service: ServiceId, msg: Any)
 
 }
 
@@ -48,7 +48,7 @@ object EngineData {
 trait Engine extends Actor with FSM[EngineState, EngineData] {
   def ServiceManager: ActorRef
 
-  def registerService(service: Service, manager: ActorRef) {
+  def registerService(service: ServiceId, manager: ActorRef) {
     ServiceManager ! RegisterService(service, manager)
   }
 

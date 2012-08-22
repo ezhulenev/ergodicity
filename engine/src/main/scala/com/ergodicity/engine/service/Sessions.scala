@@ -30,7 +30,7 @@ import com.ergodicity.core.session.Session.{FutInfoSessionContents, OptInfoSessi
 import scalaz._
 import Scalaz._
 
-case object SessionsService extends Service
+case object SessionsServiceId extends ServiceId
 
 trait Sessions {
   engine: Engine with Connection with CreateListener with FutInfoReplication with OptInfoReplication =>
@@ -51,7 +51,7 @@ trait ManagedSessions extends Sessions {
   val Sessions = context.actorOf(Props(new SessionsTracking(FutInfoStream, OptInfoStream)), "SessionsTracking")
   private[this] val sessionsManager = context.actorOf(Props(new SessionsManager(this)).withDispatcher("deque-dispatcher"), "SessionsManager")
 
-  registerService(SessionsService, sessionsManager)
+  registerService(SessionsServiceId, sessionsManager)
 }
 
 protected[service] class SessionsManager(engine: Engine with Connection with Sessions with CreateListener with FutInfoReplication with OptInfoReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
@@ -68,7 +68,7 @@ protected[service] class SessionsManager(engine: Engine with Connection with Ses
   val optInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)), "OptInfoListener")
 
   protected def receive = {
-    case ServiceStarted(ConnectionService) =>
+    case ServiceStarted(ConnectionServiceId) =>
       log.info("ConnectionService started, unstash all messages and start SessionsService")
       unstashAll()
       context.become {
@@ -90,11 +90,11 @@ protected[service] class SessionsManager(engine: Engine with Connection with Ses
   private def handleSessionsGoesOnline: Receive = {
     case CurrentState(ManagedSessions, SessionsTrackingState.Online) =>
       ManagedSessions ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(SessionsService)
+      ServiceManager ! ServiceStarted(SessionsServiceId)
 
     case Transition(ManagedSessions, _, SessionsTrackingState.Online) =>
       ManagedSessions ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(SessionsService)
+      ServiceManager ! ServiceStarted(SessionsServiceId)
   }
 
   private def stop: Receive = {
@@ -104,7 +104,7 @@ protected[service] class SessionsManager(engine: Engine with Connection with Ses
       futInfoListener ! Listener.Dispose
       optInfoListener ! Listener.Dispose
       context.system.scheduler.scheduleOnce(1.second) {
-        ServiceManager ! ServiceStopped(SessionsService)
+        ServiceManager ! ServiceStopped(SessionsServiceId)
         context.stop(self)
       }
   }

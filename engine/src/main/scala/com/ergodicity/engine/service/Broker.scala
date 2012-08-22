@@ -16,7 +16,7 @@ import akka.actor.FSM.UnsubscribeTransitionCallBack
 import akka.actor.FSM.SubscribeTransitionCallBack
 
 
-case object BrokerService extends Service
+case object BrokerServiceId extends ServiceId
 
 trait Broker {
   engine: Engine with BrokerConnections with CreateListener =>
@@ -37,7 +37,7 @@ trait ManagedBroker extends Broker {
 
   private[this] val brokerManager = context.actorOf(Props(new BrokerManager(this)).withDispatcher("deque-dispatcher"), "BrokerManager")
 
-  registerService(BrokerService, brokerManager)
+  registerService(BrokerServiceId, brokerManager)
 }
 
 protected[service] class BrokerManager(engine: Engine with CreateListener with BrokerConnections with Broker) extends Actor with ActorLogging with WhenUnhandled with Stash {
@@ -49,7 +49,7 @@ protected[service] class BrokerManager(engine: Engine with CreateListener with B
   private[this] val replyListener = context.actorOf(Props(new ErgodicityListener(underlyingRepliesListener)), "RepliesListener")
 
   protected def receive = {
-    case ServiceStarted(BrokerConnectionsService) =>
+    case ServiceStarted(BrokerConnectionsServiceId) =>
       log.info("BrokerConnectionsService started, unstash all messages and start Broker and replies listeners")
       unstashAll()
       context.become {
@@ -71,11 +71,11 @@ protected[service] class BrokerManager(engine: Engine with CreateListener with B
   private def handleBrokerActivated: Receive = {
     case CurrentState(ManagedBroker, Active) =>
       ManagedBroker ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(BrokerService)
+      ServiceManager ! ServiceStarted(BrokerServiceId)
 
     case Transition(ManagedBroker, _, Active) =>
       ManagedBroker ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(BrokerService)
+      ServiceManager ! ServiceStarted(BrokerServiceId)
   }
 
   private def stop: Receive = {
@@ -84,7 +84,7 @@ protected[service] class BrokerManager(engine: Engine with CreateListener with B
       replyListener ! ErgodicityListener.Close
       replyListener ! ErgodicityListener.Dispose
       context.system.scheduler.scheduleOnce(1.second) {
-        ServiceManager ! ServiceStopped(BrokerService)
+        ServiceManager ! ServiceStopped(BrokerServiceId)
         context.stop(self)
       }
   }

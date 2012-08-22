@@ -12,7 +12,7 @@ import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
 import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
 
-case object PositionsService extends Service
+case object PositionsServiceId extends ServiceId
 
 trait Positions {
   engine: Engine =>
@@ -30,7 +30,7 @@ trait ManagedPositions extends Positions {
   val Positions = context.actorOf(Props(new PositionsCore(PosStream)), "Positions")
   private[this] val positionsManager = context.actorOf(Props(new PositionsManager(this)).withDispatcher("deque-dispatcher"), "PositionsManager")
 
-  registerService(PositionsService, positionsManager)
+  registerService(PositionsServiceId, positionsManager)
 }
 
 protected[service] class PositionsManager(engine: Engine with Connection with Positions with CreateListener with PosReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
@@ -42,7 +42,7 @@ protected[service] class PositionsManager(engine: Engine with Connection with Po
   val posListener = context.actorOf(Props(new Listener(underlyingPosListener)), "PosListener")
 
   protected def receive = {
-    case ServiceStarted(ConnectionService) =>
+    case ServiceStarted(ConnectionServiceId) =>
       log.info("ConnectionService started, unstash all messages and start PositionsService")
       unstashAll()
       context.become {
@@ -63,11 +63,11 @@ protected[service] class PositionsManager(engine: Engine with Connection with Po
   private def handlePositionsGoesOnline: Receive = {
     case CurrentState(ManagedPositions, PositionsState.Online) =>
       ManagedPositions ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(PositionsService)
+      ServiceManager ! ServiceStarted(PositionsServiceId)
 
     case Transition(ManagedPositions, _, PositionsState.Online) =>
       ManagedPositions ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(PositionsService)
+      ServiceManager ! ServiceStarted(PositionsServiceId)
   }
 
   private def stop: Receive = {
@@ -75,7 +75,7 @@ protected[service] class PositionsManager(engine: Engine with Connection with Po
       posListener ! Listener.Close
       posListener ! Listener.Dispose
       context.system.scheduler.scheduleOnce(1.second) {
-        ServiceManager ! ServiceStopped(PositionsService)
+        ServiceManager ! ServiceStopped(PositionsServiceId)
         context.stop(self)
       }
   }

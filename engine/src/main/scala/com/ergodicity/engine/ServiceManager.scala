@@ -3,9 +3,9 @@ package com.ergodicity.engine
 import akka.actor.{ActorRef, FSM, Actor}
 import akka.util.duration._
 import service.Service.{Start, Stop}
-import service.{ServiceStopped, ServiceStarted, Service}
+import service.{ServiceStopped, ServiceStarted, ServiceId}
 import collection.mutable
-import akka.actor.FSM.{Failure, Normal}
+import akka.actor.FSM.Normal
 import com.ergodicity.engine.ServiceManager.ServicesStartupTimedOut
 
 
@@ -29,18 +29,18 @@ object ServiceManagerData {
 
   case object Blank extends ServiceManagerData
 
-  case class PendingServices(pending: Iterable[Service]) extends ServiceManagerData
+  case class PendingServices(pending: Iterable[ServiceId]) extends ServiceManagerData
 
 }
 
-case class RegisterService(service: Service, manager: ActorRef)
+case class RegisterService(service: ServiceId, manager: ActorRef)
 
 case object StartAllServices
 
 case object StopAllServices
 
 object ServiceManager {
-  case class ServicesStartupTimedOut(pending: Iterable[Service]) extends RuntimeException
+  case class ServicesStartupTimedOut(pending: Iterable[ServiceId]) extends RuntimeException
 }
 
 class ServiceManager extends Actor with FSM[ServiceManagerState, ServiceManagerData] {
@@ -48,7 +48,7 @@ class ServiceManager extends Actor with FSM[ServiceManagerState, ServiceManagerD
   import ServiceManagerState._
   import ServiceManagerData._
 
-  protected val services: mutable.Map[Service, ActorRef] = mutable.Map()
+  protected val services: mutable.Map[ServiceId, ActorRef] = mutable.Map()
 
   startWith(Initializing, Blank)
 

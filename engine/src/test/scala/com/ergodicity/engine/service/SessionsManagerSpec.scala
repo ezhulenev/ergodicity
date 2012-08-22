@@ -55,7 +55,7 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
       sessions.expectNoMsg(300.millis)
 
       when("Connection Service started")
-      manager ! ServiceStarted(ConnectionService)
+      manager ! ServiceStarted(ConnectionServiceId)
 
       then("should track Sessions state")
       sessions.expectMsg(SubscribeTransitionCallBack(manager))
@@ -64,7 +64,7 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
       manager ! Transition(sessions.ref, SessionsTrackingState.Binded, SessionsTrackingState.Online)
 
       then("Service Manager should be notified")
-      serviceManager.expectMsg(ServiceStarted(SessionsService))
+      serviceManager.expectMsg(ServiceStarted(SessionsServiceId))
     }
 
     "stop actor on Service.Stop message" in {
@@ -74,14 +74,14 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
       val engine = mockEngine(serviceManager, sessions).underlyingActor
       val manager: ActorRef = TestActorRef(Props(new SessionsManager(engine)).withDispatcher("deque-dispatcher"), "SessionsManager")
 
-      manager ! ServiceStarted(ConnectionService)
+      manager ! ServiceStarted(ConnectionServiceId)
       watch(manager)
 
       when("stop Service")
       manager ! Service.Stop
 
       when("service manager should be notified")
-      serviceManager.expectMsg(ServiceStopped(SessionsService))
+      serviceManager.expectMsg(ServiceStopped(SessionsServiceId))
 
       and("sessions manager actor terminated")
       expectMsg(Terminated(manager))
