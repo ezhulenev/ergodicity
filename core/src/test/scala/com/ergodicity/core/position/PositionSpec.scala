@@ -20,23 +20,28 @@ class PositionSpec extends TestKit(ActorSystem("PositionSpec", ConfigWithDetaile
   "Position" must {
 
     import Position._
-    import PositionState._
 
-    "initialied in closed state" in {
+    "initialied in Flat state" in {
       val position = TestFSMRef(new Position(isin))
-      assert(position.stateName == ClosedPosition)
+      assert(position.stateName == PositionState.Flat)
     }
 
-    "stay in ClosedPosition on update with position = 0" in {
+    "stay in Flat position on update with position = 0" in {
       val position = TestFSMRef(new Position(isin))
       position ! UpdatePosition(Data(position = 0))
-      assert(position.stateName == ClosedPosition)
+      assert(position.stateName == PositionState.Flat)
     }
 
-    "go to OpenedPosition on update with position > 0" in {
+    "go to Long position on update with position > 0" in {
       val position = TestFSMRef(new Position(isin))
       position ! UpdatePosition(Data(position = 10))
-      assert(position.stateName == OpenedPosition)
+      assert(position.stateName == PositionState.Long)
+    }
+
+    "go to Short position on update with position < 0" in {
+      val position = TestFSMRef(new Position(isin))
+      position ! UpdatePosition(Data(position = -10))
+      assert(position.stateName == PositionState.Short)
     }
 
     "handle position updates" in {
@@ -46,16 +51,17 @@ class PositionSpec extends TestKit(ActorSystem("PositionSpec", ConfigWithDetaile
 
       val data1 = Data(position = 1)
       position ! UpdatePosition(data1)
-      assert(position.stateName == OpenedPosition)
+      assert(position.stateName == PositionState.Long)
       expectMsg(PositionUpdated(position, Data(), data1))
 
-      val data2 = Data(position = 2)
+      val data2 = Data(position = -2)
       position ! UpdatePosition(data2)
+      assert(position.stateName == PositionState.Short)
       expectMsg(PositionUpdated(position, data1, data2))
 
       val data3 = Data(position = 0)
       position ! UpdatePosition(data3)
-      assert(position.stateName == ClosedPosition)
+      assert(position.stateName == PositionState.Flat)
       expectMsg(PositionUpdated(position, data2, data3))
     }
   }

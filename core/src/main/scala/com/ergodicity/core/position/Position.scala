@@ -8,15 +8,20 @@ sealed trait PositionState
 
 object PositionState {
 
-  case object ClosedPosition extends PositionState
+  case object Long extends PositionState
 
-  case object OpenedPosition extends PositionState
+  case object Short extends PositionState
 
+  case object Flat extends PositionState
 }
 
 object Position {
 
-  case class Data(open: Int = 0, buys: Int = 0, sells: Int = 0, position: Int = 0, volume: BigDecimal = 0, lastDealId: Option[Long] = None)
+  case class Data(open: Int = 0, buys: Int = 0, sells: Int = 0, position: Int = 0, volume: BigDecimal = 0, lastDealId: Option[Long] = None) {
+    import PositionState._
+
+    def state: PositionState = if (position == 0) Flat else if (position > 0) Long else Short
+  }
 
   case class UpdatePosition(data: Position.Data)
 
@@ -35,19 +40,20 @@ class Position(isin: IsinId) extends Actor with FSM[PositionState, Position.Data
 
   private var subscribers = List[ActorRef]()
 
-  startWith(ClosedPosition, Data())
+  startWith(Flat, Data())
 
-  when(ClosedPosition)(handleUpdatePosition)
+  when(Flat)(handleUpdatePosition)
 
-  when(OpenedPosition)(handleUpdatePosition)
+  when(Long)(handleUpdatePosition)
+
+  when(Short)(handleUpdatePosition)
+
 
   private def handleUpdatePosition: StateFunction = {
     case Event(UpdatePosition(to), from) if (from != to) =>
       subscribers.foreach(_ ! PositionUpdated(self, from, to))
-      goto(nexState(to)) using to
+      goto(to.state) using to
   }
-
-  def nexState(data: Data) = if (data.position == 0) ClosedPosition else OpenedPosition
 
   whenUnhandled {
     case Event(SubscribePositionUpdates(ref), current) =>
