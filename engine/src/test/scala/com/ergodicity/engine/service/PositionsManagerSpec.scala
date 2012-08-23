@@ -12,6 +12,7 @@ import com.ergodicity.engine.Components.{PosReplication, CreateListener}
 import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, ISubscriber}
 import com.ergodicity.cgate.config.Replication
 import com.ergodicity.engine.service.Service.Start
+import com.ergodicity.core.PositionsTrackingState
 
 class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)

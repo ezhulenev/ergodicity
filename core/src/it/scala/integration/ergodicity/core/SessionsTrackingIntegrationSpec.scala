@@ -1,4 +1,4 @@
-package integration.ergodicity.engine
+package integration.ergodicity.core
 
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -17,8 +17,8 @@ import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Liste
 import akka.actor.FSM.Transition
 import scala.Some
 import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.engine.service.SessionsTracking
-import com.ergodicity.engine.service.SessionsTracking.SubscribeOngoingSessions
+import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
+import com.ergodicity.core.SessionsTracking
 
 
 class SessionsTrackingIntegrationSpec extends TestKit(ActorSystem("SessionsTrackingIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {

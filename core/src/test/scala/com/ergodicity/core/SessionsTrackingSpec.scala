@@ -1,4 +1,4 @@
-package com.ergodicity.engine.service
+package com.ergodicity.core
 
 import akka.event.Logging
 import akka.util.duration._
@@ -7,24 +7,20 @@ import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import com.ergodicity.cgate.scheme.FutInfo
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.{DataStream, DataStreamState}
-import akka.actor.{Kill, ActorSystem}
-import com.ergodicity.core.AkkaConfigurations
+import akka.actor.{Terminated, Kill, ActorSystem}
 import com.ergodicity.core.session.SessionState
 import com.ergodicity.core.Mocking.{mockOption, mockFuture}
-import com.ergodicity.engine.service.SessionsTracking._
-import com.ergodicity.core.session.Session.OptInfoSessionContents
+import com.ergodicity.core.SessionsTracking._
+import session.Session.{OptInfoSessionContents, FutInfoSessionContents}
 import akka.actor.FSM.Transition
-import com.ergodicity.cgate.repository.Repository.Snapshot
-import com.ergodicity.engine.service.SessionsTracking.StreamStates
 import akka.actor.FSM.CurrentState
-import scala.Some
-import com.ergodicity.engine.service.SessionsTracking.OngoingSession
-import com.ergodicity.engine.service.SessionsTracking.UpdateOngoingSessions
-import com.ergodicity.engine.service.SessionsTracking.SubscribeOngoingSessions
-import com.ergodicity.core.session.Session.FutInfoSessionContents
+import com.ergodicity.core.SessionsTracking.OngoingSession
+import com.ergodicity.core.SessionsTracking.UpdateOngoingSessions
+import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
 import com.ergodicity.cgate.StreamEvent.StreamData
-import akka.actor.Terminated
 import akka.actor.FSM.SubscribeTransitionCallBack
+import scala.Some
+import com.ergodicity.cgate.repository.Repository.Snapshot
 
 class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)

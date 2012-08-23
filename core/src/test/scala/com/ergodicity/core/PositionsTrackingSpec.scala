@@ -1,23 +1,21 @@
-package com.ergodicity.engine.service
+package com.ergodicity.core
 
 import akka.pattern._
 import akka.event.Logging
-import com.ergodicity.core.IsinId
 import akka.actor.{ActorRef, ActorSystem}
 import java.util.concurrent.TimeUnit
 import akka.dispatch.Await
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
-import com.ergodicity.core.AkkaConfigurations
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.scheme.Pos
 import java.math.BigDecimal
 import com.ergodicity.cgate.{DataStreamState, DataStream}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack, CurrentState}
 import org.scalatest.{BeforeAndAfter, GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import com.ergodicity.cgate.repository.Repository.Snapshot
-import com.ergodicity.engine.service.PositionsTracking.{GetOpenPositions, GetPosition, OpenPositions}
-import com.ergodicity.core.position.Position.{CurrentPosition, PositionUpdated, SubscribePositionUpdates}
+import com.ergodicity.core.PositionsTracking.{GetOpenPositions, GetPosition, OpenPositions}
+import position.Position.{PositionUpdated, CurrentPosition, SubscribePositionUpdates}
 import com.ergodicity.core.position.Position
+import com.ergodicity.cgate.repository.Repository.Snapshot
 
 class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll with BeforeAndAfter {
   val log = Logging(system, self)

@@ -1,4 +1,4 @@
-package integration.ergodicity.engine
+package integration.ergodicity.core
 
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -17,7 +17,7 @@ import akka.event.Logging
 import akka.actor.FSM.Transition
 import scala.Some
 import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.engine.service.PositionsTracking
+import com.ergodicity.core.PositionsTracking
 
 class PositionsTrackingIntegrationSpec extends TestKit(ActorSystem("PositionsTrackingIntegrationSpec", ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = Logging(system, self)
@@ -51,7 +51,7 @@ class PositionsTrackingIntegrationSpec extends TestKit(ActorSystem("PositionsTra
       val listener = TestFSMRef(new Listener(underlyingListener), "PosListener")
 
       // Create Positions actor
-      val positions = TestFSMRef(new PositionsTracking(dataStream), "Positions")
+      TestFSMRef(new PositionsTracking(dataStream), "Positions")
 
       Thread.sleep(1000)
 
