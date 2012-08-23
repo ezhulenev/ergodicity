@@ -65,22 +65,22 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
   with ManagedServices
   with ManagedStrategies
   with ManagedConnection
-  //with ManagedSessions
-  with ManagedPositions
-  with ManagedBrokerConnections with ManagedBroker
+  //with ManagedInstrumentData
+  with ManagedPortfolio
+  with ManagedTradingConnections with ManagedTrading
 
-  trait Config extends ConnectionConfig with SessionsConfig with PositionsConfig with BrokerConfig
+  trait Config extends ConnectionConfig with SessionsConfig with PositionsConfig with TradingConfig
 
   trait ConnectionConfig {
     val underlyingConnection = new CGConnection(ReplicationConnection())
   }
 
-  trait BrokerConnectionsConfig {
+  trait TradingConnectionsConfig {
     val underlyingPublisherConnection = new CGConnection(PublisherConnection())
     val underlyingRepliesConnection = new CGConnection(RepliesConnection())
   }
 
-  trait BrokerConfig extends BrokerConnectionsConfig {
+  trait TradingConfig extends TradingConnectionsConfig {
     implicit val BrokerConfig = Config("533")
 
     val BrokerName = "Ergodicity"

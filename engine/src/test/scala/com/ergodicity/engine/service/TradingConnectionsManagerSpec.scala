@@ -10,14 +10,14 @@ import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack}
 import com.ergodicity.engine.{ServiceFailedException, Engine}
 import com.ergodicity.cgate.{Connection => ErgodicityConnection}
 
-class BrokerConnectionsManagerSpec extends TestKit(ActorSystem("BrokerConnectionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
+class TradingConnectionsManagerSpec extends TestKit(ActorSystem("TradingConnectionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   override def afterAll() {
     system.shutdown()
   }
 
-  private def mockEngine(manager: TestProbe, publisherConnection: TestProbe, repliesConnection: TestProbe) = TestActorRef(new Engine with BrokerConnections {
+  private def mockEngine(manager: TestProbe, publisherConnection: TestProbe, repliesConnection: TestProbe) = TestActorRef(new Engine with TradingConnections {
     val ServiceManager = manager.ref
 
     val StrategyManager = system.deadLetters
@@ -31,16 +31,16 @@ class BrokerConnectionsManagerSpec extends TestKit(ActorSystem("BrokerConnection
     def RepliesConnection = repliesConnection.ref
   })
 
-  "BrokerConnectionsManager" must {
+  "TradingConnectionsManager" must {
     "subscribe for transitions on Service.Start" in {
       val publisherConnection = TestProbe()
       val repliesConnection = TestProbe()
       val serviceManager = TestProbe()
 
       val engine = mockEngine(serviceManager, publisherConnection, repliesConnection).underlyingActor
-      val manager = TestFSMRef(new BrokerConnectionsManager(engine), "Manager")
+      val manager = TestFSMRef(new TradingConnectionsManager(engine), "Manager")
 
-      assert(manager.stateName == BrokerConnectionsManager.Idle)
+      assert(manager.stateName == TradingConnectionsManager.Idle)
       when("service started")
       manager ! Service.Start
 
@@ -59,7 +59,7 @@ class BrokerConnectionsManagerSpec extends TestKit(ActorSystem("BrokerConnection
       val serviceManager = TestProbe()
 
       val engine = mockEngine(serviceManager, publisherConnection, repliesConnection).underlyingActor
-      val manager = TestFSMRef(new BrokerConnectionsManager(engine), "Manager")
+      val manager = TestFSMRef(new TradingConnectionsManager(engine), "Manager")
 
       intercept[ServiceFailedException] {
         manager.receive(CurrentState(publisherConnection.ref, com.ergodicity.cgate.Error))
@@ -72,16 +72,16 @@ class BrokerConnectionsManagerSpec extends TestKit(ActorSystem("BrokerConnection
       val serviceManager = TestProbe()
 
       val engine = mockEngine(serviceManager, publisherConnection, repliesConnection).underlyingActor
-      val manager = TestFSMRef(new BrokerConnectionsManager(engine), "Manager")
+      val manager = TestFSMRef(new TradingConnectionsManager(engine), "Manager")
 
       manager ! Service.Start
-      assert(manager.stateName == BrokerConnectionsManager.Starting)
+      assert(manager.stateName == TradingConnectionsManager.Starting)
 
       manager ! CurrentState(publisherConnection.ref, com.ergodicity.cgate.Active)
       manager ! CurrentState(repliesConnection.ref, com.ergodicity.cgate.Active)
 
-      serviceManager.expectMsg(ServiceStarted(BrokerConnectionsServiceId))
-      assert(manager.stateName == BrokerConnectionsManager.Connected)
+      serviceManager.expectMsg(ServiceStarted(TradingConnectionsServiceId))
+      assert(manager.stateName == TradingConnectionsManager.Connected)
     }
 
     "stop itselt of Service.Stop message" in {
@@ -90,12 +90,12 @@ class BrokerConnectionsManagerSpec extends TestKit(ActorSystem("BrokerConnection
       val serviceManager = TestProbe()
 
       val engine = mockEngine(serviceManager, publisherConnection, repliesConnection).underlyingActor
-      val manager = TestFSMRef(new BrokerConnectionsManager(engine), "Manager")
+      val manager = TestFSMRef(new TradingConnectionsManager(engine), "Manager")
 
-      manager.setState(BrokerConnectionsManager.Connected)
+      manager.setState(TradingConnectionsManager.Connected)
       watch(manager)
       manager ! Service.Stop
-      serviceManager.expectMsg(ServiceStopped(BrokerConnectionsServiceId))
+      serviceManager.expectMsg(ServiceStopped(TradingConnectionsServiceId))
       expectMsg(Terminated(manager))
     }
   }

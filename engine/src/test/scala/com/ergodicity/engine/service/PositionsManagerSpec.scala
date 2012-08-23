@@ -26,7 +26,7 @@ class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", c
     val StrategyManager = system.deadLetters
 
     val Positions = positions.ref
-  } with Engine with Connection with CreateListener with PosReplication with Positions {
+  } with Engine with Connection with CreateListener with PosReplication with Portfolio {
 
     val underlyingConnection = mock(classOf[CGConnection])
 
@@ -39,7 +39,7 @@ class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", c
     def listener(connection: CGConnection, config: String, subscriber: ISubscriber) = mock(classOf[CGListener])
   })
 
-  "Positions Manager" must {
+  "Portfolio Manager" must {
     "stash messages before ConnectionService is activated" in {
       val serviceManager = TestProbe()
       val positions = TestProbe()
@@ -55,14 +55,14 @@ class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", c
       when("Connection Service started")
       manager ! ServiceStarted(ConnectionServiceId)
 
-      then("should track Positions state")
+      then("should track Portfolio state")
       positions.expectMsg(SubscribeTransitionCallBack(manager))
 
-      when("Positions goes online")
+      when("Portfolio goes online")
       manager ! Transition(positions.ref, PositionsTrackingState.Binded, PositionsTrackingState.Online)
 
       then("Service Manager should be notified")
-      serviceManager.expectMsg(ServiceStarted(PositionsServiceId))
+      serviceManager.expectMsg(ServiceStarted(PortfolioServiceId))
     }
 
     "stop actor on Service.Stop message" in {
@@ -79,7 +79,7 @@ class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", c
       manager ! Service.Stop
 
       when("service manager should be notified")
-      serviceManager.expectMsg(ServiceStopped(PositionsServiceId))
+      serviceManager.expectMsg(ServiceStopped(PortfolioServiceId))
 
       and("positions manager actor terminated")
       expectMsg(Terminated(manager))

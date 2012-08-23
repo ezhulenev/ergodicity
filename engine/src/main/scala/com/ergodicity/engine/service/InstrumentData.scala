@@ -14,9 +14,9 @@ import akka.actor.FSM.CurrentState
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.core.{SessionsTrackingState, SessionsTracking}
 
-case object SessionsServiceId extends ServiceId
+case object InstrumentDataServiceId extends ServiceId
 
-trait Sessions {
+trait InstrumentData {
   engine: Engine with Connection with CreateListener with FutInfoReplication with OptInfoReplication =>
 
   def FutInfoStream: ActorRef
@@ -26,7 +26,7 @@ trait Sessions {
   def Sessions: ActorRef
 }
 
-trait ManagedSessions extends Sessions {
+trait ManagedInstrumentData extends InstrumentData {
   engine: Engine with Connection with CreateListener with FutInfoReplication with OptInfoReplication =>
 
   val FutInfoStream = context.actorOf(Props(new DataStream), "FutInfoDataStream")
@@ -35,10 +35,10 @@ trait ManagedSessions extends Sessions {
   val Sessions = context.actorOf(Props(new SessionsTracking(FutInfoStream, OptInfoStream)), "SessionsTracking")
   private[this] val sessionsManager = context.actorOf(Props(new SessionsManager(this)).withDispatcher("deque-dispatcher"), "SessionsManager")
 
-  registerService(SessionsServiceId, sessionsManager)
+  registerService(InstrumentDataServiceId, sessionsManager)
 }
 
-protected[service] class SessionsManager(engine: Engine with Connection with Sessions with CreateListener with FutInfoReplication with OptInfoReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
+protected[service] class SessionsManager(engine: Engine with Connection with InstrumentData with CreateListener with FutInfoReplication with OptInfoReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
 
   import engine._
 
@@ -74,11 +74,11 @@ protected[service] class SessionsManager(engine: Engine with Connection with Ses
   private def handleSessionsGoesOnline: Receive = {
     case CurrentState(ManagedSessions, SessionsTrackingState.Online) =>
       ManagedSessions ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(SessionsServiceId)
+      ServiceManager ! ServiceStarted(InstrumentDataServiceId)
 
     case Transition(ManagedSessions, _, SessionsTrackingState.Online) =>
       ManagedSessions ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(SessionsServiceId)
+      ServiceManager ! ServiceStarted(InstrumentDataServiceId)
   }
 
   private def stop: Receive = {
@@ -88,7 +88,7 @@ protected[service] class SessionsManager(engine: Engine with Connection with Ses
       futInfoListener ! Listener.Dispose
       optInfoListener ! Listener.Dispose
       context.system.scheduler.scheduleOnce(1.second) {
-        ServiceManager ! ServiceStopped(SessionsServiceId)
+        ServiceManager ! ServiceStopped(InstrumentDataServiceId)
         context.stop(self)
       }
   }

@@ -14,9 +14,9 @@ import akka.actor.FSM.UnsubscribeTransitionCallBack
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.core.{PositionsTrackingState, PositionsTracking}
 
-case object PositionsServiceId extends ServiceId
+case object PortfolioServiceId extends ServiceId
 
-trait Positions {
+trait Portfolio {
   engine: Engine =>
 
   def PosStream: ActorRef
@@ -24,18 +24,18 @@ trait Positions {
   def Positions: ActorRef
 }
 
-trait ManagedPositions extends Positions {
+trait ManagedPortfolio extends Portfolio {
   engine: Engine with Connection with CreateListener with PosReplication =>
 
   val PosStream = context.actorOf(Props(new DataStream), "PosDataStream")
 
-  val Positions = context.actorOf(Props(new PositionsTracking(PosStream)), "Positions")
+  val Positions = context.actorOf(Props(new PositionsTracking(PosStream)), "Portfolio")
   private[this] val positionsManager = context.actorOf(Props(new PositionsManager(this)).withDispatcher("deque-dispatcher"), "PositionsManager")
 
-  registerService(PositionsServiceId, positionsManager)
+  registerService(PortfolioServiceId, positionsManager)
 }
 
-protected[service] class PositionsManager(engine: Engine with Connection with Positions with CreateListener with PosReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
+protected[service] class PositionsManager(engine: Engine with Connection with Portfolio with CreateListener with PosReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
 
   import engine._
 
@@ -66,11 +66,11 @@ protected[service] class PositionsManager(engine: Engine with Connection with Po
   private def handlePositionsGoesOnline: Receive = {
     case CurrentState(ManagedPositions, PositionsTrackingState.Online) =>
       ManagedPositions ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(PositionsServiceId)
+      ServiceManager ! ServiceStarted(PortfolioServiceId)
 
     case Transition(ManagedPositions, _, PositionsTrackingState.Online) =>
       ManagedPositions ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(PositionsServiceId)
+      ServiceManager ! ServiceStarted(PortfolioServiceId)
   }
 
   private def stop: Receive = {
@@ -78,7 +78,7 @@ protected[service] class PositionsManager(engine: Engine with Connection with Po
       posListener ! Listener.Close
       posListener ! Listener.Dispose
       context.system.scheduler.scheduleOnce(1.second) {
-        ServiceManager ! ServiceStopped(PositionsServiceId)
+        ServiceManager ! ServiceStopped(PortfolioServiceId)
         context.stop(self)
       }
   }

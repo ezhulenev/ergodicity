@@ -25,7 +25,7 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
     val ServiceManager = serviceManager.ref
     val StrategyManager = system.deadLetters
     val Sessions = sessions.ref
-  } with Engine with Connection with CreateListener with FutInfoReplication with OptInfoReplication with Sessions {
+  } with Engine with Connection with CreateListener with FutInfoReplication with OptInfoReplication with InstrumentData {
 
     val underlyingConnection = mock(classOf[CGConnection])
 
@@ -42,7 +42,7 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
     def listener(connection: CGConnection, config: String, subscriber: ISubscriber) = mock(classOf[CGListener])
   })
 
-  "Sessions Manager" must {
+  "InstrumentData Manager" must {
     "stash messages before ConnectionService is activated" in {
       val serviceManager = TestProbe()
       val sessions = TestProbe()
@@ -58,14 +58,14 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
       when("Connection Service started")
       manager ! ServiceStarted(ConnectionServiceId)
 
-      then("should track Sessions state")
+      then("should track InstrumentData state")
       sessions.expectMsg(SubscribeTransitionCallBack(manager))
 
-      when("Sessions goes online")
+      when("InstrumentData goes online")
       manager ! Transition(sessions.ref, SessionsTrackingState.Binded, SessionsTrackingState.Online)
 
       then("Service Manager should be notified")
-      serviceManager.expectMsg(ServiceStarted(SessionsServiceId))
+      serviceManager.expectMsg(ServiceStarted(InstrumentDataServiceId))
     }
 
     "stop actor on Service.Stop message" in {
@@ -82,7 +82,7 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
       manager ! Service.Stop
 
       when("service manager should be notified")
-      serviceManager.expectMsg(ServiceStopped(SessionsServiceId))
+      serviceManager.expectMsg(ServiceStopped(InstrumentDataServiceId))
 
       and("sessions manager actor terminated")
       expectMsg(Terminated(manager))

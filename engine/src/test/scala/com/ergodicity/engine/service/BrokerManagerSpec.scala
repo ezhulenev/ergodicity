@@ -24,7 +24,7 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
     val ServiceManager = serviceManager.ref
     val StrategyManager = system.deadLetters
     val Broker = broker.ref
-  } with Engine with CreateListener with BrokerConnections with Broker {
+  } with Engine with CreateListener with TradingConnections with Trading {
     val BrokerName = "TestBroker"
 
     def underlyingPublisherConnection = mock(classOf[CGConnection])
@@ -43,7 +43,7 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
   })
 
 
-  "Broker Manager" must {
+  "Trading Manager" must {
     "stash messages before BrokerConnectionsService is activated" in {
       val serviceManager = TestProbe()
       val broker = TestProbe()
@@ -56,17 +56,17 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
       then("should stash it")
       broker.expectNoMsg(300.millis)
 
-      when("Broker Connection Service started")
-      manager ! ServiceStarted(BrokerConnectionsServiceId)
+      when("Trading Connection Service started")
+      manager ! ServiceStarted(TradingConnectionsServiceId)
 
-      then("should track Broker state")
+      then("should track Trading state")
       broker.expectMsg(SubscribeTransitionCallBack(manager))
 
-      when("Broker activated")
+      when("Trading activated")
       manager ! Transition(broker.ref, Opening, Active)
 
       then("Service Manager should be notified")
-      serviceManager.expectMsg(ServiceStarted(BrokerServiceId))
+      serviceManager.expectMsg(ServiceStarted(TradingServiceId))
     }
 
     "stop actor on Service.Stop message" in {
@@ -76,14 +76,14 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
       val engine = mockEngine(serviceManager, broker).underlyingActor
       val manager: ActorRef = TestActorRef(Props(new BrokerManager(engine)).withDispatcher("deque-dispatcher"), "BrokerManager")
 
-      manager ! ServiceStarted(BrokerConnectionsServiceId)
+      manager ! ServiceStarted(TradingConnectionsServiceId)
       watch(manager)
 
       when("stop Service")
       manager ! Service.Stop
 
       when("service manager should be notified")
-      serviceManager.expectMsg(ServiceStopped(BrokerServiceId))
+      serviceManager.expectMsg(ServiceStopped(TradingServiceId))
 
       and("broker manager actor terminated")
       expectMsg(Terminated(manager))

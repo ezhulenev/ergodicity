@@ -6,7 +6,7 @@ import akka.util.duration._
 import com.ergodicity.cgate.WhenUnhandled
 import com.ergodicity.core.Market
 import com.ergodicity.engine.Engine
-import com.ergodicity.engine.service.{Broker, Positions}
+import com.ergodicity.engine.service.{Trading, Portfolio}
 import com.ergodicity.core.PositionsTracking.{OpenPositions, GetOpenPositions}
 import akka.util.Timeout
 import akka.dispatch.Await
@@ -15,11 +15,11 @@ import akka.dispatch.Await
 case object CloseAllPositionsStrategy extends Strategy
 
 trait CloseAllPositions {
-  engine: Engine with Broker with Positions =>
+  engine: Engine with Trading with Portfolio =>
 
 }
 
-class CloseAllPositionsManager(engine: Engine with Positions) extends Actor with ActorLogging with WhenUnhandled {
+class CloseAllPositionsManager(engine: Engine with Portfolio) extends Actor with ActorLogging with WhenUnhandled {
   import Strategy._
   import engine._
 

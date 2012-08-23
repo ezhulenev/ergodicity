@@ -16,10 +16,10 @@ import akka.actor.FSM.UnsubscribeTransitionCallBack
 import akka.actor.FSM.SubscribeTransitionCallBack
 
 
-case object BrokerServiceId extends ServiceId
+case object TradingServiceId extends ServiceId
 
-trait Broker {
-  engine: Engine with BrokerConnections with CreateListener =>
+trait Trading {
+  engine: Engine with TradingConnections with CreateListener =>
 
   def BrokerName: String
 
@@ -30,17 +30,17 @@ trait Broker {
   def Broker: ActorRef
 }
 
-trait ManagedBroker extends Broker {
-  engine: Engine with CreateListener with BrokerConnections =>
+trait ManagedTrading extends Trading {
+  engine: Engine with CreateListener with TradingConnections =>
 
   val Broker = context.actorOf(Props(new BrokerCore(underlyingPublisher)), "Broker")
 
   private[this] val brokerManager = context.actorOf(Props(new BrokerManager(this)).withDispatcher("deque-dispatcher"), "BrokerManager")
 
-  registerService(BrokerServiceId, brokerManager)
+  registerService(TradingServiceId, brokerManager)
 }
 
-protected[service] class BrokerManager(engine: Engine with CreateListener with BrokerConnections with Broker) extends Actor with ActorLogging with WhenUnhandled with Stash {
+protected[service] class BrokerManager(engine: Engine with CreateListener with TradingConnections with Trading) extends Actor with ActorLogging with WhenUnhandled with Stash {
   import engine._
 
   val ManagedBroker = Broker
@@ -49,8 +49,8 @@ protected[service] class BrokerManager(engine: Engine with CreateListener with B
   private[this] val replyListener = context.actorOf(Props(new ErgodicityListener(underlyingRepliesListener)), "RepliesListener")
 
   protected def receive = {
-    case ServiceStarted(BrokerConnectionsServiceId) =>
-      log.info("BrokerConnectionsService started, unstash all messages and start Broker and replies listeners")
+    case ServiceStarted(TradingConnectionsServiceId) =>
+      log.info("BrokerConnectionsService started, unstash all messages and start Trading and replies listeners")
       unstashAll()
       context.become {
         start orElse stop orElse handleBrokerActivated orElse whenUnhandled
@@ -71,11 +71,11 @@ protected[service] class BrokerManager(engine: Engine with CreateListener with B
   private def handleBrokerActivated: Receive = {
     case CurrentState(ManagedBroker, Active) =>
       ManagedBroker ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(BrokerServiceId)
+      ServiceManager ! ServiceStarted(TradingServiceId)
 
     case Transition(ManagedBroker, _, Active) =>
       ManagedBroker ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(BrokerServiceId)
+      ServiceManager ! ServiceStarted(TradingServiceId)
   }
 
   private def stop: Receive = {
@@ -84,7 +84,7 @@ protected[service] class BrokerManager(engine: Engine with CreateListener with B
       replyListener ! ErgodicityListener.Close
       replyListener ! ErgodicityListener.Dispose
       context.system.scheduler.scheduleOnce(1.second) {
-        ServiceManager ! ServiceStopped(BrokerServiceId)
+        ServiceManager ! ServiceStopped(TradingServiceId)
         context.stop(self)
       }
   }
