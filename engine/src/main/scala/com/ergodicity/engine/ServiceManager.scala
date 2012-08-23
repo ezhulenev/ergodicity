@@ -6,7 +6,9 @@ import service.Service.{Start, Stop}
 import service.{ServiceStopped, ServiceStarted, ServiceId}
 import collection.mutable
 import akka.actor.FSM.Normal
+import com.ergodicity.engine.ServiceManager._
 import com.ergodicity.engine.ServiceManager.ServicesStartupTimedOut
+import com.ergodicity.engine.ServiceManager.GetServiceRef
 
 
 sealed trait ServiceManagerState
@@ -40,7 +42,12 @@ case object StartAllServices
 case object StopAllServices
 
 object ServiceManager {
+
   case class ServicesStartupTimedOut(pending: Iterable[ServiceId]) extends RuntimeException
+
+  case class GetServiceRef(service: ServiceId)
+
+  case class ServiceRef(service: ServiceId, ref: ActorRef)
 }
 
 class ServiceManager extends Actor with FSM[ServiceManagerState, ServiceManagerData] {
@@ -92,5 +99,12 @@ class ServiceManager extends Actor with FSM[ServiceManagerState, ServiceManagerD
         case 0 => stop(Normal)
         case _ => stay() using PendingServices(remaining)
       }
+  }
+
+  whenUnhandled {
+    case Event(GetServiceRef(service), _) =>
+      log.debug("Get service ref for id = " + service + ", Registered services = " + services.keys)
+      sender ! services.get(service).map(ServiceRef(service, _)).getOrElse(akka.actor.Status.Failure(new ServiceNotFoundException(service)))
+      stay()
   }
 }

@@ -7,12 +7,13 @@ import akka.testkit._
 import akka.util.duration._
 import org.mockito.Mockito._
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
-import com.ergodicity.engine.Engine
+import com.ergodicity.engine.{Services, Strategies, Engine}
 import com.ergodicity.engine.Components.{PosReplication, CreateListener}
 import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, ISubscriber}
 import com.ergodicity.cgate.config.Replication
 import com.ergodicity.engine.service.Service.Start
 import com.ergodicity.core.PositionsTrackingState
+import com.ergodicity.engine.underlying.UnderlyingConnection
 
 class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -23,14 +24,12 @@ class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", c
 
   private def mockEngine(serviceManager: TestProbe, positions: TestProbe) = TestActorRef(new {
     val ServiceManager = serviceManager.ref
-    val StrategyManager = system.deadLetters
+    val StrategyEngine = system.deadLetters
 
     val Positions = positions.ref
-  } with Engine with Connection with CreateListener with PosReplication with Portfolio {
+  } with Engine with Services with Strategies with UnderlyingConnection with CreateListener with PosReplication with Portfolio {
 
     val underlyingConnection = mock(classOf[CGConnection])
-
-    val Connection = system.deadLetters
 
     def PosStream = system.deadLetters
 

@@ -7,7 +7,7 @@ import akka.testkit._
 import akka.util.duration._
 import org.mockito.Mockito._
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
-import com.ergodicity.engine.Engine
+import com.ergodicity.engine.{Strategies, Services, Engine}
 import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, ISubscriber, Publisher => CGPublisher}
 import com.ergodicity.engine.service.Service.Start
 import com.ergodicity.engine.Components.CreateListener
@@ -22,9 +22,9 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
 
   private def mockEngine(serviceManager: TestProbe, broker: TestProbe) = TestActorRef(new {
     val ServiceManager = serviceManager.ref
-    val StrategyManager = system.deadLetters
+    val StrategyEngine = system.deadLetters
     val Broker = broker.ref
-  } with Engine with CreateListener with TradingConnections with Trading {
+  } with Engine with Services with Strategies with CreateListener with TradingConnections with Trading {
     val BrokerName = "TestBroker"
 
     def underlyingPublisherConnection = mock(classOf[CGConnection])

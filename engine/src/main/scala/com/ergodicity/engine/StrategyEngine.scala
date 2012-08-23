@@ -5,6 +5,6 @@ import strategy.Strategy
 
 case class RegisterStrategy(strategy: Strategy, manager: ActorRef)
 
-class StrategyManager extends Actor {
+class StrategyEngine extends Actor {
   protected def receive = null
 }

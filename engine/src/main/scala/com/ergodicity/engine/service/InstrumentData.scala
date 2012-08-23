@@ -13,11 +13,12 @@ import akka.actor.FSM.UnsubscribeTransitionCallBack
 import akka.actor.FSM.CurrentState
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.core.{SessionsTrackingState, SessionsTracking}
+import underlying.UnderlyingConnection
 
 case object InstrumentDataServiceId extends ServiceId
 
 trait InstrumentData {
-  engine: Engine with Connection with CreateListener with FutInfoReplication with OptInfoReplication =>
+  engine: Engine with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication =>
 
   def FutInfoStream: ActorRef
 
@@ -27,7 +28,7 @@ trait InstrumentData {
 }
 
 trait ManagedInstrumentData extends InstrumentData {
-  engine: Engine with Connection with CreateListener with FutInfoReplication with OptInfoReplication =>
+  engine: Engine with Services with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication =>
 
   val FutInfoStream = context.actorOf(Props(new DataStream), "FutInfoDataStream")
   val OptInfoStream = context.actorOf(Props(new DataStream), "OptInfoDataStream")
@@ -38,7 +39,7 @@ trait ManagedInstrumentData extends InstrumentData {
   registerService(InstrumentDataServiceId, sessionsManager)
 }
 
-protected[service] class SessionsManager(engine: Engine with Connection with InstrumentData with CreateListener with FutInfoReplication with OptInfoReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
+protected[service] class SessionsManager(engine: Engine with Services with UnderlyingConnection with InstrumentData with CreateListener with FutInfoReplication with OptInfoReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
 
   import engine._
 

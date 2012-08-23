@@ -1,6 +1,6 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.{ServiceFailedException, Engine}
+import com.ergodicity.engine.{Services, ServiceFailedException, Engine}
 import akka.actor._
 import akka.util.duration._
 import com.ergodicity.cgate.{Connection => ErgodicityConnection, Active, State}
@@ -26,7 +26,7 @@ trait TradingConnections {
 
 
 trait ManagedTradingConnections extends TradingConnections {
-  engine: Engine =>
+  engine: Engine with Services =>
 
   val PublisherConnection = context.actorOf(Props(new ErgodicityConnection(underlyingPublisherConnection)), "PublisherConnection")
   val RepliesConnection = context.actorOf(Props(new ErgodicityConnection(underlyingRepliesConnection)), "RepliesConnection")
@@ -58,7 +58,7 @@ object TradingConnectionsManager {
 
 }
 
-protected[service] class TradingConnectionsManager(engine: Engine with TradingConnections) extends Actor with FSM[ManagerState, ManagerData] {
+protected[service] class TradingConnectionsManager(engine: Engine with Services with TradingConnections) extends Actor with FSM[ManagerState, ManagerData] {
 
   import engine._
   import TradingConnectionsManager._

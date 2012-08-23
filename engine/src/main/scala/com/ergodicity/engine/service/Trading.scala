@@ -1,7 +1,7 @@
 package com.ergodicity.engine.service
 
 import com.ergodicity.engine.Components.CreateListener
-import com.ergodicity.engine.Engine
+import com.ergodicity.engine.{Services, Engine}
 import akka.actor._
 import akka.util.duration._
 import com.ergodicity.core.broker.{Broker => BrokerCore, ReplySubscriber}
@@ -31,7 +31,7 @@ trait Trading {
 }
 
 trait ManagedTrading extends Trading {
-  engine: Engine with CreateListener with TradingConnections =>
+  engine: Engine with Services with CreateListener with TradingConnections =>
 
   val Broker = context.actorOf(Props(new BrokerCore(underlyingPublisher)), "Broker")
 
@@ -40,7 +40,7 @@ trait ManagedTrading extends Trading {
   registerService(TradingServiceId, brokerManager)
 }
 
-protected[service] class BrokerManager(engine: Engine with CreateListener with TradingConnections with Trading) extends Actor with ActorLogging with WhenUnhandled with Stash {
+protected[service] class BrokerManager(engine: Engine with Services with CreateListener with TradingConnections with Trading) extends Actor with ActorLogging with WhenUnhandled with Stash {
   import engine._
 
   val ManagedBroker = Broker

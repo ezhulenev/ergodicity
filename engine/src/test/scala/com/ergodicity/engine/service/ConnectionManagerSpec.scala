@@ -1,13 +1,14 @@
 package com.ergodicity.engine.service
 
-import akka.actor.{Terminated, ActorSystem}
+import akka.actor.{PoisonPill, ActorContext, Terminated, ActorSystem}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit._
 import ru.micexrts.cgate.{Connection => CGConnection}
 import org.mockito.Mockito._
 import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.engine.{ServiceFailedException, Engine}
+import com.ergodicity.engine.{Services, Strategies, ServiceFailedException, Engine}
+import com.ergodicity.engine.underlying.UnderlyingConnection
 
 class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -16,50 +17,37 @@ class ConnectionManagerSpec extends TestKit(ActorSystem("ConnectionManagerSpec",
     system.shutdown()
   }
 
-  private def mockEngine(manager: TestProbe, connection: TestProbe) = TestActorRef(new Engine with Connection {
+  private def mockEngine(manager: TestProbe) = TestActorRef(new Engine with Services with Strategies with UnderlyingConnection {
     val underlyingConnection = mock(classOf[CGConnection])
-    val Connection = connection.ref
 
     val ServiceManager = manager.ref
-    val StrategyManager = system.deadLetters
+    val StrategyEngine = system.deadLetters
   })
 
   "ConnectionManager" must {
-    "subscribe for transitions" in {
-      val connection = TestProbe()
-      val serviceTracker = TestProbe()
-
-      val engine = mockEngine(serviceTracker, connection).underlyingActor
-      val manager = TestActorRef(new ConnectionManager(engine))
-      connection.expectMsg(SubscribeTransitionCallBack(manager))
-    }
-
     "throw exception on error state" in {
-      val connection = TestProbe()
       val serviceTracker = TestProbe()
 
-      val engine = mockEngine(serviceTracker, connection).underlyingActor
+      val engine = mockEngine(serviceTracker).underlyingActor
       val manager = TestActorRef(new ConnectionManager(engine))
       intercept[ServiceFailedException] {
-        manager.receive(CurrentState(connection.ref, com.ergodicity.cgate.Error))
+        manager.receive(CurrentState(manager.underlyingActor.Connection, com.ergodicity.cgate.Error))
       }
     }
 
     "notify engine on activated state" in {
-      val connection = TestProbe()
       val serviceTracker = TestProbe()
 
-      val engine = mockEngine(serviceTracker, connection).underlyingActor
+      val engine = mockEngine(serviceTracker).underlyingActor
       val manager = TestActorRef(new ConnectionManager(engine))
-      manager ! CurrentState(connection.ref, com.ergodicity.cgate.Active)
+      manager ! CurrentState(manager.underlyingActor.Connection, com.ergodicity.cgate.Active)
       serviceTracker.expectMsg(ServiceStarted(ConnectionServiceId))
     }
 
     "stop itselt of Service.Stop message" in {
-      val connection = TestProbe()
       val serviceTracker = TestProbe()
 
-      val engine = mockEngine(serviceTracker, connection).underlyingActor
+      val engine = mockEngine(serviceTracker).underlyingActor
       val manager = TestActorRef(new ConnectionManager(engine))
       watch(manager)
       manager ! Service.Stop

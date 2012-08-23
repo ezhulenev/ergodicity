@@ -1,7 +1,7 @@
 package com.ergodicity.engine.service
 
 import com.ergodicity.engine.Components.{CreateListener, PosReplication}
-import com.ergodicity.engine.Engine
+import com.ergodicity.engine.{Services, Engine}
 import akka.actor._
 import akka.util.duration._
 import com.ergodicity.cgate.{Connection => _, _}
@@ -13,6 +13,7 @@ import akka.actor.FSM.CurrentState
 import akka.actor.FSM.UnsubscribeTransitionCallBack
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.core.{PositionsTrackingState, PositionsTracking}
+import com.ergodicity.engine.underlying.UnderlyingConnection
 
 case object PortfolioServiceId extends ServiceId
 
@@ -25,7 +26,7 @@ trait Portfolio {
 }
 
 trait ManagedPortfolio extends Portfolio {
-  engine: Engine with Connection with CreateListener with PosReplication =>
+  engine: Engine with Services with UnderlyingConnection with CreateListener with PosReplication =>
 
   val PosStream = context.actorOf(Props(new DataStream), "PosDataStream")
 
@@ -35,7 +36,7 @@ trait ManagedPortfolio extends Portfolio {
   registerService(PortfolioServiceId, positionsManager)
 }
 
-protected[service] class PositionsManager(engine: Engine with Connection with Portfolio with CreateListener with PosReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
+protected[service] class PositionsManager(engine: Engine with Services with UnderlyingConnection with Portfolio with CreateListener with PosReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
 
   import engine._
 

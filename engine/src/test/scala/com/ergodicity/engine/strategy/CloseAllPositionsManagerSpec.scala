@@ -4,7 +4,7 @@ import akka.actor.{Terminated, ActorRef, Props, ActorSystem}
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit._
-import com.ergodicity.engine.Engine
+import com.ergodicity.engine.{Services, Strategies, Engine}
 import com.ergodicity.engine.service.Portfolio
 import com.ergodicity.core.PositionsTracking.{OpenPositions, GetOpenPositions}
 import akka.testkit.TestActor.AutoPilot
@@ -16,11 +16,11 @@ class CloseAllPositionsManagerSpec extends TestKit(ActorSystem("CloseAllPosition
     system.shutdown()
   }
 
-  private def mockEngine(positions: TestProbe) = TestActorRef(new Engine with Portfolio {
+  private def mockEngine(positions: TestProbe) = TestActorRef(new Engine with Strategies with Services with Portfolio {
 
     def ServiceManager = system.deadLetters
 
-    def StrategyManager = system.deadLetters
+    def StrategyEngine = system.deadLetters
 
     def PosStream = system.deadLetters
 

@@ -1,6 +1,8 @@
 package com.ergodicity.engine
 
 import akka.actor._
+import akka.pattern.ask
+import akka.util.duration._
 import com.ergodicity.engine.Engine.StartEngine
 import service.ServiceId
 import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
@@ -8,17 +10,16 @@ import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection, CG
 import com.ergodicity.cgate.config.Replication
 import akka.actor.SupervisorStrategy.Stop
 import strategy.Strategy
+import akka.dispatch.Await
+import com.ergodicity.engine.ServiceManager.{ServiceRef, GetServiceRef}
+import akka.util.Timeout
 
-
-class ServiceFailedException(service: ServiceId, message: String) extends RuntimeException
 
 object Engine {
 
   case object StartEngine
 
   case object StopEngine
-
-  case class CareOf(service: ServiceId, msg: Any)
 
 }
 
@@ -44,22 +45,13 @@ object EngineData {
 
 }
 
-
 trait Engine extends Actor with FSM[EngineState, EngineData] {
-  def ServiceManager: ActorRef
+  engine: Actor with FSM[EngineState, EngineData] with Services =>
 
-  def registerService(service: ServiceId, manager: ActorRef) {
-    ServiceManager ! RegisterService(service, manager)
-  }
-
-  def StrategyManager: ActorRef
-
-  def registerStrategy(strategy: Strategy, manager: ActorRef) {
-    StrategyManager ! RegisterStrategy(strategy, manager)
-  }
+  implicit val timeout = Timeout(1.second)
 
   override val supervisorStrategy = AllForOneStrategy() {
-    case _: CGateException      ⇒ Stop
+    case _: CGateException ⇒ Stop
   }
 
   import EngineState._
@@ -119,19 +111,40 @@ object Components {
     def listener(connection: CGConnection, config: String, subscriber: ISubscriber) = new CGListener(connection, config, subscriber)
   }
 
+}
 
-  // Service Management
-  trait ManagedServices {
-    this: {def context: ActorContext} =>
+class ServiceFailedException(service: ServiceId, message: String) extends RuntimeException
 
-    val ServiceManager = context.actorOf(Props(new com.ergodicity.engine.ServiceManager()), "ServiceManager")
+class ServiceNotFoundException(service: ServiceId) extends RuntimeException
+
+trait Services {
+  engine: Engine =>
+
+  def ServiceManager: ActorRef
+
+  def registerService(service: ServiceId, manager: ActorRef) {
+    ServiceManager ! RegisterService(service, manager)
   }
 
-  // Service Management
-  trait ManagedStrategies {
-    this: {def context: ActorContext} =>
+  def service(service: ServiceId) = Await.result((ServiceManager ? GetServiceRef(service)).mapTo[ServiceRef], 1.second)
+}
 
-    val StrategyManager = context.actorOf(Props(new com.ergodicity.engine.StrategyManager()), "StrategyManager")
+trait Strategies {
+  def StrategyEngine: ActorRef
+
+  def registerStrategy(strategy: Strategy, manager: ActorRef) {
+    StrategyEngine ! RegisterStrategy(strategy, manager)
   }
+}
 
+trait ManagedServices extends Services {
+  this: Engine =>
+
+  val ServiceManager = context.actorOf(Props(new com.ergodicity.engine.ServiceManager()), "ServiceManager")
+}
+
+trait ManagedStrategies extends Strategies {
+  this: {def context: ActorContext} =>
+
+  val StrategyEngine = context.actorOf(Props(new com.ergodicity.engine.StrategyEngine()), "StrategyEngine")
 }

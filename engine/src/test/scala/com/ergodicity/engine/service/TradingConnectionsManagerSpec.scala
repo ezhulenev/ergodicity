@@ -7,7 +7,7 @@ import akka.testkit._
 import ru.micexrts.cgate.{Connection => CGConnection}
 import org.mockito.Mockito._
 import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.engine.{ServiceFailedException, Engine}
+import com.ergodicity.engine.{Strategies, Services, ServiceFailedException, Engine}
 import com.ergodicity.cgate.{Connection => ErgodicityConnection}
 
 class TradingConnectionsManagerSpec extends TestKit(ActorSystem("TradingConnectionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
@@ -17,10 +17,10 @@ class TradingConnectionsManagerSpec extends TestKit(ActorSystem("TradingConnecti
     system.shutdown()
   }
 
-  private def mockEngine(manager: TestProbe, publisherConnection: TestProbe, repliesConnection: TestProbe) = TestActorRef(new Engine with TradingConnections {
+  private def mockEngine(manager: TestProbe, publisherConnection: TestProbe, repliesConnection: TestProbe) = TestActorRef(new Engine with Services with Strategies with TradingConnections {
     val ServiceManager = manager.ref
 
-    val StrategyManager = system.deadLetters
+    val StrategyEngine = system.deadLetters
 
     def underlyingPublisherConnection = mock(classOf[CGConnection])
 

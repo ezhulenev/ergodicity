@@ -7,12 +7,13 @@ import akka.testkit._
 import akka.util.duration._
 import org.mockito.Mockito._
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
-import com.ergodicity.engine.Engine
+import com.ergodicity.engine.{Services, Strategies, Engine}
 import com.ergodicity.engine.Components.{OptInfoReplication, FutInfoReplication, CreateListener}
 import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, ISubscriber}
 import com.ergodicity.cgate.config.Replication
 import com.ergodicity.engine.service.Service.Start
 import com.ergodicity.core.SessionsTrackingState
+import com.ergodicity.engine.underlying.UnderlyingConnection
 
 class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -23,13 +24,11 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
 
   private def mockEngine(serviceManager: TestProbe, sessions: TestProbe) = TestActorRef(new {
     val ServiceManager = serviceManager.ref
-    val StrategyManager = system.deadLetters
+    val StrategyEngine = system.deadLetters
     val Sessions = sessions.ref
-  } with Engine with Connection with CreateListener with FutInfoReplication with OptInfoReplication with InstrumentData {
+  } with Engine with Services with Strategies with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication with InstrumentData {
 
     val underlyingConnection = mock(classOf[CGConnection])
-
-    val Connection = system.deadLetters
 
     val FutInfoStream = system.deadLetters
 

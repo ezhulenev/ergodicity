@@ -1,5 +1,6 @@
 package com.ergodicity.engine.service
 
+
 trait ServiceId
 
 object Service {

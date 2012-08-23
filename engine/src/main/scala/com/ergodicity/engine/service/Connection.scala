@@ -1,65 +1,57 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.{ServiceFailedException, Engine}
+import com.ergodicity.engine.{Services, ServiceFailedException, Engine}
 import com.ergodicity.cgate.{Connection => CgateConnection, WhenUnhandled}
 import akka.actor._
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import akka.util.duration._
-import ru.micexrts.cgate.{Connection => CGConnection}
+import com.ergodicity.engine.underlying.UnderlyingConnection
 
 case object ConnectionServiceId extends ServiceId
 
 trait Connection {
-  engine: Engine =>
+  engine: Engine with UnderlyingConnection with Services =>
 
-  def underlyingConnection: CGConnection
-
-  def Connection: ActorRef
-}
-
-trait ManagedConnection extends Connection {
-  engine: Engine =>
-
-  val Connection = context.actorOf(Props(new CgateConnection(underlyingConnection)), "Connection")
   private[this] val connectionManager = context.actorOf(Props(new ConnectionManager(this)), "ConnectionManager")
 
   registerService(ConnectionServiceId, connectionManager)
 }
 
-protected[service] class ConnectionManager(engine: Engine with Connection) extends Actor with ActorLogging with WhenUnhandled {
+protected[service] class ConnectionManager(engine: Engine with UnderlyingConnection with Services) extends Actor with ActorLogging with WhenUnhandled {
+
   import engine._
 
-  val ManagedConnection = Connection
+  val Connection = context.actorOf(Props(new CgateConnection(underlyingConnection)), "Connection")
 
-  context.watch(ManagedConnection)
-  ManagedConnection ! SubscribeTransitionCallBack(self)
-
+  context.watch(Connection)
+  Connection ! SubscribeTransitionCallBack(self)
 
   protected def receive = start orElse stop orElse trackConnectionState orElse whenUnhandled
 
   private def start: Receive = {
-    case Service.Start => ManagedConnection ! CgateConnection.Open
+    case Service.Start => Connection ! CgateConnection.Open
   }
 
   private def stop: Receive = {
     case Service.Stop =>
-      ManagedConnection ! CgateConnection.Close
-      ManagedConnection ! CgateConnection.Dispose
+      Connection ! CgateConnection.Close
+      Connection ! CgateConnection.Dispose
       context.system.scheduler.scheduleOnce(1.second) {
         ServiceManager ! ServiceStopped(ConnectionServiceId)
         context.stop(self)
       }
+      context.become(whenUnhandled)
   }
 
   private def trackConnectionState: Receive = {
-    case Terminated(ManagedConnection) => throw new ServiceFailedException(ConnectionServiceId, "Connection unexpected terminated")
+    case Terminated(Connection) => throw new ServiceFailedException(ConnectionServiceId, "Connection unexpected terminated")
 
-    case CurrentState(ManagedConnection, com.ergodicity.cgate.Error) => throw new ServiceFailedException(ConnectionServiceId, "Connection switched to Error state")
+    case CurrentState(Connection, com.ergodicity.cgate.Error) => throw new ServiceFailedException(ConnectionServiceId, "Connection switched to Error state")
 
-    case Transition(ManagedConnection, _, com.ergodicity.cgate.Error) => throw new ServiceFailedException(ConnectionServiceId, "Connection switched to Error state")
+    case Transition(Connection, _, com.ergodicity.cgate.Error) => throw new ServiceFailedException(ConnectionServiceId, "Connection switched to Error state")
 
-    case CurrentState(ManagedConnection, com.ergodicity.cgate.Active) => ServiceManager ! ServiceStarted(ConnectionServiceId)
+    case CurrentState(Connection, com.ergodicity.cgate.Active) => ServiceManager ! ServiceStarted(ConnectionServiceId)
 
-    case Transition(ManagedConnection, _, com.ergodicity.cgate.Active) => ServiceManager ! ServiceStarted(ConnectionServiceId)
+    case Transition(Connection, _, com.ergodicity.cgate.Active) => ServiceManager ! ServiceStarted(ConnectionServiceId)
   }
 }

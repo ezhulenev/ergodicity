@@ -6,7 +6,7 @@ import akka.actor.ActorSystem
 import akka.testkit.{TestFSMRef, TestKit}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import com.ergodicity.engine.Components._
-import com.ergodicity.engine.Engine
+import com.ergodicity.engine.{ManagedServices, ManagedStrategies, Engine}
 import com.ergodicity.engine.Engine.StartEngine
 import java.util.concurrent.TimeUnit
 import com.ergodicity.engine.service._
@@ -17,7 +17,7 @@ import com.ergodicity.core.broker.Broker.Config
 import com.ergodicity.cgate.config.CGateConfig
 import com.ergodicity.cgate.config.FortsMessages
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import com.ergodicity.cgate.Connection.StartMessageProcessing
+import com.ergodicity.engine.underlying.UnderlyingConnection
 
 class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -51,7 +51,7 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
 
       Thread.sleep(5000)
 
-      engine.underlyingActor.asInstanceOf[Engine with Connection].Connection ! StartMessageProcessing(100.millis)
+      // engine.underlyingActor.asInstanceOf[Engine with Connection].Connection ! StartMessageProcessing(100.millis)
 
       Thread.sleep(10000)
 
@@ -61,19 +61,21 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
     }
   }
 
-  class TestEngine extends Engine with Config with CreateListenerComponent
+  class TestEngine extends Engine with Underlying with Config with CreateListenerComponent
+  with Connection
   with ManagedServices
   with ManagedStrategies
-  with ManagedConnection
   //with ManagedInstrumentData
   with ManagedPortfolio
   with ManagedTradingConnections with ManagedTrading
 
-  trait Config extends ConnectionConfig with SessionsConfig with PositionsConfig with TradingConfig
-
-  trait ConnectionConfig {
+  // Underlying CGate objects
+  trait Underlying extends UnderlyingConnection {
     val underlyingConnection = new CGConnection(ReplicationConnection())
   }
+
+
+  trait Config extends SessionsConfig with PositionsConfig with TradingConfig
 
   trait TradingConnectionsConfig {
     val underlyingPublisherConnection = new CGConnection(PublisherConnection())
