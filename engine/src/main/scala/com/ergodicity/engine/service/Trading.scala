@@ -14,12 +14,13 @@ import akka.actor.FSM.Transition
 import akka.actor.FSM.CurrentState
 import akka.actor.FSM.UnsubscribeTransitionCallBack
 import akka.actor.FSM.SubscribeTransitionCallBack
+import com.ergodicity.engine.underlying.UnderlyingTradingConnections
 
 
 case object TradingServiceId extends ServiceId
 
 trait Trading {
-  engine: Engine with TradingConnections with CreateListener =>
+  engine: Engine with UnderlyingTradingConnections with CreateListener =>
 
   def BrokerName: String
 
@@ -31,7 +32,7 @@ trait Trading {
 }
 
 trait ManagedTrading extends Trading {
-  engine: Engine with Services with CreateListener with TradingConnections =>
+  engine: Engine with Services with CreateListener with UnderlyingTradingConnections =>
 
   val Broker = context.actorOf(Props(new BrokerCore(underlyingPublisher)), "Broker")
 
@@ -40,7 +41,7 @@ trait ManagedTrading extends Trading {
   registerService(TradingServiceId, brokerManager)
 }
 
-protected[service] class BrokerManager(engine: Engine with Services with CreateListener with TradingConnections with Trading) extends Actor with ActorLogging with WhenUnhandled with Stash {
+protected[service] class BrokerManager(engine: Engine with Services with CreateListener with UnderlyingTradingConnections with Trading) extends Actor with ActorLogging with WhenUnhandled with Stash {
   import engine._
 
   val ManagedBroker = Broker

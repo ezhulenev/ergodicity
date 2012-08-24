@@ -12,6 +12,7 @@ import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, IS
 import com.ergodicity.engine.service.Service.Start
 import com.ergodicity.engine.Components.CreateListener
 import com.ergodicity.cgate.{Opening, Active}
+import com.ergodicity.engine.underlying.UnderlyingTradingConnections
 
 class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -24,16 +25,12 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
     val ServiceManager = serviceManager.ref
     val StrategyEngine = system.deadLetters
     val Broker = broker.ref
-  } with Engine with Services with Strategies with CreateListener with TradingConnections with Trading {
+  } with Engine with Services with Strategies with CreateListener with UnderlyingTradingConnections with Trading {
     val BrokerName = "TestBroker"
 
     def underlyingPublisherConnection = mock(classOf[CGConnection])
 
     def underlyingRepliesConnection = mock(classOf[CGConnection])
-
-    def PublisherConnection = system.deadLetters
-
-    def RepliesConnection = system.deadLetters
 
     implicit def BrokerConfig = null
 

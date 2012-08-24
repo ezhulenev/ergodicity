@@ -6,9 +6,11 @@ import akka.event.Logging
 import akka.testkit._
 import ru.micexrts.cgate.{Connection => CGConnection}
 import org.mockito.Mockito._
-import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack}
+import akka.actor.FSM.CurrentState
 import com.ergodicity.engine.{Strategies, Services, ServiceFailedException, Engine}
-import com.ergodicity.cgate.{Connection => ErgodicityConnection}
+import com.ergodicity.engine.underlying.UnderlyingTradingConnections
+import com.ergodicity.cgate.ConnectionState
+import org.mockito.Mockito
 
 class TradingConnectionsManagerSpec extends TestKit(ActorSystem("TradingConnectionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -17,24 +19,20 @@ class TradingConnectionsManagerSpec extends TestKit(ActorSystem("TradingConnecti
     system.shutdown()
   }
 
-  private def mockEngine(manager: TestProbe, publisherConnection: TestProbe, repliesConnection: TestProbe) = TestActorRef(new Engine with Services with Strategies with TradingConnections {
+  private def mockEngine(manager: TestProbe, publisherConnection: CGConnection, repliesConnection: CGConnection) = TestActorRef(new Engine with Services with Strategies with UnderlyingTradingConnections {
     val ServiceManager = manager.ref
 
     val StrategyEngine = system.deadLetters
 
-    def underlyingPublisherConnection = mock(classOf[CGConnection])
+    val underlyingPublisherConnection = publisherConnection
 
-    def underlyingRepliesConnection = mock(classOf[CGConnection])
-
-    def PublisherConnection = publisherConnection.ref
-
-    def RepliesConnection = repliesConnection.ref
+    val underlyingRepliesConnection = repliesConnection
   })
 
   "TradingConnectionsManager" must {
-    "subscribe for transitions on Service.Start" in {
-      val publisherConnection = TestProbe()
-      val repliesConnection = TestProbe()
+    "open connections on Service.Start" in {
+      val publisherConnection = mock(classOf[CGConnection])
+      val repliesConnection = mock(classOf[CGConnection])
       val serviceManager = TestProbe()
 
       val engine = mockEngine(serviceManager, publisherConnection, repliesConnection).underlyingActor
@@ -44,59 +42,78 @@ class TradingConnectionsManagerSpec extends TestKit(ActorSystem("TradingConnecti
       when("service started")
       manager ! Service.Start
 
-      then("should subscribe for connections states")
-      publisherConnection.expectMsg(SubscribeTransitionCallBack(manager))
-      repliesConnection.expectMsg(SubscribeTransitionCallBack(manager))
+      // Let messages to be passed to Connection actor
+      Thread.sleep(300)
 
-      and("open connections")
-      publisherConnection.expectMsg(ErgodicityConnection.Open)
-      repliesConnection.expectMsg(ErgodicityConnection.Open)
+      then("should open connections")
+      verify(publisherConnection).open("")
+      verify(repliesConnection).open("")
     }
 
     "throw exception on publisher connection go to error state" in {
-      val publisherConnection = TestProbe()
-      val repliesConnection = TestProbe()
+      val publisherConnection = mock(classOf[CGConnection])
+      val repliesConnection = mock(classOf[CGConnection])
       val serviceManager = TestProbe()
 
       val engine = mockEngine(serviceManager, publisherConnection, repliesConnection).underlyingActor
-      val manager = TestFSMRef(new TradingConnectionsManager(engine), "Manager")
+      val manager = TestActorRef(new TradingConnectionsManager(engine), "Manager")
+      val underlying = manager.underlyingActor
 
       intercept[ServiceFailedException] {
-        manager.receive(CurrentState(publisherConnection.ref, com.ergodicity.cgate.Error))
+        manager.receive(CurrentState(underlying.PublisherConnection, com.ergodicity.cgate.Error))
       }
     }
 
     "notify engine on both connections activated" in {
-      val publisherConnection = TestProbe()
-      val repliesConnection = TestProbe()
+      val publisherConnection = mock(classOf[CGConnection])
+      val repliesConnection = mock(classOf[CGConnection])
       val serviceManager = TestProbe()
 
       val engine = mockEngine(serviceManager, publisherConnection, repliesConnection).underlyingActor
       val manager = TestFSMRef(new TradingConnectionsManager(engine), "Manager")
+      val underlying = manager.underlyingActor.asInstanceOf[TradingConnectionsManager]
+
 
       manager ! Service.Start
       assert(manager.stateName == TradingConnectionsManager.Starting)
 
-      manager ! CurrentState(publisherConnection.ref, com.ergodicity.cgate.Active)
-      manager ! CurrentState(repliesConnection.ref, com.ergodicity.cgate.Active)
+      manager ! CurrentState(underlying.PublisherConnection, com.ergodicity.cgate.Active)
+      manager ! CurrentState(underlying.RepliesConnection, com.ergodicity.cgate.Active)
 
       serviceManager.expectMsg(ServiceStarted(TradingConnectionsServiceId))
       assert(manager.stateName == TradingConnectionsManager.Connected)
     }
 
     "stop itselt of Service.Stop message" in {
-      val publisherConnection = TestProbe()
-      val repliesConnection = TestProbe()
+      val publisherConnection = mock(classOf[CGConnection])
+      val repliesConnection = mock(classOf[CGConnection])
       val serviceManager = TestProbe()
 
       val engine = mockEngine(serviceManager, publisherConnection, repliesConnection).underlyingActor
       val manager = TestFSMRef(new TradingConnectionsManager(engine), "Manager")
+      val underlying = manager.underlyingActor.asInstanceOf[TradingConnectionsManager]
 
+      // Activate connections
+      Mockito.when(publisherConnection.getState).thenReturn(ru.micexrts.cgate.State.ACTIVE)
+      Mockito.when(repliesConnection.getState).thenReturn(ru.micexrts.cgate.State.ACTIVE)
+      underlying.PublisherConnection ! ConnectionState(com.ergodicity.cgate.Active)
+      underlying.RepliesConnection ! ConnectionState(com.ergodicity.cgate.Active)
+
+      // Set manager state to Connected
       manager.setState(TradingConnectionsManager.Connected)
+
       watch(manager)
       manager ! Service.Stop
+
+      // Verify manager stopped
       serviceManager.expectMsg(ServiceStopped(TradingConnectionsServiceId))
       expectMsg(Terminated(manager))
+
+      // Verify connections closed
+      verify(repliesConnection).close()
+      verify(repliesConnection).dispose()
+      verify(publisherConnection).close()
+      verify(publisherConnection).dispose()
     }
   }
 }

@@ -17,7 +17,7 @@ import com.ergodicity.core.broker.Broker.Config
 import com.ergodicity.cgate.config.CGateConfig
 import com.ergodicity.cgate.config.FortsMessages
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import com.ergodicity.engine.underlying.UnderlyingConnection
+import com.ergodicity.engine.underlying.{UnderlyingTradingConnections, UnderlyingConnection}
 
 class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -63,26 +63,28 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
 
   class TestEngine extends Engine with Underlying with Config with CreateListenerComponent
   with Connection
+  with TradingConnections
   with ManagedServices
   with ManagedStrategies
   //with ManagedInstrumentData
   with ManagedPortfolio
-  with ManagedTradingConnections with ManagedTrading
+  with ManagedTrading
 
   // Underlying CGate objects
-  trait Underlying extends UnderlyingConnection {
+  trait Underlying extends UnderlyingConnection with UnderlyingTradingConnections {
     val underlyingConnection = new CGConnection(ReplicationConnection())
-  }
 
-
-  trait Config extends SessionsConfig with PositionsConfig with TradingConfig
-
-  trait TradingConnectionsConfig {
     val underlyingPublisherConnection = new CGConnection(PublisherConnection())
     val underlyingRepliesConnection = new CGConnection(RepliesConnection())
   }
 
-  trait TradingConfig extends TradingConnectionsConfig {
+
+  trait Config extends SessionsConfig with PositionsConfig with TradingConfig {
+    self: UnderlyingTradingConnections =>
+  }
+
+  trait TradingConfig {
+    self: UnderlyingTradingConnections =>
     implicit val BrokerConfig = Config("533")
 
     val BrokerName = "Ergodicity"
