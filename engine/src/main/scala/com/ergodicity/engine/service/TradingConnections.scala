@@ -1,6 +1,6 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.{Services, ServiceFailedException, Engine}
+import com.ergodicity.engine.{Services, Engine}
 import akka.actor._
 import akka.util.duration._
 import com.ergodicity.cgate.{Connection => ErgodicityConnection, Active, State}
@@ -13,11 +13,13 @@ import com.ergodicity.engine.underlying.UnderlyingTradingConnections
 case object TradingConnectionsServiceId extends ServiceId
 
 trait TradingConnections {
-  this: Engine with UnderlyingTradingConnections with Services =>
+  this: Services =>
 
-  private[this] val connectionManager = context.actorOf(Props(new TradingConnectionsManager(this)), "TradingConnectionsManager")
+  def engine: Engine with UnderlyingTradingConnections
 
-  registerService(TradingConnectionsServiceId, connectionManager)
+  private[this] val connectionManager = context.actorOf(Props(new TradingConnectionsManager(this, engine)), "TradingConnectionsManager")
+
+  register(TradingConnectionsServiceId, connectionManager)
 }
 
 object TradingConnectionsManager {
@@ -41,10 +43,13 @@ object TradingConnectionsManager {
 
 }
 
-protected[service] class TradingConnectionsManager(engine: Engine with UnderlyingTradingConnections with Services) extends Actor with LoggingFSM[ManagerState, ManagerData] {
+protected[service] class TradingConnectionsManager(services: Services, engine: Engine with UnderlyingTradingConnections) extends Actor with LoggingFSM[ManagerState, ManagerData] {
 
   import engine._
+  import services._
   import TradingConnectionsManager._
+
+  implicit val Id = TradingConnectionsServiceId
 
   val PublisherConnection = context.actorOf(Props(new ErgodicityConnection(underlyingPublisherConnection)), "PublisherConnection")
   val RepliesConnection = context.actorOf(Props(new ErgodicityConnection(underlyingRepliesConnection)), "RepliesConnection")
@@ -96,19 +101,19 @@ protected[service] class TradingConnectionsManager(engine: Engine with Underlyin
       stay()
 
     case Event(FSM.StateTimeout, _) =>
-      ServiceManager ! ServiceStopped(TradingConnectionsServiceId)
+      serviceStopped
       stop(FSM.Shutdown)
   }
 
   whenUnhandled {
     case Event(Terminated(PublisherConnection | RepliesConnection), _) =>
-      throw new ServiceFailedException(ConnectionServiceId, "Trading connection unexpected terminated")
+      serviceFailed("Trading connection unexpected terminated")
 
     case Event(CurrentState(PublisherConnection | RepliesConnection, com.ergodicity.cgate.Error), _) =>
-      throw new ServiceFailedException(ConnectionServiceId, "Trading connection switched to Error state")
+      serviceFailed("Trading connection switched to Error state")
 
     case Event(Transition(PublisherConnection | RepliesConnection, _, com.ergodicity.cgate.Error), _) =>
-      throw new ServiceFailedException(ConnectionServiceId, "Trading connection switched to Error state")
+      serviceFailed("Trading connection switched to Error state")
   }
 
   private def handleConnectionsStates(states: ConnectionsStates) = (states.publisher <**> states.replies)((_, _)) match {
@@ -117,6 +122,6 @@ protected[service] class TradingConnectionsManager(engine: Engine with Underlyin
   }
 
   onTransition {
-    case Starting -> Connected => ServiceManager ! ServiceStarted(TradingConnectionsServiceId)
+    case Starting -> Connected => serviceStarted
   }
 }

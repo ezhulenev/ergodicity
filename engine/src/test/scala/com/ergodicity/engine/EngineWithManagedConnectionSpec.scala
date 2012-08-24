@@ -19,7 +19,7 @@ class EngineWithManagedConnectionSpec extends TestKit(ActorSystem("EngineWithMan
   }
 
   implicit val timeout = Timeout(1.second)
-
+/*
   "Trading engine" must {
     "register Connection service and connect on Start Up" in {
       val engine = TestFSMRef(new Engine with ManagedServices with ManagedStrategies with Connection with MockedConnection, "Engine")
@@ -36,6 +36,6 @@ class EngineWithManagedConnectionSpec extends TestKit(ActorSystem("EngineWithMan
   trait MockedConnection extends UnderlyingConnection {
     self: Engine =>
     lazy val underlyingConnection = mock(classOf[CGConnection])
-  }
+  }*/
 
 }

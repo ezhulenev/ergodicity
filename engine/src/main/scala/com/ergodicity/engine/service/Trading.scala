@@ -24,16 +24,20 @@ trait TradingService {
 }
 
 trait Trading extends TradingService {
-  engine: Engine with Services with UnderlyingTradingConnections with UnderlyingPublisher with CreateListener =>
+  this: Services =>
 
-  private[this] val brokerManager = context.actorOf(Props(new BrokerManager(this)).withDispatcher("deque-dispatcher"), "BrokerManager")
+  def engine: Engine with UnderlyingTradingConnections with UnderlyingPublisher with CreateListener
 
-  registerService(TradingServiceId, brokerManager)
+  private[this] val brokerManager = context.actorOf(Props(new BrokerManager(this, engine)).withDispatcher("deque-dispatcher"), "BrokerManager")
+
+  register(TradingServiceId, brokerManager)
 }
 
-protected[service] class BrokerManager(engine: Engine with Services with CreateListener with UnderlyingTradingConnections with UnderlyingPublisher with TradingService) extends Actor with ActorLogging with WhenUnhandled with Stash {
+protected[service] class BrokerManager(services: Services with TradingService, engine: Engine with CreateListener with UnderlyingTradingConnections with UnderlyingPublisher) extends Actor with ActorLogging with WhenUnhandled with Stash {
   import engine._
+  import services._
 
+  implicit val Id = TradingServiceId
   val Broker = context.actorOf(Props(new BrokerCore(underlyingPublisher)), "Broker")
 
   private[this] val underlyingRepliesListener = listener(underlyingRepliesConnection, Replies(BrokerName)(), new ReplySubscriber(Broker))
@@ -62,11 +66,11 @@ protected[service] class BrokerManager(engine: Engine with Services with CreateL
   private def handleBrokerActivated: Receive = {
     case CurrentState(Broker, Active) =>
       Broker ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(TradingServiceId)
+      serviceStarted
 
     case Transition(Broker, _, Active) =>
       Broker ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(TradingServiceId)
+      serviceStarted
   }
 
   private def stop: Receive = {
@@ -75,7 +79,7 @@ protected[service] class BrokerManager(engine: Engine with Services with CreateL
       replyListener ! ErgodicityListener.Close
       replyListener ! ErgodicityListener.Dispose
       context.system.scheduler.scheduleOnce(1.second) {
-        ServiceManager ! ServiceStopped(TradingServiceId)
+        serviceStopped
         context.stop(self)
       }
   }

@@ -21,16 +21,20 @@ case object PortfolioServiceId extends ServiceId
 trait PortfolioService
 
 trait Portfolio extends PortfolioService {
-  engine: Engine with Services with UnderlyingConnection with CreateListener with PosReplication =>
+  this: Services =>
+  def engine: Engine with UnderlyingConnection with CreateListener with PosReplication
 
-  private[this] val portfolioManager = context.actorOf(Props(new PortfolioManager(this)).withDispatcher("deque-dispatcher"), "PortfolioManager")
+  private[this] val portfolioManager = context.actorOf(Props(new PortfolioManager(this, engine)).withDispatcher("deque-dispatcher"), "PortfolioManager")
 
-  registerService(PortfolioServiceId, portfolioManager)
+  register(PortfolioServiceId, portfolioManager)
 }
 
-protected[service] class PortfolioManager(engine: Engine with Services with UnderlyingConnection with CreateListener with PosReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
+protected[service] class PortfolioManager(services: Services, engine: Engine with UnderlyingConnection with CreateListener with PosReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
 
   import engine._
+  import services._
+
+  implicit val Id = PortfolioServiceId
 
   val PosStream = context.actorOf(Props(new DataStream), "PosDataStream")
 
@@ -61,11 +65,11 @@ protected[service] class PortfolioManager(engine: Engine with Services with Unde
   private def handlePositionsGoesOnline: Receive = {
     case CurrentState(Positions, PositionsTrackingState.Online) =>
       Positions ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(PortfolioServiceId)
+      serviceStarted
 
     case Transition(Positions, _, PositionsTrackingState.Online) =>
       Positions ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(PortfolioServiceId)
+      serviceStarted
   }
 
   private def stop: Receive = {
@@ -73,7 +77,7 @@ protected[service] class PortfolioManager(engine: Engine with Services with Unde
       posListener ! Listener.Close
       posListener ! Listener.Dispose
       context.system.scheduler.scheduleOnce(1.second) {
-        ServiceManager ! ServiceStopped(PortfolioServiceId)
+        serviceStopped
         context.stop(self)
       }
   }

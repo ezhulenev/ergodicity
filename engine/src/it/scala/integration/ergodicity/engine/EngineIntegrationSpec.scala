@@ -3,13 +3,8 @@ package integration.ergodicity.engine
 import akka.event.Logging
 import akka.util.duration._
 import akka.actor.ActorSystem
-import akka.testkit.{TestFSMRef, TestKit}
+import akka.testkit.TestKit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
-import com.ergodicity.engine.Components._
-import com.ergodicity.engine.{ManagedServices, ManagedStrategies, Engine}
-import com.ergodicity.engine.Engine.StartEngine
-import java.util.concurrent.TimeUnit
-import com.ergodicity.engine.service._
 import ru.micexrts.cgate.{Connection => CGConnection, P2TypeParser, CGate, Publisher => CGPublisher}
 import com.ergodicity.cgate.config.Replication
 import java.io.File
@@ -42,11 +37,11 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
     CGate.close()
   }
 
-  def factory = new TestEngine
+  //def factory = new TestEngine
 
   "Engine" must {
     "start" in {
-      val engine = TestFSMRef(factory, "Engine")
+  /*    val engine = TestFSMRef(factory, "Engine")
 
       engine ! StartEngine
 
@@ -58,18 +53,18 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
 
       log.info("ENGINE STATE = " + engine.stateName)
 
-      Thread.sleep(TimeUnit.DAYS.toMillis(1))
+      Thread.sleep(TimeUnit.DAYS.toMillis(1))*/
     }
   }
 
-  class TestEngine extends Engine with Underlying with Config with CreateListenerComponent
+/*  class TestEngine extends Engine with Underlying with Config with CreateListenerComponent
   with Connection
   with TradingConnections
   with ManagedServices
   with ManagedStrategies
   //with ManagedInstrumentData
   with ManagedPortfolio
-  with ManagedTrading
+  with ManagedTrading*/
 
   // Underlying CGate objects
   trait Underlying extends UnderlyingConnection with UnderlyingTradingConnections {

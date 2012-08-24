@@ -6,65 +6,61 @@ import service.Service.{Start, Stop}
 import service.{ServiceStopped, ServiceStarted, ServiceId}
 import collection.mutable
 import akka.actor.FSM.Normal
-import com.ergodicity.engine.ServiceManager._
-import com.ergodicity.engine.ServiceManager.ServicesStartupTimedOut
-import com.ergodicity.engine.ServiceManager.GetServiceRef
+import com.ergodicity.engine.Services._
+import com.ergodicity.engine.Services.ServicesStartupTimedOut
 
 
-sealed trait ServiceManagerState
+sealed trait ServicesState
 
-object ServiceManagerState {
+object ServicesState {
 
-  case object Initializing extends ServiceManagerState
+  case object Idle extends ServicesState
 
-  case object Starting extends ServiceManagerState
+  case object Starting extends ServicesState
 
-  case object Active extends ServiceManagerState
+  case object Active extends ServicesState
 
-  case object Stopping extends ServiceManagerState
-
-}
-
-sealed trait ServiceManagerData
-
-object ServiceManagerData {
-
-  case object Blank extends ServiceManagerData
-
-  case class PendingServices(pending: Iterable[ServiceId]) extends ServiceManagerData
+  case object Stopping extends ServicesState
 
 }
 
-case class RegisterService(service: ServiceId, manager: ActorRef)
+sealed trait ServicesData
 
-case object StartAllServices
+object ServicesData {
 
-case object StopAllServices
+  case object Blank extends ServicesData
 
-object ServiceManager {
+  case class PendingServices(pending: Iterable[ServiceId]) extends ServicesData
+
+}
+
+object Services {
+
+  case object StartAllServices
+
+  case object StopAllServices
 
   case class ServicesStartupTimedOut(pending: Iterable[ServiceId]) extends RuntimeException
 
-  case class GetServiceRef(service: ServiceId)
+  class ServiceFailedException(service: ServiceId, message: String) extends RuntimeException
 
-  case class ServiceRef(service: ServiceId, ref: ActorRef)
+  class ServiceNotFoundException(service: ServiceId) extends RuntimeException
+
 }
 
-class ServiceManager extends Actor with FSM[ServiceManagerState, ServiceManagerData] {
+class Services extends Actor with FSM[ServicesState, ServicesData] {
 
-  import ServiceManagerState._
-  import ServiceManagerData._
+  import ServicesState._
+  import ServicesData._
+
+  implicit val Self = this
 
   protected val services: mutable.Map[ServiceId, ActorRef] = mutable.Map()
 
-  startWith(Initializing, Blank)
 
-  when(Initializing) {
-    case Event(RegisterService(service, manager), _) if (!services.contains(service)) =>
-      log.info("Register service " + service + "; Manager = " + manager)
-      services(service) = manager
-      stay()
+  startWith(Idle, Blank)
 
+  when(Idle) {
     case Event(StartAllServices, _) =>
       log.info("Start all services = " + services.keys)
       services.values.foreach(_ ! Start)
@@ -101,10 +97,26 @@ class ServiceManager extends Actor with FSM[ServiceManagerState, ServiceManagerD
       }
   }
 
-  whenUnhandled {
-    case Event(GetServiceRef(service), _) =>
-      log.debug("Get service ref for id = " + service + ", Registered services = " + services.keys)
-      sender ! services.get(service).map(ServiceRef(service, _)).getOrElse(akka.actor.Status.Failure(new ServiceNotFoundException(service)))
-      stay()
+  override def preStart() {
+    log.info("Registered services = " + services.keys)
   }
+
+  def serviceFailed(message: String)(implicit service: ServiceId): Nothing = {
+    throw new ServiceFailedException(service, "Connection unexpected terminated")
+  }
+
+  def serviceStarted(implicit service: ServiceId) {
+    self ! ServiceStarted(service)
+  }
+
+  def serviceStopped(implicit service: ServiceId) {
+    self ! ServiceStopped(service)
+  }
+
+  protected def register(service: ActorRef)(implicit id: ServiceId) {
+    if (services contains id) throw new IllegalArgumentException("Service already registered")
+    services(id) = service
+  }
+
+  def service(id: ServiceId) = services.getOrElse(id, throw new ServiceNotFoundException(id))
 }

@@ -21,23 +21,26 @@ case object InstrumentDataServiceId extends ServiceId
 trait InstrumentDataService
 
 trait InstrumentData extends InstrumentDataService {
-  engine: Engine with Services with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication =>
+  this: Services =>
 
-  private[this] val instrumentDataManager = context.actorOf(Props(new InstrumentDataManager(this)).withDispatcher("deque-dispatcher"), "InstrumentDataManager")
+  def engine: Engine with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication
 
-  registerService(InstrumentDataServiceId, instrumentDataManager)
+  private[this] val instrumentDataManager = context.actorOf(Props(new InstrumentDataManager(this, engine)).withDispatcher("deque-dispatcher"), "InstrumentDataManager")
+
+  register(InstrumentDataServiceId, instrumentDataManager)
 }
 
-protected[service] class InstrumentDataManager(engine: Engine with Services with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
+protected[service] class InstrumentDataManager(services: Services, engine: Engine with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
 
   import engine._
+  import services._
 
   val FutInfoStream = context.actorOf(Props(new DataStream), "FutInfoDataStream")
   val OptInfoStream = context.actorOf(Props(new DataStream), "OptInfoDataStream")
 
   val Sessions = context.actorOf(Props(new SessionsTracking(FutInfoStream, OptInfoStream)), "SessionsTracking")
 
-  log.info("Underlying conn = "+underlyingConnection+", repl = "+futInfoReplication)
+  log.info("Underlying conn = " + underlyingConnection + ", repl = " + futInfoReplication)
 
   // Listeners
   val underlyingFutInfoListener = listener(underlyingConnection, futInfoReplication(), new DataStreamSubscriber(FutInfoStream))
@@ -69,11 +72,11 @@ protected[service] class InstrumentDataManager(engine: Engine with Services with
   private def handleSessionsGoesOnline: Receive = {
     case CurrentState(Sessions, SessionsTrackingState.Online) =>
       Sessions ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(InstrumentDataServiceId)
+      serviceStarted
 
     case Transition(Sessions, _, SessionsTrackingState.Online) =>
       Sessions ! UnsubscribeTransitionCallBack(self)
-      ServiceManager ! ServiceStarted(InstrumentDataServiceId)
+      serviceStarted
   }
 
   private def stop: Receive = {
@@ -83,7 +86,7 @@ protected[service] class InstrumentDataManager(engine: Engine with Services with
       futInfoListener ! Listener.Dispose
       optInfoListener ! Listener.Dispose
       context.system.scheduler.scheduleOnce(1.second) {
-        ServiceManager ! ServiceStopped(InstrumentDataServiceId)
+        serviceStopped
         context.stop(self)
       }
   }
