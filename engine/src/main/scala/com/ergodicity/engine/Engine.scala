@@ -7,12 +7,12 @@ import com.ergodicity.engine.Engine.StartEngine
 import service.ServiceId
 import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
 import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection, CGateException, ISubscriber}
-import com.ergodicity.cgate.config.Replication
 import akka.actor.SupervisorStrategy.Stop
 import strategy.Strategy
 import akka.dispatch.Await
 import com.ergodicity.engine.ServiceManager.{ServiceRef, GetServiceRef}
 import akka.util.Timeout
+import com.ergodicity.cgate.config.Replication
 
 
 object Engine {
@@ -87,9 +87,7 @@ trait Engine extends Actor with FSM[EngineState, EngineData] {
   }
 }
 
-object Components {
-
-  // Replication schemes
+object Replication {
   trait FutInfoReplication {
     def futInfoReplication: Replication
   }
@@ -101,8 +99,9 @@ object Components {
   trait PosReplication {
     def posReplication: Replication
   }
+}
 
-  // Listener provider
+object Components {
   trait CreateListener {
     def listener(connection: CGConnection, config: String, subscriber: ISubscriber): CGListener
   }

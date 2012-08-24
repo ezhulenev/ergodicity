@@ -6,7 +6,6 @@ import akka.actor._
 import akka.util.duration._
 import com.ergodicity.core.broker.{Broker => BrokerCore, ReplySubscriber}
 import com.ergodicity.cgate.{Listener => ErgodicityListener, WhenUnhandled, Active}
-import ru.micexrts.cgate.{Publisher => CGPublisher}
 import com.ergodicity.cgate.config.Replies
 import com.ergodicity.engine.service.Service.{Stop, Start}
 import com.ergodicity.cgate.config.Replies.RepliesParams
@@ -14,37 +13,28 @@ import akka.actor.FSM.Transition
 import akka.actor.FSM.CurrentState
 import akka.actor.FSM.UnsubscribeTransitionCallBack
 import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.engine.underlying.UnderlyingTradingConnections
-
+import com.ergodicity.engine.underlying.{UnderlyingPublisher, UnderlyingTradingConnections}
 
 case object TradingServiceId extends ServiceId
 
-trait Trading {
-  engine: Engine with UnderlyingTradingConnections with CreateListener =>
-
+trait TradingService {
   def BrokerName: String
 
   implicit def BrokerConfig: BrokerCore.Config
-
-  def underlyingPublisher: CGPublisher
-
-  def Broker: ActorRef
 }
 
-trait ManagedTrading extends Trading {
-  engine: Engine with Services with CreateListener with UnderlyingTradingConnections =>
-
-  val Broker = context.actorOf(Props(new BrokerCore(underlyingPublisher)), "Broker")
+trait Trading extends TradingService {
+  engine: Engine with Services with UnderlyingTradingConnections with UnderlyingPublisher with CreateListener =>
 
   private[this] val brokerManager = context.actorOf(Props(new BrokerManager(this)).withDispatcher("deque-dispatcher"), "BrokerManager")
 
   registerService(TradingServiceId, brokerManager)
 }
 
-protected[service] class BrokerManager(engine: Engine with Services with CreateListener with UnderlyingTradingConnections with Trading) extends Actor with ActorLogging with WhenUnhandled with Stash {
+protected[service] class BrokerManager(engine: Engine with Services with CreateListener with UnderlyingTradingConnections with UnderlyingPublisher with TradingService) extends Actor with ActorLogging with WhenUnhandled with Stash {
   import engine._
 
-  val ManagedBroker = Broker
+  val Broker = context.actorOf(Props(new BrokerCore(underlyingPublisher)), "Broker")
 
   private[this] val underlyingRepliesListener = listener(underlyingRepliesConnection, Replies(BrokerName)(), new ReplySubscriber(Broker))
   private[this] val replyListener = context.actorOf(Props(new ErgodicityListener(underlyingRepliesListener)), "RepliesListener")
@@ -65,23 +55,23 @@ protected[service] class BrokerManager(engine: Engine with Services with CreateL
   private def start: Receive = {
     case Start =>
       replyListener ! ErgodicityListener.Open(RepliesParams)
-      ManagedBroker ! SubscribeTransitionCallBack(self)
-      ManagedBroker ! BrokerCore.Open
+      Broker ! SubscribeTransitionCallBack(self)
+      Broker ! BrokerCore.Open
   }
 
   private def handleBrokerActivated: Receive = {
-    case CurrentState(ManagedBroker, Active) =>
-      ManagedBroker ! UnsubscribeTransitionCallBack(self)
+    case CurrentState(Broker, Active) =>
+      Broker ! UnsubscribeTransitionCallBack(self)
       ServiceManager ! ServiceStarted(TradingServiceId)
 
-    case Transition(ManagedBroker, _, Active) =>
-      ManagedBroker ! UnsubscribeTransitionCallBack(self)
+    case Transition(Broker, _, Active) =>
+      Broker ! UnsubscribeTransitionCallBack(self)
       ServiceManager ! ServiceStarted(TradingServiceId)
   }
 
   private def stop: Receive = {
     case Stop =>
-      ManagedBroker ! BrokerCore.Close
+      Broker ! BrokerCore.Close
       replyListener ! ErgodicityListener.Close
       replyListener ! ErgodicityListener.Dispose
       context.system.scheduler.scheduleOnce(1.second) {

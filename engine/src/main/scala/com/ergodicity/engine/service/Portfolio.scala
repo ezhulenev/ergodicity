@@ -1,6 +1,5 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.Components.{CreateListener, PosReplication}
 import com.ergodicity.engine.{Services, Engine}
 import akka.actor._
 import akka.util.duration._
@@ -14,33 +13,28 @@ import akka.actor.FSM.UnsubscribeTransitionCallBack
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.core.{PositionsTrackingState, PositionsTracking}
 import com.ergodicity.engine.underlying.UnderlyingConnection
+import com.ergodicity.engine.Components.CreateListener
+import com.ergodicity.engine.Replication.PosReplication
 
 case object PortfolioServiceId extends ServiceId
 
-trait Portfolio {
-  engine: Engine =>
+trait PortfolioService
 
-  def PosStream: ActorRef
-
-  def Positions: ActorRef
-}
-
-trait ManagedPortfolio extends Portfolio {
+trait Portfolio extends PortfolioService {
   engine: Engine with Services with UnderlyingConnection with CreateListener with PosReplication =>
 
-  val PosStream = context.actorOf(Props(new DataStream), "PosDataStream")
+  private[this] val portfolioManager = context.actorOf(Props(new PortfolioManager(this)).withDispatcher("deque-dispatcher"), "PortfolioManager")
 
-  val Positions = context.actorOf(Props(new PositionsTracking(PosStream)), "Portfolio")
-  private[this] val positionsManager = context.actorOf(Props(new PositionsManager(this)).withDispatcher("deque-dispatcher"), "PositionsManager")
-
-  registerService(PortfolioServiceId, positionsManager)
+  registerService(PortfolioServiceId, portfolioManager)
 }
 
-protected[service] class PositionsManager(engine: Engine with Services with UnderlyingConnection with Portfolio with CreateListener with PosReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
+protected[service] class PortfolioManager(engine: Engine with Services with UnderlyingConnection with CreateListener with PosReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
 
   import engine._
 
-  val ManagedPositions = Positions
+  val PosStream = context.actorOf(Props(new DataStream), "PosDataStream")
+
+  val Positions = context.actorOf(Props(new PositionsTracking(PosStream)), "Positions")
 
   val underlyingPosListener = listener(underlyingConnection, posReplication(), new DataStreamSubscriber(PosStream))
   val posListener = context.actorOf(Props(new Listener(underlyingPosListener)), "PosListener")
@@ -61,16 +55,16 @@ protected[service] class PositionsManager(engine: Engine with Services with Unde
   private def start: Receive = {
     case Start =>
       posListener ! Listener.Open(ReplicationParams(Combined))
-      ManagedPositions ! SubscribeTransitionCallBack(self)
+      Positions ! SubscribeTransitionCallBack(self)
   }
 
   private def handlePositionsGoesOnline: Receive = {
-    case CurrentState(ManagedPositions, PositionsTrackingState.Online) =>
-      ManagedPositions ! UnsubscribeTransitionCallBack(self)
+    case CurrentState(Positions, PositionsTrackingState.Online) =>
+      Positions ! UnsubscribeTransitionCallBack(self)
       ServiceManager ! ServiceStarted(PortfolioServiceId)
 
-    case Transition(ManagedPositions, _, PositionsTrackingState.Online) =>
-      ManagedPositions ! UnsubscribeTransitionCallBack(self)
+    case Transition(Positions, _, PositionsTrackingState.Online) =>
+      Positions ! UnsubscribeTransitionCallBack(self)
       ServiceManager ! ServiceStarted(PortfolioServiceId)
   }
 

@@ -8,30 +8,26 @@ import akka.util.duration._
 import org.mockito.Mockito._
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.engine.{Services, Strategies, Engine}
-import com.ergodicity.engine.Components.{PosReplication, CreateListener}
+import com.ergodicity.engine.Components.CreateListener
 import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, ISubscriber}
 import com.ergodicity.cgate.config.Replication
 import com.ergodicity.engine.service.Service.Start
 import com.ergodicity.core.PositionsTrackingState
 import com.ergodicity.engine.underlying.UnderlyingConnection
+import com.ergodicity.engine.Replication.PosReplication
 
-class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
+class PortfolioManagerSpec extends TestKit(ActorSystem("PortfolioManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   override def afterAll() {
     system.shutdown()
   }
 
-  private def mockEngine(serviceManager: TestProbe, positions: TestProbe) = TestActorRef(new {
+  private def mockEngine(serviceManager: TestProbe) = TestActorRef(new {
     val ServiceManager = serviceManager.ref
     val StrategyEngine = system.deadLetters
-
-    val Positions = positions.ref
-  } with Engine with Services with Strategies with UnderlyingConnection with CreateListener with PosReplication with Portfolio {
-
+  } with Engine with Services with Strategies with UnderlyingConnection with CreateListener with PosReplication {
     val underlyingConnection = mock(classOf[CGConnection])
-
-    def PosStream = system.deadLetters
 
     def posReplication = mock(classOf[Replication])
 
@@ -43,8 +39,10 @@ class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", c
       val serviceManager = TestProbe()
       val positions = TestProbe()
 
-      val engine = mockEngine(serviceManager, positions).underlyingActor
-      val manager: ActorRef = TestActorRef(Props(new PositionsManager(engine)).withDispatcher("deque-dispatcher"), "PositionsManager")
+      val engine = mockEngine(serviceManager).underlyingActor
+      val manager: ActorRef = TestActorRef(Props(new PortfolioManager(engine) {
+        override val Positions = positions.ref
+      }).withDispatcher("deque-dispatcher"), "PortfolioManager")
 
       when("got Start message before connection service started")
       manager ! Start
@@ -68,8 +66,10 @@ class PositionsManagerSpec extends TestKit(ActorSystem("PositionsManagerSpec", c
       val serviceManager = TestProbe()
       val positions = TestProbe()
 
-      val engine = mockEngine(serviceManager, positions).underlyingActor
-      val manager: ActorRef = TestActorRef(Props(new PositionsManager(engine)).withDispatcher("deque-dispatcher"), "PositionsManager")
+      val engine = mockEngine(serviceManager).underlyingActor
+      val manager: ActorRef = TestActorRef(Props(new PortfolioManager(engine) {
+        override val Positions = positions.ref
+      }).withDispatcher("deque-dispatcher"), "PortfolioManager")
 
       manager ! ServiceStarted(ConnectionServiceId)
       watch(manager)

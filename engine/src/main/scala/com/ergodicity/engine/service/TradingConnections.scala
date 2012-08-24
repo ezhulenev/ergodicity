@@ -18,7 +18,6 @@ trait TradingConnections {
   private[this] val connectionManager = context.actorOf(Props(new TradingConnectionsManager(this)), "TradingConnectionsManager")
 
   registerService(TradingConnectionsServiceId, connectionManager)
-
 }
 
 object TradingConnectionsManager {
@@ -43,6 +42,7 @@ object TradingConnectionsManager {
 }
 
 protected[service] class TradingConnectionsManager(engine: Engine with UnderlyingTradingConnections with Services) extends Actor with LoggingFSM[ManagerState, ManagerData] {
+
   import engine._
   import TradingConnectionsManager._
 
@@ -84,14 +84,14 @@ protected[service] class TradingConnectionsManager(engine: Engine with Underlyin
   when(Connected) {
     case Event(Service.Stop, _) =>
       PublisherConnection ! ErgodicityConnection.Close
-      RepliesConnection ! ErgodicityConnection.Close
       PublisherConnection ! ErgodicityConnection.Dispose
+      RepliesConnection ! ErgodicityConnection.Close
       RepliesConnection ! ErgodicityConnection.Dispose
       goto(Stopping)
   }
 
   when(Stopping, stateTimeout = 1.second) {
-    case Event(Terminated(conn@(PublisherConnection | RepliesConnection)), _) =>
+    case Event(Terminated(conn), _) =>
       log.info("Connection terminated: " + conn)
       stay()
 

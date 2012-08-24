@@ -4,7 +4,7 @@ import com.ergodicity.engine._
 import akka.actor._
 import akka.util.duration._
 import com.ergodicity.cgate.{Connection => _, _}
-import com.ergodicity.engine.Components.{CreateListener, FutInfoReplication, OptInfoReplication}
+import com.ergodicity.engine.Components.CreateListener
 import service.Service.{Stop, Start}
 import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
@@ -14,36 +14,30 @@ import akka.actor.FSM.CurrentState
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.core.{SessionsTrackingState, SessionsTracking}
 import underlying.UnderlyingConnection
+import com.ergodicity.engine.Replication.{OptInfoReplication, FutInfoReplication}
 
 case object InstrumentDataServiceId extends ServiceId
 
-trait InstrumentData {
-  engine: Engine with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication =>
+trait InstrumentDataService
 
-  def FutInfoStream: ActorRef
+trait InstrumentData extends InstrumentDataService {
+  engine: Engine with Services with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication =>
 
-  def OptInfoStream: ActorRef
+  private[this] val instrumentDataManager = context.actorOf(Props(new InstrumentDataManager(this)).withDispatcher("deque-dispatcher"), "InstrumentDataManager")
 
-  def Sessions: ActorRef
+  registerService(InstrumentDataServiceId, instrumentDataManager)
 }
 
-trait ManagedInstrumentData extends InstrumentData {
-  engine: Engine with Services with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication =>
+protected[service] class InstrumentDataManager(engine: Engine with Services with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
+
+  import engine._
 
   val FutInfoStream = context.actorOf(Props(new DataStream), "FutInfoDataStream")
   val OptInfoStream = context.actorOf(Props(new DataStream), "OptInfoDataStream")
 
   val Sessions = context.actorOf(Props(new SessionsTracking(FutInfoStream, OptInfoStream)), "SessionsTracking")
-  private[this] val sessionsManager = context.actorOf(Props(new SessionsManager(this)).withDispatcher("deque-dispatcher"), "SessionsManager")
 
-  registerService(InstrumentDataServiceId, sessionsManager)
-}
-
-protected[service] class SessionsManager(engine: Engine with Services with UnderlyingConnection with InstrumentData with CreateListener with FutInfoReplication with OptInfoReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
-
-  import engine._
-
-  val ManagedSessions = Sessions
+  log.info("Underlying conn = "+underlyingConnection+", repl = "+futInfoReplication)
 
   // Listeners
   val underlyingFutInfoListener = listener(underlyingConnection, futInfoReplication(), new DataStreamSubscriber(FutInfoStream))
@@ -69,16 +63,16 @@ protected[service] class SessionsManager(engine: Engine with Services with Under
     case Start =>
       futInfoListener ! Listener.Open(ReplicationParams(Combined))
       optInfoListener ! Listener.Open(ReplicationParams(Combined))
-      ManagedSessions ! SubscribeTransitionCallBack(self)
+      Sessions ! SubscribeTransitionCallBack(self)
   }
 
   private def handleSessionsGoesOnline: Receive = {
-    case CurrentState(ManagedSessions, SessionsTrackingState.Online) =>
-      ManagedSessions ! UnsubscribeTransitionCallBack(self)
+    case CurrentState(Sessions, SessionsTrackingState.Online) =>
+      Sessions ! UnsubscribeTransitionCallBack(self)
       ServiceManager ! ServiceStarted(InstrumentDataServiceId)
 
-    case Transition(ManagedSessions, _, SessionsTrackingState.Online) =>
-      ManagedSessions ! UnsubscribeTransitionCallBack(self)
+    case Transition(Sessions, _, SessionsTrackingState.Online) =>
+      Sessions ! UnsubscribeTransitionCallBack(self)
       ServiceManager ! ServiceStarted(InstrumentDataServiceId)
   }
 

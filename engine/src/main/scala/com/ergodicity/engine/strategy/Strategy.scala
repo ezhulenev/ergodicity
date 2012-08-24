@@ -1,9 +1,11 @@
 package com.ergodicity.engine.strategy
 
-trait Strategy
+trait StrategyId
 
 object Strategy {
   case object Start
   case object Stop
 }
+
+trait Strategy
 

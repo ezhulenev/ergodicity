@@ -10,7 +10,6 @@ import akka.actor.FSM.CurrentState
 import com.ergodicity.engine.{Strategies, Services, ServiceFailedException, Engine}
 import com.ergodicity.engine.underlying.UnderlyingTradingConnections
 import com.ergodicity.cgate.ConnectionState
-import org.mockito.Mockito
 
 class TradingConnectionsManagerSpec extends TestKit(ActorSystem("TradingConnectionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -94,8 +93,6 @@ class TradingConnectionsManagerSpec extends TestKit(ActorSystem("TradingConnecti
       val underlying = manager.underlyingActor.asInstanceOf[TradingConnectionsManager]
 
       // Activate connections
-      Mockito.when(publisherConnection.getState).thenReturn(ru.micexrts.cgate.State.ACTIVE)
-      Mockito.when(repliesConnection.getState).thenReturn(ru.micexrts.cgate.State.ACTIVE)
       underlying.PublisherConnection ! ConnectionState(com.ergodicity.cgate.Active)
       underlying.RepliesConnection ! ConnectionState(com.ergodicity.cgate.Active)
 

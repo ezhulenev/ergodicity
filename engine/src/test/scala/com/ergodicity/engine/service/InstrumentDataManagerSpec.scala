@@ -8,34 +8,29 @@ import akka.util.duration._
 import org.mockito.Mockito._
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.engine.{Services, Strategies, Engine}
-import com.ergodicity.engine.Components.{OptInfoReplication, FutInfoReplication, CreateListener}
+import com.ergodicity.engine.Components.CreateListener
 import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, ISubscriber}
 import com.ergodicity.cgate.config.Replication
 import com.ergodicity.engine.service.Service.Start
 import com.ergodicity.core.SessionsTrackingState
 import com.ergodicity.engine.underlying.UnderlyingConnection
+import com.ergodicity.engine.Replication.{OptInfoReplication, FutInfoReplication}
 
-class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
+class InstrumentDataManagerSpec extends TestKit(ActorSystem("InstrumentDataManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   override def afterAll() {
     system.shutdown()
   }
 
-  private def mockEngine(serviceManager: TestProbe, sessions: TestProbe) = TestActorRef(new {
+  private def mockEngine(serviceManager: TestProbe) = TestActorRef(new {
     val ServiceManager = serviceManager.ref
     val StrategyEngine = system.deadLetters
-    val Sessions = sessions.ref
-  } with Engine with Services with Strategies with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication with InstrumentData {
 
+  } with Engine with Services with Strategies with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication {
     val underlyingConnection = mock(classOf[CGConnection])
 
-    val FutInfoStream = system.deadLetters
-
-    val OptInfoStream = system.deadLetters
-
     val optInfoReplication = mock(classOf[Replication])
-
     val futInfoReplication = mock(classOf[Replication])
 
     def listener(connection: CGConnection, config: String, subscriber: ISubscriber) = mock(classOf[CGListener])
@@ -46,8 +41,13 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
       val serviceManager = TestProbe()
       val sessions = TestProbe()
 
-      val engine = mockEngine(serviceManager, sessions).underlyingActor
-      val manager: ActorRef = TestActorRef(Props(new SessionsManager(engine)).withDispatcher("deque-dispatcher"), "SessionsManager")
+      val engine = mockEngine(serviceManager).underlyingActor
+
+      System.out.println("Engine = "+engine+", conn = "+engine.underlyingConnection)
+
+      val manager: ActorRef = TestActorRef(Props(new InstrumentDataManager(engine) {
+        override val Sessions = sessions.ref
+      }).withDispatcher("deque-dispatcher"), "InstrumentDataManager")
 
       when("got Start message before connection service started")
       manager ! Start
@@ -71,8 +71,10 @@ class SessionsManagerSpec extends TestKit(ActorSystem("SessionsManagerSpec", com
       val serviceManager = TestProbe()
       val sessions = TestProbe()
 
-      val engine = mockEngine(serviceManager, sessions).underlyingActor
-      val manager: ActorRef = TestActorRef(Props(new SessionsManager(engine)).withDispatcher("deque-dispatcher"), "SessionsManager")
+      val engine = mockEngine(serviceManager).underlyingActor
+      val manager: ActorRef = TestActorRef(Props(new InstrumentDataManager(engine) {
+        override val Sessions = sessions.ref
+      }).withDispatcher("deque-dispatcher"), "InstrumentDataManager")
 
       manager ! ServiceStarted(ConnectionServiceId)
       watch(manager)

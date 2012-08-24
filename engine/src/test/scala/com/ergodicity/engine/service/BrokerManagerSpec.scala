@@ -12,7 +12,7 @@ import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, IS
 import com.ergodicity.engine.service.Service.Start
 import com.ergodicity.engine.Components.CreateListener
 import com.ergodicity.cgate.{Opening, Active}
-import com.ergodicity.engine.underlying.UnderlyingTradingConnections
+import com.ergodicity.engine.underlying.{UnderlyingPublisher, UnderlyingTradingConnections}
 
 class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -21,11 +21,10 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
     system.shutdown()
   }
 
-  private def mockEngine(serviceManager: TestProbe, broker: TestProbe) = TestActorRef(new {
+  private def mockEngine(serviceManager: TestProbe) = TestActorRef(new {
     val ServiceManager = serviceManager.ref
     val StrategyEngine = system.deadLetters
-    val Broker = broker.ref
-  } with Engine with Services with Strategies with CreateListener with UnderlyingTradingConnections with Trading {
+  } with Engine with Services with Strategies with CreateListener with UnderlyingTradingConnections with UnderlyingPublisher with TradingService {
     val BrokerName = "TestBroker"
 
     def underlyingPublisherConnection = mock(classOf[CGConnection])
@@ -45,8 +44,10 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
       val serviceManager = TestProbe()
       val broker = TestProbe()
 
-      val engine = mockEngine(serviceManager, broker).underlyingActor
-      val manager: ActorRef = TestActorRef(Props(new BrokerManager(engine)).withDispatcher("deque-dispatcher"), "BrokerManager")
+      val engine = mockEngine(serviceManager).underlyingActor
+      val manager: ActorRef = TestActorRef(Props(new BrokerManager(engine) {
+        override val Broker = broker.ref
+      }).withDispatcher("deque-dispatcher"), "BrokerManager")
 
       when("got Start message before broker connections service started")
       manager ! Start
@@ -70,8 +71,10 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
       val serviceManager = TestProbe()
       val broker = TestProbe()
 
-      val engine = mockEngine(serviceManager, broker).underlyingActor
-      val manager: ActorRef = TestActorRef(Props(new BrokerManager(engine)).withDispatcher("deque-dispatcher"), "BrokerManager")
+      val engine = mockEngine(serviceManager).underlyingActor
+      val manager: ActorRef = TestActorRef(Props(new BrokerManager(engine) {
+        override val Broker = broker.ref
+      }).withDispatcher("deque-dispatcher"), "BrokerManager")
 
       manager ! ServiceStarted(TradingConnectionsServiceId)
       watch(manager)
