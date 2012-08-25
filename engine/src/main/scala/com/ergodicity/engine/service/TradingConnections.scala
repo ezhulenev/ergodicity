@@ -6,7 +6,7 @@ import com.ergodicity.cgate.{Connection => CgateConnection, Active, State}
 import akka.actor._
 import akka.util.duration._
 import ru.micexrts.cgate.{Connection => CGConnection}
-import com.ergodicity.engine.service.TradingConnectionsService.{ManagerState, ManagerData}
+import com.ergodicity.engine.service.TradingConnectionsService.{ServiceState, ServiceData}
 import akka.actor.FSM.Transition
 import akka.actor.FSM.CurrentState
 import scala.Some
@@ -33,27 +33,27 @@ trait TradingConnections {
 
 object TradingConnectionsService {
 
-  sealed trait ManagerState
+  sealed trait ServiceState
 
-  case object Idle extends ManagerState
+  case object Idle extends ServiceState
 
-  case object Starting extends ManagerState
+  case object Starting extends ServiceState
 
-  case object Connected extends ManagerState
+  case object Connected extends ServiceState
 
-  case object Stopping extends ManagerState
+  case object Stopping extends ServiceState
 
 
-  sealed trait ManagerData
+  sealed trait ServiceData
 
-  case object Blank extends ManagerData
+  case object Blank extends ServiceData
 
-  case class StartingStates(publisher: Option[State] = None, replies: Option[State] = None) extends ManagerData
+  case class StartingStates(publisher: Option[State] = None, replies: Option[State] = None) extends ServiceData
 
-  case class StoppedConnections(count: Int = 0) extends ManagerData
+  case class StoppedConnections(count: Int = 0) extends ServiceData
 }
 
-protected[service] class TradingConnectionsService(publisherConnection: CGConnection, repliesConnection: CGConnection)(implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[ManagerState, ManagerData] with Service {
+protected[service] class TradingConnectionsService(publisherConnection: CGConnection, repliesConnection: CGConnection)(implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[ServiceState, ServiceData] with Service {
 
   import services._
   import TradingConnectionsService._
