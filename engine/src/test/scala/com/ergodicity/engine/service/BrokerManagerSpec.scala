@@ -1,18 +1,9 @@
 package com.ergodicity.engine.service
 
-import akka.actor.{Terminated, ActorRef, Props, ActorSystem}
+import akka.actor.ActorSystem
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit._
-import akka.util.duration._
-import org.mockito.Mockito._
-import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
-import com.ergodicity.engine.{Strategies, Services, Engine}
-import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, ISubscriber, Publisher => CGPublisher}
-import com.ergodicity.engine.service.Service.Start
-import com.ergodicity.engine.Components.CreateListener
-import com.ergodicity.cgate.{Opening, Active}
-import com.ergodicity.engine.underlying.{UnderlyingPublisher, UnderlyingTradingConnections}
 
 class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -21,7 +12,7 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
     system.shutdown()
   }
 
-  private def mockEngine(serviceManager: TestProbe) = TestActorRef(new {
+/*  private def mockEngine(serviceManager: TestProbe) = TestActorRef(new {
     val ServiceManager = serviceManager.ref
     val StrategyEngine = system.deadLetters
   } with Engine with Services with Strategies with CreateListener with UnderlyingTradingConnections with UnderlyingPublisher with TradingService {
@@ -88,5 +79,5 @@ class BrokerManagerSpec extends TestKit(ActorSystem("BrokerManagerSpec", com.erg
       and("broker manager actor terminated")
       expectMsg(Terminated(manager))
     }
-  }
+  }*/
 }

@@ -1,6 +1,6 @@
 package com.ergodicity.engine
 
-import akka.actor.{ActorRef, FSM, Actor}
+import akka.actor._
 import akka.util.duration._
 import service.Service.{Start, Stop}
 import service.{ServiceStopped, ServiceStarted, ServiceId}
@@ -48,7 +48,7 @@ object Services {
 
 }
 
-class Services extends Actor with FSM[ServicesState, ServicesData] {
+class Services extends Actor with LoggingFSM[ServicesState, ServicesData] {
 
   import ServicesState._
   import ServicesData._
@@ -57,6 +57,10 @@ class Services extends Actor with FSM[ServicesState, ServicesData] {
 
   protected val services: mutable.Map[ServiceId, ActorRef] = mutable.Map()
 
+  // Stop all services on any failed
+  override def supervisorStrategy() = AllForOneStrategy() {
+    case _: ServiceFailedException => SupervisorStrategy.Stop
+  }
 
   startWith(Idle, Blank)
 
@@ -99,10 +103,6 @@ class Services extends Actor with FSM[ServicesState, ServicesData] {
 
   override def preStart() {
     log.info("Registered services = " + services.keys)
-  }
-
-  def serviceFailed(message: String)(implicit service: ServiceId): Nothing = {
-    throw new ServiceFailedException(service, "Connection unexpected terminated")
   }
 
   def serviceStarted(implicit service: ServiceId) {

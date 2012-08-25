@@ -13,7 +13,7 @@ import com.ergodicity.cgate.config.CGateConfig
 import com.ergodicity.cgate.config.FortsMessages
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.engine.underlying.{UnderlyingTradingConnections, UnderlyingConnection}
-import com.ergodicity.engine.Replication.{PosReplication, FutInfoReplication, OptInfoReplication}
+import com.ergodicity.engine.ReplicationScheme.{PosReplication, FutInfoReplication, OptInfoReplication}
 
 class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 

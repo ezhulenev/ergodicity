@@ -1,28 +1,37 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.{Services, Engine}
+import com.ergodicity.engine.{Engine, Services}
+import com.ergodicity.engine.underlying.UnderlyingTradingConnections
+import com.ergodicity.cgate.{Connection => CgateConnection, Active, State}
 import akka.actor._
 import akka.util.duration._
-import com.ergodicity.cgate.{Connection => ErgodicityConnection, Active, State}
-import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.engine.service.TradingConnectionsManager.{ManagerData, ManagerState}
+import ru.micexrts.cgate.{Connection => CGConnection}
+import com.ergodicity.engine.service.TradingConnectionsService.{ManagerState, ManagerData}
+import akka.actor.FSM.Transition
+import akka.actor.FSM.CurrentState
+import scala.Some
+import akka.actor.Terminated
+import akka.actor.FSM.SubscribeTransitionCallBack
 import scalaz._
 import Scalaz._
-import com.ergodicity.engine.underlying.UnderlyingTradingConnections
 
-case object TradingConnectionsServiceId extends ServiceId
+object TradingConnections {
+
+  implicit case object TradingConnections extends ServiceId
+
+}
 
 trait TradingConnections {
   this: Services =>
 
+  import TradingConnections._
+
   def engine: Engine with UnderlyingTradingConnections
 
-  private[this] val connectionManager = context.actorOf(Props(new TradingConnectionsManager(this, engine)), "TradingConnectionsManager")
-
-  register(TradingConnectionsServiceId, connectionManager)
+  register(context.actorOf(Props(new TradingConnectionsService(engine.underlyingPublisherConnection, engine.underlyingRepliesConnection)), "TradingConnectionsService"))
 }
 
-object TradingConnectionsManager {
+object TradingConnectionsService {
 
   sealed trait ManagerState
 
@@ -39,20 +48,18 @@ object TradingConnectionsManager {
 
   case object Blank extends ManagerData
 
-  case class ConnectionsStates(publisher: Option[State] = None, replies: Option[State] = None) extends ManagerData
+  case class StartingStates(publisher: Option[State] = None, replies: Option[State] = None) extends ManagerData
 
+  case class StoppedConnections(count: Int = 0) extends ManagerData
 }
 
-protected[service] class TradingConnectionsManager(services: Services, engine: Engine with UnderlyingTradingConnections) extends Actor with LoggingFSM[ManagerState, ManagerData] {
+protected[service] class TradingConnectionsService(publisherConnection: CGConnection, repliesConnection: CGConnection)(implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[ManagerState, ManagerData] with Service {
 
-  import engine._
   import services._
-  import TradingConnectionsManager._
+  import TradingConnectionsService._
 
-  implicit val Id = TradingConnectionsServiceId
-
-  val PublisherConnection = context.actorOf(Props(new ErgodicityConnection(underlyingPublisherConnection)), "PublisherConnection")
-  val RepliesConnection = context.actorOf(Props(new ErgodicityConnection(underlyingRepliesConnection)), "RepliesConnection")
+  val PublisherConnection = context.actorOf(Props(new CgateConnection(publisherConnection)), "PublisherConnection")
+  val RepliesConnection = context.actorOf(Props(new CgateConnection(repliesConnection)), "RepliesConnection")
 
   context.watch(PublisherConnection)
   context.watch(RepliesConnection)
@@ -66,57 +73,62 @@ protected[service] class TradingConnectionsManager(services: Services, engine: E
       RepliesConnection ! SubscribeTransitionCallBack(self)
 
       // Open connections
-      PublisherConnection ! ErgodicityConnection.Open
-      RepliesConnection ! ErgodicityConnection.Open
+      PublisherConnection ! CgateConnection.Open
+      RepliesConnection ! CgateConnection.Open
 
-      goto(Starting) using ConnectionsStates()
+      goto(Starting) using StartingStates()
   }
 
   when(Starting) {
-    case Event(CurrentState(PublisherConnection, state: com.ergodicity.cgate.State), states@ConnectionsStates(_, _)) =>
-      handleConnectionsStates(states.copy(publisher = Some(state)))
+    case Event(CurrentState(PublisherConnection, state: com.ergodicity.cgate.State), states@StartingStates(_, _)) =>
+      startingTransition(states.copy(publisher = Some(state)))
 
-    case Event(CurrentState(RepliesConnection, state: com.ergodicity.cgate.State), states@ConnectionsStates(_, _)) =>
-      handleConnectionsStates(states.copy(replies = Some(state)))
+    case Event(CurrentState(RepliesConnection, state: com.ergodicity.cgate.State), states@StartingStates(_, _)) =>
+      startingTransition(states.copy(replies = Some(state)))
 
-    case Event(Transition(PublisherConnection, _, state: com.ergodicity.cgate.State), states@ConnectionsStates(_, _)) =>
-      handleConnectionsStates(states.copy(publisher = Some(state)))
+    case Event(Transition(PublisherConnection, _, state: com.ergodicity.cgate.State), states@StartingStates(_, _)) =>
+      startingTransition(states.copy(publisher = Some(state)))
 
-    case Event(Transition(RepliesConnection, _, state: com.ergodicity.cgate.State), states@ConnectionsStates(_, _)) =>
-      handleConnectionsStates(states.copy(replies = Some(state)))
+    case Event(Transition(RepliesConnection, _, state: com.ergodicity.cgate.State), states@StartingStates(_, _)) =>
+      startingTransition(states.copy(replies = Some(state)))
   }
 
   when(Connected) {
     case Event(Service.Stop, _) =>
-      PublisherConnection ! ErgodicityConnection.Close
-      PublisherConnection ! ErgodicityConnection.Dispose
-      RepliesConnection ! ErgodicityConnection.Close
-      RepliesConnection ! ErgodicityConnection.Dispose
-      goto(Stopping)
+      PublisherConnection ! CgateConnection.Close
+      PublisherConnection ! CgateConnection.Dispose
+      RepliesConnection ! CgateConnection.Close
+      RepliesConnection ! CgateConnection.Dispose
+      goto(Stopping) using StoppedConnections()
   }
 
-  when(Stopping, stateTimeout = 1.second) {
-    case Event(Terminated(conn), _) =>
-      log.info("Connection terminated: " + conn)
-      stay()
+  when(Stopping, stateTimeout = 5.second) {
+    case Event(Terminated(conn), StoppedConnections(cnt)) if (cnt == 0) =>
+      stay() using StoppedConnections(cnt + 1)
+
+    case Event(Terminated(conn), StoppedConnections(cnt)) if (cnt == 1) =>
+      stop(FSM.Shutdown)
 
     case Event(FSM.StateTimeout, _) =>
-      serviceStopped
-      stop(FSM.Shutdown)
+      stop(FSM.Failure("Stopping timed out"))
+  }
+
+  onTermination {
+    case stop => serviceStopped
   }
 
   whenUnhandled {
-    case Event(Terminated(PublisherConnection | RepliesConnection), _) =>
-      serviceFailed("Trading connection unexpected terminated")
+    case Event(Terminated(conn@(PublisherConnection | RepliesConnection)), _) =>
+      serviceFailed("Trading connection unexpected terminated: " + conn)
 
-    case Event(CurrentState(PublisherConnection | RepliesConnection, com.ergodicity.cgate.Error), _) =>
-      serviceFailed("Trading connection switched to Error state")
+    case Event(CurrentState(conn@(PublisherConnection | RepliesConnection), com.ergodicity.cgate.Error), _) =>
+      serviceFailed("Trading connection switched to Error state: " + conn)
 
-    case Event(Transition(PublisherConnection | RepliesConnection, _, com.ergodicity.cgate.Error), _) =>
-      serviceFailed("Trading connection switched to Error state")
+    case Event(Transition(conn@(PublisherConnection | RepliesConnection), _, com.ergodicity.cgate.Error), _) =>
+      serviceFailed("Trading connection switched to Error state: " + conn)
   }
 
-  private def handleConnectionsStates(states: ConnectionsStates) = (states.publisher <**> states.replies)((_, _)) match {
+  private def startingTransition(states: StartingStates) = (states.publisher <**> states.replies)((_, _)) match {
     case Some((Active, Active)) => goto(Connected) using Blank
     case _ => stay() using states
   }

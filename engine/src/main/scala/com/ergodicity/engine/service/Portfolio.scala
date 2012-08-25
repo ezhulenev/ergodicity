@@ -1,23 +1,8 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.{Services, Engine}
-import akka.actor._
-import akka.util.duration._
-import com.ergodicity.cgate.{Connection => _, _}
-import com.ergodicity.engine.service.Service.{Stop, Start}
-import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
-import akka.actor.FSM.Transition
-import config.Replication.ReplicationParams
-import akka.actor.FSM.CurrentState
-import akka.actor.FSM.UnsubscribeTransitionCallBack
-import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.core.{PositionsTrackingState, PositionsTracking}
-import com.ergodicity.engine.underlying.UnderlyingConnection
-import com.ergodicity.engine.Components.CreateListener
-import com.ergodicity.engine.Replication.PosReplication
-
 case object PortfolioServiceId extends ServiceId
 
+/*
 trait PortfolioService
 
 trait Portfolio extends PortfolioService {
@@ -81,4 +66,4 @@ protected[service] class PortfolioManager(services: Services, engine: Engine wit
         context.stop(self)
       }
   }
-}
+}*/

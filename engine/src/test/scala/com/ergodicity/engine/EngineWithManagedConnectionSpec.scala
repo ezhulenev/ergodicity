@@ -3,13 +3,9 @@ package com.ergodicity.engine
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.util.duration._
-import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
+import akka.testkit.{ImplicitSender, TestKit}
 import akka.actor.ActorSystem
 import akka.util.Timeout
-import org.mockito.Mockito._
-import ru.micexrts.cgate.{Connection => CGConnection}
-import service.Connection
-import underlying.UnderlyingConnection
 
 class EngineWithManagedConnectionSpec extends TestKit(ActorSystem("EngineWithManagedConnectionSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)

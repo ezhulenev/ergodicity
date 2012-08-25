@@ -79,7 +79,7 @@ trait Engine extends Actor with FSM[EngineState, EngineData] {
   }
 }
 
-object Replication {
+object ReplicationScheme {
   trait FutInfoReplication {
     def futInfoReplication: Replication
   }

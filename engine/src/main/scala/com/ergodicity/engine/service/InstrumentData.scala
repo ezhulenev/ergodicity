@@ -1,23 +1,8 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine._
-import akka.actor._
-import akka.util.duration._
-import com.ergodicity.cgate.{Connection => _, _}
-import com.ergodicity.engine.Components.CreateListener
-import service.Service.{Stop, Start}
-import com.ergodicity.cgate.config.Replication.ReplicationParams
-import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
-import akka.actor.FSM.Transition
-import akka.actor.FSM.UnsubscribeTransitionCallBack
-import akka.actor.FSM.CurrentState
-import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.core.{SessionsTrackingState, SessionsTracking}
-import underlying.UnderlyingConnection
-import com.ergodicity.engine.Replication.{OptInfoReplication, FutInfoReplication}
-
 case object InstrumentDataServiceId extends ServiceId
 
+/*
 trait InstrumentDataService
 
 trait InstrumentData extends InstrumentDataService {
@@ -90,4 +75,4 @@ protected[service] class InstrumentDataManager(services: Services, engine: Engin
         context.stop(self)
       }
   }
-}
+}*/

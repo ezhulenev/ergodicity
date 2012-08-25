@@ -1,22 +1,8 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.Components.CreateListener
-import com.ergodicity.engine.{Services, Engine}
-import akka.actor._
-import akka.util.duration._
-import com.ergodicity.core.broker.{Broker => BrokerCore, ReplySubscriber}
-import com.ergodicity.cgate.{Listener => ErgodicityListener, WhenUnhandled, Active}
-import com.ergodicity.cgate.config.Replies
-import com.ergodicity.engine.service.Service.{Stop, Start}
-import com.ergodicity.cgate.config.Replies.RepliesParams
-import akka.actor.FSM.Transition
-import akka.actor.FSM.CurrentState
-import akka.actor.FSM.UnsubscribeTransitionCallBack
-import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.engine.underlying.{UnderlyingPublisher, UnderlyingTradingConnections}
-
 case object TradingServiceId extends ServiceId
 
+/*
 trait TradingService {
   def BrokerName: String
 
@@ -83,4 +69,4 @@ protected[service] class BrokerManager(services: Services with TradingService, e
         context.stop(self)
       }
   }
-}
+}*/

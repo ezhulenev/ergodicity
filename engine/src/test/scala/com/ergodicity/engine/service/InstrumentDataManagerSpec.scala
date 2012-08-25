@@ -1,20 +1,9 @@
 package com.ergodicity.engine.service
 
-import akka.actor.{Terminated, ActorRef, Props, ActorSystem}
+import akka.actor.ActorSystem
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit._
-import akka.util.duration._
-import org.mockito.Mockito._
-import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
-import com.ergodicity.engine.{Services, Strategies, Engine}
-import com.ergodicity.engine.Components.CreateListener
-import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, ISubscriber}
-import com.ergodicity.cgate.config.Replication
-import com.ergodicity.engine.service.Service.Start
-import com.ergodicity.core.SessionsTrackingState
-import com.ergodicity.engine.underlying.UnderlyingConnection
-import com.ergodicity.engine.Replication.{OptInfoReplication, FutInfoReplication}
 
 class InstrumentDataManagerSpec extends TestKit(ActorSystem("InstrumentDataManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -23,7 +12,7 @@ class InstrumentDataManagerSpec extends TestKit(ActorSystem("InstrumentDataManag
     system.shutdown()
   }
 
-  private def mockEngine(serviceManager: TestProbe) = TestActorRef(new {
+  /*private def mockEngine(serviceManager: TestProbe) = TestActorRef(new {
     val ServiceManager = serviceManager.ref
     val StrategyEngine = system.deadLetters
 
@@ -88,5 +77,5 @@ class InstrumentDataManagerSpec extends TestKit(ActorSystem("InstrumentDataManag
       and("sessions manager actor terminated")
       expectMsg(Terminated(manager))
     }
-  }
+  }*/
 }

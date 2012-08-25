@@ -2,11 +2,9 @@ package com.ergodicity.engine
 
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
-import akka.actor.{ActorRef, Terminated, ActorSystem}
+import akka.actor.{ActorRef, ActorSystem}
 import akka.testkit._
 import service.Service.{Stop, Start}
-import service.ServiceStarted
-import service.ServiceStopped
 import service.{ServiceStopped, ServiceStarted, ServiceId}
 import com.ergodicity.engine.Services.{StopAllServices, StartAllServices}
 import akka.actor.Terminated
@@ -18,14 +16,45 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
     system.shutdown()
   }
 
+  object Service1 {
+    implicit case object Service1 extends ServiceId
+  }
+
+  object Service2 {
+    implicit case object Service2 extends ServiceId
+  }
+
+  trait Service1 {
+    self: Services =>
+    import Service1._
+
+    def service1: ActorRef
+
+    register(service1)
+  }
+
+  trait Service2 {
+    self: Services =>
+    import Service2._
+
+    def service2: ActorRef
+
+    register(service2)
+  }
+
+  class TwoServices(s1: ActorRef, s2: ActorRef) extends Services with Service1 with Service2 {
+    def service1 = s1
+
+    def service2 = s2
+  }
+
   "Service Manager" must {
+
     "get registered service" in {
-      val serviceManager = TestActorRef(new Services with Service1 {
-        def service1 = self
-      }, "Services")
+      val serviceManager = TestActorRef(new TwoServices(self, self), "Services")
       val underlying = serviceManager.underlyingActor
 
-      assert(underlying.service(ServiceId1) == self)
+      assert(underlying.service(Service1.Service1) == self)
     }
 
     "start all registered services" in {
@@ -33,11 +62,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       val srv1 = TestProbe()
       val srv2 = TestProbe()
 
-      val serviceManager = TestFSMRef(new Services with Service1 with Service2 {
-        def service1 = srv1.ref
-
-        def service2 = srv2.ref
-      }, "Services")
+      val serviceManager = TestFSMRef(new TwoServices(srv1.ref, srv2.ref), "Services")
 
       when("service manager starts all services")
       serviceManager ! StartAllServices
@@ -47,16 +72,16 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       srv2.expectMsg(Start)
 
       when("Service1 started")
-      serviceManager ! ServiceStarted(ServiceId1)
+      serviceManager ! ServiceStarted(Service1.Service1)
 
       then("service2 should be notofied")
-      srv2.expectMsg(ServiceStarted(ServiceId1))
+      srv2.expectMsg(ServiceStarted(Service1.Service1))
 
       when("Service2 started")
-      serviceManager ! ServiceStarted(ServiceId2)
+      serviceManager ! ServiceStarted(Service2.Service2)
 
       then("service1 should be notofied")
-      srv1.expectMsg(ServiceStarted(ServiceId2))
+      srv1.expectMsg(ServiceStarted(Service2.Service2))
 
       and("Service Manager should go to Active state")
 
@@ -69,12 +94,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       val srv1 = TestProbe()
       val srv2 = TestProbe()
 
-      val serviceManager = TestFSMRef(new Services with Service1 with Service2 {
-        def service1 = srv1.ref
-
-        def service2 = srv2.ref
-      }, "Services")
-
+      val serviceManager = TestFSMRef(new TwoServices(srv1.ref, srv2.ref), "Services")
       watch(serviceManager)
       serviceManager.setState(ServicesState.Active)
 
@@ -89,40 +109,19 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       srv2.expectMsg(Stop)
 
       when("Service1 stopped")
-      serviceManager ! ServiceStopped(ServiceId1)
+      serviceManager ! ServiceStopped(Service1.Service1)
 
       then("service2 should be notofied")
-      srv2.expectMsg(ServiceStopped(ServiceId1))
+      srv2.expectMsg(ServiceStopped(Service1.Service1))
 
       when("Service2 stopped")
-      serviceManager ! ServiceStopped(ServiceId2)
+      serviceManager ! ServiceStopped(Service2.Service2)
 
       then("service1 should be notofied")
-      srv1.expectMsg(ServiceStopped(ServiceId2))
+      srv1.expectMsg(ServiceStopped(Service2.Service2))
 
       and("Service Manager should be termindated")
       expectMsg(Terminated(serviceManager))
     }
   }
-
-  case object ServiceId1 extends ServiceId
-
-  case object ServiceId2 extends ServiceId
-
-  trait Service1 {
-    self: Services =>
-
-    def service1: ActorRef
-
-    register(ServiceId1, service1)
-  }
-
-  trait Service2 {
-    self: Services =>
-
-    def service2: ActorRef
-
-    register(ServiceId2, service2)
-  }
-
 }
