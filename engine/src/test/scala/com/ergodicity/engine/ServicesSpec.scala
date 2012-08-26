@@ -8,6 +8,7 @@ import service.Service.{Stop, Start}
 import service.{ServiceStopped, ServiceStarted, ServiceId}
 import com.ergodicity.engine.Services.{StopAllServices, StartAllServices}
 import akka.actor.Terminated
+import sun.awt.image.BadDepthException
 
 class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -22,6 +23,10 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
 
   object Service2 {
     implicit case object Service2 extends ServiceId
+  }
+
+  object DependentService {
+    implicit case object DependentService extends ServiceId
   }
 
   trait Service1 {
@@ -42,11 +47,37 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
     register(service2)
   }
 
+  trait DependentService {
+    self: Services =>
+    import DependentService._
+
+    def dependent: ActorRef
+
+    register(dependent, dependOn = Service1.Service1 :: Service2.Service2 :: Nil)
+  }
+
   class TwoServices(s1: ActorRef, s2: ActorRef) extends Services with Service1 with Service2 {
     def service1 = s1
 
     def service2 = s2
   }
+
+  class ThreeServices(s1: ActorRef, s2: ActorRef, dep: ActorRef) extends Services with Service1 with Service2 with DependentService {
+    def service1 = s1
+
+    def service2 = s2
+
+    def dependent = dep
+  }
+
+  class BadDependent(s1: ActorRef, s2: ActorRef, dep: ActorRef) extends Services with DependentService with Service1 with Service2 {
+    def service1 = s1
+
+    def service2 = s2
+
+    def dependent = dep
+  }
+
 
   "Service Manager" must {
 
@@ -122,6 +153,26 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
 
       and("Service Manager should be termindated")
       expectMsg(Terminated(serviceManager))
+    }
+
+    "register service with dependency" in {
+      val s1 = TestProbe()
+      val s2 = TestProbe()
+      val dep = TestProbe()
+
+      val serviceManager = TestActorRef(new ThreeServices(s1.ref, s2.ref, dep.ref), "Services")
+      val underlying = serviceManager.underlyingActor
+
+      log.info("Services = "+underlying.services)
+    }
+
+    "fail to register depending on non existing service" in {
+      val serviceManager = TestActorRef(new Services, "Services")
+      val underlying = serviceManager.underlyingActor
+
+      intercept[IllegalStateException] {
+        underlying.register(self, Service1.Service1 :: Nil)(DependentService.DependentService)
+      }
     }
   }
 }
