@@ -145,20 +145,19 @@ class Services extends Actor with LoggingFSM[ServicesState, ServicesData] {
     log.info("Register service, Id = " + id + ", ref = " + ref + ", depends on = " + dependOn)
     val service = new ManagedService(id, ref)
 
-    if (services.contains(service))
-      throw new IllegalArgumentException("Service with id = " + id + " has been already registered")
+    // Don't register service twice
+    if (services.contains(service)) throw new IllegalArgumentException("Service with id = " + id + " has been already registered")
 
-    else {
-      services += service
-      dependOn foreach {
-        dep =>
-          val edge: Option[DependsOn[ManagedService]] = services.nodes.find(_.id == dep).map(from => DependsOn(from, service))
-          edge.map(services add _).orElse {
-            throw new IllegalStateException("Can't add dependency egde " + dep + " ~> " + id + ", as " + dep + " still not registered")
-          }
-      }
+    // Register new service
+    services += service
+    dependOn foreach {
+      dep =>
+        val edge: Option[DependsOn[ManagedService]] = services.nodes.find(_.id == dep).map(from => DependsOn(from, service))
+        edge.map(services add _).orElse {
+          throw new IllegalStateException("Can't add dependency egde " + dep + " ~> " + id + ", as " + dep + " still not registered")
+        }
     }
   }
 
-  def service(id: ServiceId) = services.nodes.find(_.id == id).getOrElse(id, throw new ServiceNotFoundException(id))
+  def service(id: ServiceId): ManagedService = services.nodes.find(_.id == id).getOrElse(throw new ServiceNotFoundException(id))
 }

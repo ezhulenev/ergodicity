@@ -85,7 +85,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       val serviceManager = TestActorRef(new TwoServices(self, self), "Services")
       val underlying = serviceManager.underlyingActor
 
-      assert(underlying.service(Service1.Service1) == self)
+      assert(underlying.service(Service1.Service1).ref == self, "Actual service ref = " + underlying.service(Service1.Service1))
     }
 
     "start all registered services" in {
