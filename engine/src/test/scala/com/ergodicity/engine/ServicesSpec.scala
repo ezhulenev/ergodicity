@@ -2,13 +2,13 @@ package com.ergodicity.engine
 
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.{FSM, ActorRef, ActorSystem, Terminated}
 import akka.testkit._
 import akka.util.duration._
 import service.Service.{Stop, Start}
 import service.{ServiceStopped, ServiceStarted, ServiceId}
 import com.ergodicity.engine.Services.{StopAllServices, StartAllServices}
-import akka.actor.Terminated
+import com.ergodicity.engine.ServicesData.PendingServices
 
 class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -163,6 +163,21 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       log.info("Services = " + underlying.services)
 
       assert(underlying.services.size == 3)
+
+      assert(underlying.services(DependentService.DependentService).startLock.toSeq match {
+        case startUp :: Service1.Service1 :: Service2.Service2 :: Nil => true
+        case _ => false
+      })
+
+      assert(underlying.services(Service1.Service1).stopLock.toSeq match {
+        case DependentService.DependentService :: xs => true
+        case _ => false
+      })
+
+      assert(underlying.services(Service2.Service2).stopLock.toSeq match {
+        case DependentService.DependentService :: xs => true
+        case _ => false
+      })
     }
 
     "start all registered services according to their dependencies" in {
@@ -200,16 +215,64 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
         "Service Manager state = " + serviceManager.stateName + "; Data = " + serviceManager.stateData)
     }
 
-    "fail to start Services if not all dependency services provided" in {
-      val serviceManager = TestActorRef(new Services with Service1 with DependentService {
-        def service1 = system.deadLetters
+    "stop all registered services according to their dependencies" in {
+      given("Service Manager with three services")
+      val s1 = TestProbe()
+      val s2 = TestProbe()
+      val dep = TestProbe()
 
-        def dependent = system.deadLetters
-      }, "Services")
+      val serviceManager = TestFSMRef(new ThreeServices(s1.ref, s2.ref, dep.ref), "Services")
+      serviceManager.setState(ServicesState.Active)
+      watch(serviceManager)
+
+      when("service manager starts all services")
+      serviceManager ! StopAllServices
+
+      then("Dependent service get Stop message")
+      dep.expectMsg(Stop)
+
+      and("Service1 & Service2 get no messages")
+      s1.expectNoMsg(150.millis)
+      s2.expectNoMsg(150.millis)
+
+      when("Dependent service stopped started")
+      serviceManager ! ServiceStopped(DependentService.DependentService)
+
+      then("Service2 & Service2 get Stop message")
+      s1.expectMsg(Stop)
+      s2.expectMsg(Stop)
+
+
+      when("all services Stopped")
+      serviceManager ! ServiceStopped(Service1.Service1)
+      serviceManager ! ServiceStopped(Service2.Service2)
+
+      then("Service Manager should stop itself")
+      expectMsg(Terminated(serviceManager))
+    }
+
+    "stop itself on Timed out in Stopping state" in {
+      val s1 = TestProbe()
+      val s2 = TestProbe()
+      val dep = TestProbe()
+
+      val serviceManager = TestFSMRef(new ThreeServices(s1.ref, s2.ref, dep.ref), "Services")
+      serviceManager.setState(ServicesState.Stopping, PendingServices(Nil))
+      watch(serviceManager)
+
+      serviceManager ! FSM.StateTimeout
+
+      expectMsg(Terminated(serviceManager))
+    }
+
+
+    "fail to register Service if dependency is not provided" in {
+      val serviceManager = TestActorRef(new Services, "Services")
       val underlying = serviceManager.underlyingActor
 
       intercept[IllegalStateException] {
-        underlying.preStart()
+        implicit val id = DependentService.DependentService
+        underlying.register(self, dependOn = Service1.Service1 :: Nil)
       }
     }
   }

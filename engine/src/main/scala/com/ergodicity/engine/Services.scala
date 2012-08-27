@@ -2,12 +2,10 @@ package com.ergodicity.engine
 
 import akka.actor._
 import akka.util.duration._
-import service.Service.Stop
 import service.{Service, ServiceStopped, ServiceStarted, ServiceId}
 import akka.actor.FSM.Normal
 import collection.mutable
 import scalaz._
-import Scalaz._
 
 sealed trait ServicesState
 
@@ -35,7 +33,10 @@ object ServicesData {
 
 object Services {
 
-  private[Services] case object ServiceManager extends ServiceId
+  // Barriers for starting & stopping services
+  private[Services] case object StartUp extends ServiceId
+
+  private[Services] case object ShutDown extends ServiceId
 
   // Commands
   case object StartAllServices
@@ -59,16 +60,28 @@ object Services {
   }
 
   sealed trait ServiceLock[A <: Service.Action] {
+    def lock(id: ServiceId): ServiceLock[A]
+
     def unlock(id: ServiceId): ServiceLock[A]
+
+    def toSeq: Seq[ServiceId]
   }
 
   private[this] def Unlocked[A <: Service.Action] = new ServiceLock[A] {
+    val toSeq = Seq.empty[ServiceId]
+
+    def lock(id: ServiceId): ServiceLock[A] = throw new UnsupportedOperationException
+
     def unlock(id: ServiceId) = this
   }
 
-  case class Locked[A <: Service.Action](required: NonEmptyList[ServiceId])(implicit val onUnlock: OnUnlock[A]) extends ServiceLock[A] {
-    def unlock(id: ServiceId) = (required.list.filterNot(_ == id)) match {
-      case x :: xs => copy(required = NonEmptyList(x, xs: _*))
+  case class Locked[A <: Service.Action](locks: NonEmptyList[ServiceId])(implicit val onUnlock: OnUnlock[A]) extends ServiceLock[A] {
+    def toSeq = locks.list.toSeq
+
+    def lock(id: ServiceId) = copy(id <:: locks)
+
+    def unlock(id: ServiceId) = (locks.list.filterNot(_ == id)) match {
+      case x :: xs => copy(locks = NonEmptyList(x, xs: _*))
       case Nil => onUnlock(); Unlocked[A]
     }
   }
@@ -108,7 +121,7 @@ class Services extends Actor with LoggingFSM[ServicesState, ServicesData] {
   when(Idle) {
     case Event(StartAllServices, _) =>
       log.info("Start all services = " + services.keys)
-      started(ServiceManager)
+      started(StartUp)
       goto(Starting) using PendingServices(services.keys)
   }
 
@@ -129,38 +142,29 @@ class Services extends Actor with LoggingFSM[ServicesState, ServicesData] {
   when(Active) {
     case Event(StopAllServices, _) =>
       log.info("Stop all services = " + services.keys)
-      services.values.foreach(_.ref ! Stop)
+      stopped(ShutDown)
       goto(Stopping) using PendingServices(services.keys)
   }
 
-  when(Stopping) {
-    case Event(stopped@ServiceStopped(service), PendingServices(pending)) =>
+  when(Stopping, stateTimeout = 30.seconds) {
+    case Event(ServiceStopped(service), PendingServices(pending)) =>
       val remaining = pending.filterNot(_ == service)
       log.info("Service stopped = " + service + ", remaining = " + remaining)
-
+      stopped(service)
       remaining.size match {
         case 0 => stop(Normal)
         case _ => stay() using PendingServices(remaining)
       }
+
+    case Event(FSM.StateTimeout, PendingServices(pending)) =>
+      stop(FSM.Shutdown)
   }
 
   override def preStart() {
     log.info("Registered services = " + services.keys)
-    // Check that all required locks possible could be resolved
     services.foreach {
-      case pair@(id, service) =>
-        log.info(" - " + id + "; startLock = " + service.startLock + ", stopLock = " + service.stopLock)
-
-        service.startLock match {
-          case Locked(required) => required.foreach {
-            required =>
-              if (required != ServiceManager && !services.contains(required)) {
-                log.error("Missing required service = " + required + ", for " + id)
-                throw new IllegalStateException("Missing required service = " + required + ", for " + id)
-              }
-          }
-          case lock => throw new IllegalStateException("Illegal lock state = " + lock)
-        }
+      case (id, service) =>
+        log.info(" - " + id + "; startLock = " + service.startLock.toSeq + ", stopLock = " + service.stopLock.toSeq)
     }
   }
 
@@ -176,16 +180,29 @@ class Services extends Actor with LoggingFSM[ServicesState, ServicesData] {
     log.info("Register service, Id = " + id + ", ref = " + ref + ", depends on = " + dependOn)
 
     if (services.contains(id))
-      throw new IllegalArgumentException("Service with id = " + id + " has been already registered")
+      throw new IllegalStateException("Service with id = " + id + " has been already registered")
+
+    dependOn.foreach {
+      required =>
+        if (!services.contains(required)) {
+          log.error("Missing required service = " + required + ", for " + id)
+          throw new IllegalStateException("Missing required service = " + required + ", for " + id)
+        }
+    }
 
     implicit val start = onStart(ref)
     implicit val stop = onStop(ref)
 
-    services(id) = dependOn match {
-      // Lock on Root service
-      case Nil => ManagedService(ref, Locked[OnStart](NonEmptyList(ServiceManager)), Locked[OnStop](NonEmptyList(ServiceManager)))
-      // Lock on given services
-      case x :: xs => ManagedService(ref, Locked[OnStart](NonEmptyList(x, xs: _*)), Locked[OnStop](NonEmptyList(ServiceManager)))
+    val startLock = Locked[OnStart](NonEmptyList(StartUp, dependOn: _*))
+    val stopLock = Locked[OnStop](NonEmptyList(ShutDown))
+
+    services(id) = ManagedService(ref, startLock, stopLock)
+
+    // Update stop locks on existing services
+    services.transform {
+      case (i, service) if (dependOn contains i) =>
+        service.copy(stopLock = service.stopLock.lock(id))
+      case (i, service) => service
     }
   }
 
