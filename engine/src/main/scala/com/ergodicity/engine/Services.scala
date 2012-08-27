@@ -2,8 +2,8 @@ package com.ergodicity.engine
 
 import akka.actor._
 import akka.util.duration._
-import service.Service.{Start, Stop}
-import service.{ServiceStopped, ServiceStarted, ServiceId}
+import service.Service.Stop
+import service.{Service, ServiceStopped, ServiceStarted, ServiceId}
 import akka.actor.FSM.Normal
 import collection.mutable
 import scalaz._
@@ -51,27 +51,41 @@ object Services {
   class ServiceNotFoundException(service: ServiceId) extends RuntimeException
 
   // Managing Services dependencies
-  sealed trait OnUnlock {
+  type OnStart = Service.Start.type
+  type OnStop = Service.Stop.type
+
+  sealed trait OnUnlock[A <: Service.Action] {
     def apply()
   }
 
-  sealed trait ServiceLock {
-    def unlock(id: ServiceId): ServiceLock
+  sealed trait ServiceLock[A <: Service.Action] {
+    def unlock(id: ServiceId): ServiceLock[A]
   }
 
-  private[this] case object Unlocked extends ServiceLock {
+  private[this] def Unlocked[A <: Service.Action] = new ServiceLock[A] {
     def unlock(id: ServiceId) = this
   }
 
-  case class Locked(required: NonEmptyList[ServiceId])(implicit val onUnlock: OnUnlock) extends ServiceLock {
+  case class Locked[A <: Service.Action](required: NonEmptyList[ServiceId])(implicit val onUnlock: OnUnlock[A]) extends ServiceLock[A] {
     def unlock(id: ServiceId) = (required.list.filterNot(_ == id)) match {
       case x :: xs => copy(required = NonEmptyList(x, xs: _*))
-      case Nil => onUnlock(); Unlocked
+      case Nil => onUnlock(); Unlocked[A]
     }
   }
 
-  case class ManagedService(ref: ActorRef, startUp: ServiceLock = Unlocked)
+  case class ManagedService(ref: ActorRef, startLock: ServiceLock[Service.Start.type], stopLock: ServiceLock[Service.Stop.type])
 
+  def onStart(ref: ActorRef) = new OnUnlock[Service.Start.type] {
+    def apply() {
+      ref ! Service.Start
+    }
+  }
+
+  def onStop(ref: ActorRef) = new OnUnlock[Service.Stop.type] {
+    def apply() {
+      ref ! Service.Stop
+    }
+  }
 }
 
 class Services extends Actor with LoggingFSM[ServicesState, ServicesData] {
@@ -94,15 +108,16 @@ class Services extends Actor with LoggingFSM[ServicesState, ServicesData] {
   when(Idle) {
     case Event(StartAllServices, _) =>
       log.info("Start all services = " + services.keys)
-      unlock(ServiceManager)
+      started(ServiceManager)
       goto(Starting) using PendingServices(services.keys)
   }
 
   when(Starting, stateTimeout = 30.seconds) {
-    case Event(started@ServiceStarted(service), PendingServices(pending)) =>
+    case Event(ServiceStarted(service), PendingServices(pending)) =>
       val remaining = pending.filterNot(_ == service)
       log.info("Service started = " + service + ", remaining = " + remaining)
-      services.filter(_._1 != service).foreach(_._2.ref ! started)
+      started(service)
+
       remaining.size match {
         case 0 => goto(Active) using Blank
         case _ => stay() using PendingServices(remaining)
@@ -120,8 +135,9 @@ class Services extends Actor with LoggingFSM[ServicesState, ServicesData] {
 
   when(Stopping) {
     case Event(stopped@ServiceStopped(service), PendingServices(pending)) =>
-      services.filter(_._1 != service).foreach(_._2.ref ! stopped)
       val remaining = pending.filterNot(_ == service)
+      log.info("Service stopped = " + service + ", remaining = " + remaining)
+
       remaining.size match {
         case 0 => stop(Normal)
         case _ => stay() using PendingServices(remaining)
@@ -130,11 +146,12 @@ class Services extends Actor with LoggingFSM[ServicesState, ServicesData] {
 
   override def preStart() {
     log.info("Registered services = " + services.keys)
-
     // Check that all required locks possible could be resolved
     services.foreach {
       case pair@(id, service) =>
-        service.startUp match {
+        log.info(" - " + id + "; startLock = " + service.startLock + ", stopLock = " + service.stopLock)
+
+        service.startLock match {
           case Locked(required) => required.foreach {
             required =>
               if (required != ServiceManager && !services.contains(required)) {
@@ -161,27 +178,31 @@ class Services extends Actor with LoggingFSM[ServicesState, ServicesData] {
     if (services.contains(id))
       throw new IllegalArgumentException("Service with id = " + id + " has been already registered")
 
-    implicit val onUnlock = new OnUnlock {
-      def apply() {
-        log.info("Unlocked service = " + id)
-        ref ! Start
-      }
-    }
+    implicit val start = onStart(ref)
+    implicit val stop = onStop(ref)
 
     services(id) = dependOn match {
       // Lock on Root service
-      case Nil => ManagedService(ref, Locked(NonEmptyList(ServiceManager)))
+      case Nil => ManagedService(ref, Locked[OnStart](NonEmptyList(ServiceManager)), Locked[OnStop](NonEmptyList(ServiceManager)))
       // Lock on given services
-      case x :: xs => ManagedService(ref, Locked(NonEmptyList(x, xs: _*)))
+      case x :: xs => ManagedService(ref, Locked[OnStart](NonEmptyList(x, xs: _*)), Locked[OnStop](NonEmptyList(ServiceManager)))
     }
   }
 
   def service(id: ServiceId): ActorRef = services.get(id).map(_.ref).getOrElse(throw new ServiceNotFoundException(id))
 
-  private def unlock(unlocked: ServiceId) {
+  private def started(unlocked: ServiceId) {
     services.transform {
       case (_, service) =>
-        service.copy(startUp = service.startUp.unlock(unlocked))
+        service.copy(startLock = service.startLock.unlock(unlocked))
     }
   }
+
+  private def stopped(unlocked: ServiceId) {
+    services.transform {
+      case (_, service) =>
+        service.copy(stopLock = service.stopLock.unlock(unlocked))
+    }
+  }
+
 }

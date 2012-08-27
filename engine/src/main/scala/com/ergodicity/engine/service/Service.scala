@@ -7,9 +7,11 @@ trait ServiceId
 
 object Service {
 
-  case object Start
+  sealed trait Action
 
-  case object Stop
+  case object Start extends Action
+
+  case object Stop extends Action
 
 }
 

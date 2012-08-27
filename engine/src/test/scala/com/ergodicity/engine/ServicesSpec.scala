@@ -4,6 +4,7 @@ import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.actor.{ActorRef, ActorSystem}
 import akka.testkit._
+import akka.util.duration._
 import service.Service.{Stop, Start}
 import service.{ServiceStopped, ServiceStarted, ServiceId}
 import com.ergodicity.engine.Services.{StopAllServices, StartAllServices}
@@ -96,7 +97,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       assert(underlying.service(Service1.Service1) == self, "Actual service ref = " + underlying.service(Service1.Service1))
     }
 
-    "start all registered services" in {
+    "start all registered without additional dependencies services" in {
       given("Service Manager with two registered services: Service1 and Service2")
       val srv1 = TestProbe()
       val srv2 = TestProbe()
@@ -113,22 +114,16 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       when("Service1 started")
       serviceManager ! ServiceStarted(Service1.Service1)
 
-      then("service2 should be notofied")
-      srv2.expectMsg(ServiceStarted(Service1.Service1))
-
-      when("Service2 started")
+      and("Service2 started")
       serviceManager ! ServiceStarted(Service2.Service2)
 
-      then("service1 should be notofied")
-      srv1.expectMsg(ServiceStarted(Service2.Service2))
-
-      and("Service Manager should go to Active state")
+      then("Service Manager should go to Active state")
 
       assert(serviceManager.stateName == ServicesState.Active,
         "Service Manager state = " + serviceManager.stateName + "; Data = " + serviceManager.stateData)
     }
 
-    "stop all registered services" in {
+    "stop all registered without additional dependencies services" in {
       given("Service Manager with two registered services: Service1 and Service2")
       val srv1 = TestProbe()
       val srv2 = TestProbe()
@@ -150,16 +145,10 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       when("Service1 stopped")
       serviceManager ! ServiceStopped(Service1.Service1)
 
-      then("service2 should be notofied")
-      srv2.expectMsg(ServiceStopped(Service1.Service1))
-
-      when("Service2 stopped")
+      and("Service2 stopped")
       serviceManager ! ServiceStopped(Service2.Service2)
 
-      then("service1 should be notofied")
-      srv1.expectMsg(ServiceStopped(Service2.Service2))
-
-      and("Service Manager should be termindated")
+      then("Service Manager should be termindated")
       expectMsg(Terminated(serviceManager))
     }
 
@@ -174,6 +163,41 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       log.info("Services = " + underlying.services)
 
       assert(underlying.services.size == 3)
+    }
+
+    "start all registered services according to their dependencies" in {
+      given("Service Manager with three services")
+      val s1 = TestProbe()
+      val s2 = TestProbe()
+      val dep = TestProbe()
+
+      val serviceManager = TestFSMRef(new ThreeServices(s1.ref, s2.ref, dep.ref), "Services")
+
+      when("service manager starts all services")
+      serviceManager ! StartAllServices
+
+      then("Service1 & Service2 get Start message")
+      s1.expectMsg(Start)
+      s2.expectMsg(Start)
+
+      and("Dependent service get no messages")
+      dep.expectNoMsg(300.millis)
+
+      when("Service1 started")
+      serviceManager ! ServiceStarted(Service1.Service1)
+
+      and("Service2 started")
+      serviceManager ! ServiceStarted(Service2.Service2)
+
+      then("Dependent service get Start message")
+      dep.expectMsg(Start)
+
+      when("last service started")
+      serviceManager ! ServiceStarted(DependentService.DependentService)
+
+      then("Service Manager goes to Active state")
+      assert(serviceManager.stateName == ServicesState.Active,
+        "Service Manager state = " + serviceManager.stateName + "; Data = " + serviceManager.stateData)
     }
 
     "fail to start Services if not all dependency services provided" in {
