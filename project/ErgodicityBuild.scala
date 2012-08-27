@@ -134,7 +134,7 @@ object Dependencies {
 
   val quant = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
-  val engine = Seq(scalaz, scalaGraph) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
+  val engine = Seq(scalaz) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val core = Seq(scalaz, jodaTime, jodaConvert, scalaTime) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
@@ -185,7 +185,6 @@ object Dependency {
   val akkaSlf4j              = "com.typesafe.akka"                 % "akka-slf4j"             % V.Akka
   val scalaIO                = "com.github.scala-incubator.io"    %% "scala-io-core"          % V.ScalaIO
   val casbah                 = "org.mongodb"                      %% "casbah"                 % V.Casbah
-  val scalaGraph             = "com.assembla.scala-incubator"     %% "graph-core"             % V.ScalaGraph
 
   // Provided
 

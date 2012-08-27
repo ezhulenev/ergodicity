@@ -8,7 +8,6 @@ import service.Service.{Stop, Start}
 import service.{ServiceStopped, ServiceStarted, ServiceId}
 import com.ergodicity.engine.Services.{StopAllServices, StartAllServices}
 import akka.actor.Terminated
-import sun.awt.image.BadDepthException
 
 class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -18,19 +17,26 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
   }
 
   object Service1 {
+
     implicit case object Service1 extends ServiceId
+
   }
 
   object Service2 {
+
     implicit case object Service2 extends ServiceId
+
   }
 
   object DependentService {
+
     implicit case object DependentService extends ServiceId
+
   }
 
   trait Service1 {
     self: Services =>
+
     import Service1._
 
     def service1: ActorRef
@@ -40,6 +46,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
 
   trait Service2 {
     self: Services =>
+
     import Service2._
 
     def service2: ActorRef
@@ -49,11 +56,12 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
 
   trait DependentService {
     self: Services =>
+
     import DependentService._
 
     def dependent: ActorRef
 
-    register(dependent, dependOn = Service1.Service1 :: Service2.Service2 :: Nil)
+    register(dependent, dependOn = Seq(Service1.Service1, Service2.Service2))
   }
 
   class TwoServices(s1: ActorRef, s2: ActorRef) extends Services with Service1 with Service2 {
@@ -85,7 +93,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       val serviceManager = TestActorRef(new TwoServices(self, self), "Services")
       val underlying = serviceManager.underlyingActor
 
-      assert(underlying.service(Service1.Service1).ref == self, "Actual service ref = " + underlying.service(Service1.Service1))
+      assert(underlying.service(Service1.Service1) == self, "Actual service ref = " + underlying.service(Service1.Service1))
     }
 
     "start all registered services" in {
@@ -163,15 +171,21 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       val serviceManager = TestActorRef(new ThreeServices(s1.ref, s2.ref, dep.ref), "Services")
       val underlying = serviceManager.underlyingActor
 
-      log.info("Services = "+underlying.services)
+      log.info("Services = " + underlying.services)
+
+      assert(underlying.services.size == 3)
     }
 
-    "fail to register depending on non existing service" in {
-      val serviceManager = TestActorRef(new Services, "Services")
+    "fail to start Services if not all dependency services provided" in {
+      val serviceManager = TestActorRef(new Services with Service1 with DependentService {
+        def service1 = system.deadLetters
+
+        def dependent = system.deadLetters
+      }, "Services")
       val underlying = serviceManager.underlyingActor
 
       intercept[IllegalStateException] {
-        underlying.register(self, Service1.Service1 :: Nil)(DependentService.DependentService)
+        underlying.preStart()
       }
     }
   }
