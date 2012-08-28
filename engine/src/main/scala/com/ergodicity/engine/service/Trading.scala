@@ -1,72 +1,73 @@
 package com.ergodicity.engine.service
 
-case object TradingServiceId extends ServiceId
+import com.ergodicity.engine.underlying.{ListenerFactory, UnderlyingPublisher, UnderlyingTradingConnections, UnderlyingListener}
+import com.ergodicity.engine.{Services, Engine}
+import com.ergodicity.core.broker.{ReplySubscriber, Broker}
+import akka.actor.{Actor, ActorLogging, Props}
+import akka.util.duration._
+import com.ergodicity.cgate.{Active, Listener, WhenUnhandled}
+import ru.micexrts.cgate.{Publisher => CGPublisher, Connection => CGConnection}
+import com.ergodicity.cgate.config.Replies
+import com.ergodicity.engine.service.Service.{Stop, Start}
+import akka.actor.FSM.{SubscribeTransitionCallBack, CurrentState, Transition, UnsubscribeTransitionCallBack}
+import com.ergodicity.cgate.config.Replies.RepliesParams
 
-/*
-trait TradingService {
-  def BrokerName: String
+object Trading {
 
-  implicit def BrokerConfig: BrokerCore.Config
+  implicit case object Trading extends ServiceId
+
 }
 
-trait Trading extends TradingService {
+trait Trading {
   this: Services =>
 
-  def engine: Engine with UnderlyingTradingConnections with UnderlyingPublisher with CreateListener
+  import Trading._
 
-  private[this] val brokerManager = context.actorOf(Props(new BrokerManager(this, engine)).withDispatcher("deque-dispatcher"), "BrokerManager")
+  implicit def BrokerConfig: Broker.Config
 
-  register(TradingServiceId, brokerManager)
+  def engine: Engine with UnderlyingListener with UnderlyingTradingConnections with UnderlyingPublisher
+
+  register(context.actorOf(Props(new TradingService(engine.listenerFactory, engine.underlyingPublisher, engine.underlyingRepliesConnection)), "Trading"))
 }
 
-protected[service] class BrokerManager(services: Services with TradingService, engine: Engine with CreateListener with UnderlyingTradingConnections with UnderlyingPublisher) extends Actor with ActorLogging with WhenUnhandled with Stash {
-  import engine._
+protected[service] class TradingService(listener: ListenerFactory, underlyingPublisher: CGPublisher, underlyingRepliesConnection: CGConnection)
+                                       (implicit val services: Services, id: ServiceId, config: Broker.Config) extends Actor with ActorLogging with WhenUnhandled {
+
   import services._
 
-  implicit val Id = TradingServiceId
-  val Broker = context.actorOf(Props(new BrokerCore(underlyingPublisher)), "Broker")
+  val TradingBroker = context.actorOf(Props(new Broker(underlyingPublisher)), "Broker")
 
-  private[this] val underlyingRepliesListener = listener(underlyingRepliesConnection, Replies(BrokerName)(), new ReplySubscriber(Broker))
-  private[this] val replyListener = context.actorOf(Props(new ErgodicityListener(underlyingRepliesListener)), "RepliesListener")
+  private[this] val underlyingRepliesListener = listener(underlyingRepliesConnection, Replies(self.path.name)(), new ReplySubscriber(TradingBroker))
+  private[this] val replyListener = context.actorOf(Props(new Listener(underlyingRepliesListener)), "RepliesListener")
 
-  protected def receive = {
-    case ServiceStarted(TradingConnectionsServiceId) =>
-      log.info("BrokerConnectionsService started, unstash all messages and start Trading and replies listeners")
-      unstashAll()
-      context.become {
-        start orElse stop orElse handleBrokerActivated orElse whenUnhandled
-      }
-
-    case msg =>
-      log.info("Stash message until BrokerConnectionsService is not started = " + msg)
-      stash()
-  }
+  protected def receive = start orElse stop orElse handleBrokerActivated orElse whenUnhandled
 
   private def start: Receive = {
     case Start =>
-      replyListener ! ErgodicityListener.Open(RepliesParams)
-      Broker ! SubscribeTransitionCallBack(self)
-      Broker ! BrokerCore.Open
+      replyListener ! Listener.Open(RepliesParams)
+      TradingBroker ! SubscribeTransitionCallBack(self)
+      TradingBroker ! Broker.Open
   }
 
   private def handleBrokerActivated: Receive = {
-    case CurrentState(Broker, Active) =>
-      Broker ! UnsubscribeTransitionCallBack(self)
+    case CurrentState(TradingBroker, Active) =>
+      TradingBroker ! UnsubscribeTransitionCallBack(self)
       serviceStarted
 
-    case Transition(Broker, _, Active) =>
-      Broker ! UnsubscribeTransitionCallBack(self)
+    case Transition(TradingBroker, _, Active) =>
+      TradingBroker ! UnsubscribeTransitionCallBack(self)
       serviceStarted
   }
 
   private def stop: Receive = {
     case Stop =>
-      Broker ! BrokerCore.Close
-      replyListener ! ErgodicityListener.Close
-      replyListener ! ErgodicityListener.Dispose
+      TradingBroker ! Broker.Close
+      replyListener ! Listener.Close
+      replyListener ! Listener.Dispose
+
       context.system.scheduler.scheduleOnce(1.second) {
         serviceStopped
         context.stop(self)
       }
   }
-}*/
+}

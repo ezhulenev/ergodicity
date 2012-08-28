@@ -29,7 +29,7 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
   }
 
   "InstrumentData Service" must {
-    "stash messages before ConnectionService is activated" in {
+    "start service" in {
       val underlyingConnection = mock(classOf[CGConnection])
       val optInfoReplication = mock(classOf[Replication])
       val futInfoReplication = mock(classOf[Replication])
@@ -54,7 +54,7 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
       verify(services).serviceStarted(InstrumentData.InstrumentData)
     }
 
-    "stop actor on Service.Stop message" in {
+    "stop service" in {
       val underlyingConnection = mock(classOf[CGConnection])
       val optInfoReplication = mock(classOf[Replication])
       val futInfoReplication = mock(classOf[Replication])

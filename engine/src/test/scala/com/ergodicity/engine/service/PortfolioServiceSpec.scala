@@ -28,7 +28,7 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
   }
 
   "Portfolio Service" must {
-    "stash messages before ConnectionService is activated" in {
+    "start service" in {
       val underlyingConnection = mock(classOf[CGConnection])
       val posReplication = mock(classOf[Replication])
 
@@ -53,7 +53,7 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
       verify(services).serviceStarted(Id)
     }
 
-    "stop actor on Service.Stop message" in {
+    "stop service" in {
       val underlyingConnection = mock(classOf[CGConnection])
       val posReplication = mock(classOf[Replication])
 
