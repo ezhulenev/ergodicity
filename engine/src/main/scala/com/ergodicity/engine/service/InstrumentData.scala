@@ -1,23 +1,38 @@
 package com.ergodicity.engine.service
 
-case object InstrumentDataServiceId extends ServiceId
+import com.ergodicity.engine.{Engine, Services}
+import com.ergodicity.engine.underlying.{ListenerFactory, UnderlyingListener, UnderlyingConnection}
+import com.ergodicity.engine.ReplicationScheme.{OptInfoReplication, FutInfoReplication}
+import akka.actor.{ActorLogging, Actor, Props}
+import akka.util.duration._
+import com.ergodicity.cgate.{Listener, DataStreamSubscriber, DataStream, WhenUnhandled}
+import com.ergodicity.core.{SessionsTrackingState, SessionsTracking}
+import ru.micexrts.cgate.{Connection => CGConnection}
+import com.ergodicity.cgate.config.Replication
+import com.ergodicity.engine.service.Service.{Stop, Start}
+import com.ergodicity.cgate.config.Replication.ReplicationParams
+import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
+import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
 
-/*
-trait InstrumentDataService
+object InstrumentData {
 
-trait InstrumentData extends InstrumentDataService {
-  this: Services =>
+  implicit case object InstrumentData extends ServiceId
 
-  def engine: Engine with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication
-
-  private[this] val instrumentDataManager = context.actorOf(Props(new InstrumentDataManager(this, engine)).withDispatcher("deque-dispatcher"), "InstrumentDataManager")
-
-  register(InstrumentDataServiceId, instrumentDataManager)
 }
 
-protected[service] class InstrumentDataManager(services: Services, engine: Engine with UnderlyingConnection with CreateListener with FutInfoReplication with OptInfoReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
+trait InstrumentData {
+  this: Services =>
 
-  import engine._
+  import InstrumentData._
+
+  def engine: Engine with UnderlyingConnection with UnderlyingListener with FutInfoReplication with OptInfoReplication
+
+  register(context.actorOf(Props(new InstrumentDataService(engine.listenerFactory, engine.underlyingConnection, engine.futInfoReplication, engine.optInfoReplication))))
+}
+
+protected[service] class InstrumentDataService(listener: ListenerFactory, underlyingConnection: CGConnection, futInfoReplication: Replication, optInfoReplication: Replication)
+                                              (implicit val services: Services, id: ServiceId) extends Actor with ActorLogging with WhenUnhandled {
+
   import services._
 
   val FutInfoStream = context.actorOf(Props(new DataStream), "FutInfoDataStream")
@@ -34,18 +49,7 @@ protected[service] class InstrumentDataManager(services: Services, engine: Engin
   val underlyingOptInfoListener = listener(underlyingConnection, optInfoReplication(), new DataStreamSubscriber(OptInfoStream))
   val optInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)), "OptInfoListener")
 
-  protected def receive = {
-    case ServiceStarted(ConnectionServiceId) =>
-      log.info("ConnectionService started, unstash all messages and start SessionsService")
-      unstashAll()
-      context.become {
-        start orElse stop orElse handleSessionsGoesOnline orElse whenUnhandled
-      }
-
-    case msg =>
-      log.info("Stash message until ConnectionService is not started = " + msg)
-      stash()
-  }
+  protected def receive = start orElse stop orElse handleSessionsGoesOnline orElse whenUnhandled
 
   private def start: Receive = {
     case Start =>
@@ -75,4 +79,4 @@ protected[service] class InstrumentDataManager(services: Services, engine: Engin
         context.stop(self)
       }
   }
-}*/
+}

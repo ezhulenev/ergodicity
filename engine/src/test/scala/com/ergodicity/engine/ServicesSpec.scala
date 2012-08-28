@@ -17,77 +17,6 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
     system.shutdown()
   }
 
-  object Service1 {
-
-    implicit case object Service1 extends ServiceId
-
-  }
-
-  object Service2 {
-
-    implicit case object Service2 extends ServiceId
-
-  }
-
-  object DependentService {
-
-    implicit case object DependentService extends ServiceId
-
-  }
-
-  trait Service1 {
-    self: Services =>
-
-    import Service1._
-
-    def service1: ActorRef
-
-    register(service1)
-  }
-
-  trait Service2 {
-    self: Services =>
-
-    import Service2._
-
-    def service2: ActorRef
-
-    register(service2)
-  }
-
-  trait DependentService {
-    self: Services =>
-
-    import DependentService._
-
-    def dependent: ActorRef
-
-    register(dependent, dependOn = Seq(Service1.Service1, Service2.Service2))
-  }
-
-  class TwoServices(s1: ActorRef, s2: ActorRef) extends Services with Service1 with Service2 {
-    def service1 = s1
-
-    def service2 = s2
-  }
-
-  class ThreeServices(s1: ActorRef, s2: ActorRef, dep: ActorRef) extends Services with Service1 with Service2 with DependentService {
-    def service1 = s1
-
-    def service2 = s2
-
-    def dependent = dep
-  }
-
-  class BadDependent(s1: ActorRef, s2: ActorRef, dep: ActorRef) extends Services with DependentService with Service1 with Service2 {
-    def service1 = s1
-
-    def service2 = s2
-
-    def dependent = dep
-  }
-
-
   "Service Manager" must {
 
     "get registered service" in {
@@ -275,5 +204,75 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
         underlying.register(self, dependOn = Service1.Service1 :: Nil)
       }
     }
+  }
+
+  object Service1 {
+
+    implicit case object Service1 extends ServiceId
+
+  }
+
+  object Service2 {
+
+    implicit case object Service2 extends ServiceId
+
+  }
+
+  object DependentService {
+
+    implicit case object DependentService extends ServiceId
+
+  }
+
+  trait Service1 {
+    self: Services =>
+
+    import Service1._
+
+    def service1: ActorRef
+
+    register(service1)
+  }
+
+  trait Service2 {
+    self: Services =>
+
+    import Service2._
+
+    def service2: ActorRef
+
+    register(service2)
+  }
+
+  trait DependentService {
+    self: Services =>
+
+    import DependentService._
+
+    def dependent: ActorRef
+
+    register(dependent, dependOn = Seq(Service1.Service1, Service2.Service2))
+  }
+
+  class TwoServices(s1: ActorRef, s2: ActorRef) extends Services with Service1 with Service2 {
+    def service1 = s1
+
+    def service2 = s2
+  }
+
+  class ThreeServices(s1: ActorRef, s2: ActorRef, dep: ActorRef) extends Services with Service1 with Service2 with DependentService {
+    def service1 = s1
+
+    def service2 = s2
+
+    def dependent = dep
+  }
+
+  class BadDependent(s1: ActorRef, s2: ActorRef, dep: ActorRef) extends Services with DependentService with Service1 with Service2 {
+    def service1 = s1
+
+    def service2 = s2
+
+    def dependent = dep
   }
 }

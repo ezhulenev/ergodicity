@@ -92,14 +92,3 @@ object ReplicationScheme {
     def posReplication: Replication
   }
 }
-
-object Components {
-  trait CreateListener {
-    def listener(connection: CGConnection, config: String, subscriber: ISubscriber): CGListener
-  }
-
-  trait CreateListenerComponent extends CreateListener {
-    def listener(connection: CGConnection, config: String, subscriber: ISubscriber) = new CGListener(connection, config, subscriber)
-  }
-
-}
