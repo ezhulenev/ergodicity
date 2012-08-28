@@ -27,7 +27,7 @@ trait InstrumentData {
 
   def engine: Engine with UnderlyingConnection with UnderlyingListener with FutInfoReplication with OptInfoReplication
 
-  register(context.actorOf(Props(new InstrumentDataService(engine.listenerFactory, engine.underlyingConnection, engine.futInfoReplication, engine.optInfoReplication))))
+  register(context.actorOf(Props(new InstrumentDataService(engine.listenerFactory, engine.underlyingConnection, engine.futInfoReplication, engine.optInfoReplication)), "InstrumentData"))
 }
 
 protected[service] class InstrumentDataService(listener: ListenerFactory, underlyingConnection: CGConnection, futInfoReplication: Replication, optInfoReplication: Replication)

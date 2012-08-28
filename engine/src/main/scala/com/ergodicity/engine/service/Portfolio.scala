@@ -1,25 +1,39 @@
 package com.ergodicity.engine.service
 
-case object PortfolioServiceId extends ServiceId
+import com.ergodicity.engine.underlying.{ListenerFactory, UnderlyingConnection, UnderlyingListener}
+import com.ergodicity.engine.{Services, Engine}
+import com.ergodicity.engine.ReplicationScheme.PosReplication
+import akka.actor.{Actor, ActorLogging, Props}
+import akka.util.duration._
+import ru.micexrts.cgate.{Connection => CGConnection}
+import com.ergodicity.cgate.config.Replication
+import com.ergodicity.cgate.{Listener, DataStreamSubscriber, DataStream, WhenUnhandled}
+import com.ergodicity.core.{PositionsTrackingState, PositionsTracking}
+import com.ergodicity.engine.service.Service.{Stop, Start}
+import com.ergodicity.cgate.config.Replication.ReplicationParams
+import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
+import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
 
-/*
-trait PortfolioService
+object Portfolio {
 
-trait Portfolio extends PortfolioService {
-  this: Services =>
-  def engine: Engine with UnderlyingConnection with CreateListener with PosReplication
+  implicit case object Portfolio extends ServiceId
 
-  private[this] val portfolioManager = context.actorOf(Props(new PortfolioManager(this, engine)).withDispatcher("deque-dispatcher"), "PortfolioManager")
-
-  register(PortfolioServiceId, portfolioManager)
 }
 
-protected[service] class PortfolioManager(services: Services, engine: Engine with UnderlyingConnection with CreateListener with PosReplication) extends Actor with ActorLogging with WhenUnhandled with Stash {
+trait Portfolio {
+  this: Services =>
 
-  import engine._
+  import Portfolio._
+
+  def engine: Engine with UnderlyingConnection with UnderlyingListener with PosReplication
+
+  register(context.actorOf(Props(new PortfolioService(engine.listenerFactory, engine.underlyingConnection, engine.posReplication)), "Portfolio"))
+}
+
+protected[service] class PortfolioService(listener: ListenerFactory, underlyingConnection: CGConnection, posReplication: Replication)
+                                         (implicit val services: Services, id: ServiceId) extends Actor with ActorLogging with WhenUnhandled {
+
   import services._
-
-  implicit val Id = PortfolioServiceId
 
   val PosStream = context.actorOf(Props(new DataStream), "PosDataStream")
 
@@ -28,18 +42,7 @@ protected[service] class PortfolioManager(services: Services, engine: Engine wit
   val underlyingPosListener = listener(underlyingConnection, posReplication(), new DataStreamSubscriber(PosStream))
   val posListener = context.actorOf(Props(new Listener(underlyingPosListener)), "PosListener")
 
-  protected def receive = {
-    case ServiceStarted(ConnectionServiceId) =>
-      log.info("ConnectionService started, unstash all messages and start PositionsService")
-      unstashAll()
-      context.become {
-        start orElse stop orElse handlePositionsGoesOnline orElse whenUnhandled
-      }
-
-    case msg =>
-      log.info("Stash message until ConnectionService is not started = " + msg)
-      stash()
-  }
+  protected def receive = start orElse stop orElse handlePositionsGoesOnline orElse whenUnhandled
 
   private def start: Receive = {
     case Start =>
@@ -66,4 +69,4 @@ protected[service] class PortfolioManager(services: Services, engine: Engine wit
         context.stop(self)
       }
   }
-}*/
+}

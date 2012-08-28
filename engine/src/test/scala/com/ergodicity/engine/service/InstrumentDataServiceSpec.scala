@@ -28,7 +28,7 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
     def apply(connection: cgate.Connection, config: String, subscriber: ISubscriber) = mock(classOf[CGListener])
   }
 
-  "InstrumentData Manager" must {
+  "InstrumentData Service" must {
     "stash messages before ConnectionService is activated" in {
       val underlyingConnection = mock(classOf[CGConnection])
       val optInfoReplication = mock(classOf[Replication])
