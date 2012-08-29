@@ -8,6 +8,7 @@ import akka.util.duration._
 import com.ergodicity.engine.underlying.UnderlyingConnection
 import ru.micexrts.cgate.{Connection => CGConnection, CGateException}
 import com.ergodicity.cgate.Connection.StartMessageProcessing
+import com.ergodicity.engine.Services.Reporter
 
 object Connection {
 
@@ -22,12 +23,13 @@ trait Connection {
 
   def engine: Engine with UnderlyingConnection
 
-  register(context.actorOf(Props(new ConnectionService(engine.underlyingConnection)), "ConnectionService"))
+  register(Props(new ConnectionService(engine.underlyingConnection)))
 }
 
-protected[service] class ConnectionService(underlyingConnection: CGConnection)(implicit val services: Services, id: ServiceId) extends Actor with ActorLogging with WhenUnhandled with Service {
+protected[service] class ConnectionService(underlyingConnection: CGConnection)
+                                          (implicit val reporter: Reporter, id: ServiceId) extends Actor with ActorLogging with WhenUnhandled with Service {
 
-  import services._
+  import reporter._
 
   val Connection = context.actorOf(Props(new CgateConnection(underlyingConnection)), "Connection")
 
@@ -60,13 +62,13 @@ protected[service] class ConnectionService(underlyingConnection: CGConnection)(i
 
   private def trackConnectionState: Receive = {
     case Terminated(Connection) =>
-      serviceFailed("Connection unexpected terminated")
+      failed("Connection unexpected terminated")
 
     case CurrentState(Connection, com.ergodicity.cgate.Error) =>
-      serviceFailed("Connection switched to Error state")
+      failed("Connection switched to Error state")
 
     case Transition(Connection, _, com.ergodicity.cgate.Error) =>
-      serviceFailed("Connection switched to Error state")
+      failed("Connection switched to Error state")
 
     case CurrentState(Connection, com.ergodicity.cgate.Active) =>
       Connection ! StartMessageProcessing(100.millis)

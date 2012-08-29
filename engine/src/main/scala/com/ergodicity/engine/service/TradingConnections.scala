@@ -14,6 +14,7 @@ import akka.actor.Terminated
 import akka.actor.FSM.SubscribeTransitionCallBack
 import scalaz._
 import Scalaz._
+import com.ergodicity.engine.Services.Reporter
 
 object TradingConnections {
 
@@ -28,7 +29,7 @@ trait TradingConnections {
 
   def engine: Engine with UnderlyingTradingConnections
 
-  register(context.actorOf(Props(new TradingConnectionsService(engine.underlyingPublisherConnection, engine.underlyingRepliesConnection)), "TradingConnectionsService"))
+  register(Props(new TradingConnectionsService(engine.underlyingPublisherConnection, engine.underlyingRepliesConnection)))
 }
 
 object TradingConnectionsService {
@@ -53,9 +54,10 @@ object TradingConnectionsService {
   case class StoppedConnections(count: Int = 0) extends ServiceData
 }
 
-protected[service] class TradingConnectionsService(publisherConnection: CGConnection, repliesConnection: CGConnection)(implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[ServiceState, ServiceData] with Service {
+protected[service] class TradingConnectionsService(publisherConnection: CGConnection, repliesConnection: CGConnection)
+                                                  (implicit val reporter: Reporter, id: ServiceId) extends Actor with LoggingFSM[ServiceState, ServiceData] with Service {
 
-  import services._
+  import reporter._
   import TradingConnectionsService._
 
   val PublisherConnection = context.actorOf(Props(new CgateConnection(publisherConnection)), "PublisherConnection")
@@ -119,13 +121,13 @@ protected[service] class TradingConnectionsService(publisherConnection: CGConnec
 
   whenUnhandled {
     case Event(Terminated(conn@(PublisherConnection | RepliesConnection)), _) =>
-      serviceFailed("Trading connection unexpected terminated: " + conn)
+      failed("Trading connection unexpected terminated: " + conn)
 
     case Event(CurrentState(conn@(PublisherConnection | RepliesConnection), com.ergodicity.cgate.Error), _) =>
-      serviceFailed("Trading connection switched to Error state: " + conn)
+      failed("Trading connection switched to Error state: " + conn)
 
     case Event(Transition(conn@(PublisherConnection | RepliesConnection), _, com.ergodicity.cgate.Error), _) =>
-      serviceFailed("Trading connection switched to Error state: " + conn)
+      failed("Trading connection switched to Error state: " + conn)
   }
 
   private def startingTransition(states: StartingStates) = (states.publisher <**> states.replies)((_, _)) match {

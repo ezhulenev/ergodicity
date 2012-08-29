@@ -2,13 +2,14 @@ package com.ergodicity.engine
 
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
-import akka.actor.{FSM, ActorRef, ActorSystem, Terminated}
+import akka.actor._
 import akka.testkit._
 import akka.util.duration._
 import service.Service.{Stop, Start}
-import service.{ServiceStopped, ServiceStarted, ServiceId}
+import service.ServiceId
 import com.ergodicity.engine.Services.{StopAllServices, StartAllServices}
-import com.ergodicity.engine.ServicesData.PendingServices
+import akka.actor.Terminated
+import com.ergodicity.engine.ServicesState.PendingServices
 
 class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -17,13 +18,16 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
     system.shutdown()
   }
 
-  "Service Manager" must {
+  "Services Manager" must {
 
     "get registered service" in {
       val serviceManager = TestActorRef(new TwoServices(self, self), "Services")
       val underlying = serviceManager.underlyingActor
 
-      assert(underlying.service(Service1.Service1) == self, "Actual service ref = " + underlying.service(Service1.Service1))
+      val expected = system.actorFor("/user/Services/Service1")
+      log.info("Expected ref = " + expected)
+      assert(underlying.service(Service1.Service1) == expected,
+        "Actual service ref = " + underlying.service(Service1.Service1))
     }
 
     "start all registered without additional dependencies services" in {
@@ -93,18 +97,18 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
 
       assert(underlying.services.size == 3)
 
-      assert(underlying.services(DependentService.DependentService).startLock.toSeq match {
+      assert(underlying.services(DependentService.DependentService).startBarrier.toSeq match {
         case startUp :: Service1.Service1 :: Service2.Service2 :: Nil => true
         case _ => false
       })
 
-      assert(underlying.services(Service1.Service1).stopLock.toSeq match {
-        case DependentService.DependentService :: xs => true
+      assert(underlying.services(Service1.Service1).stopBarrier.toSeq match {
+        case shutDown :: DependentService.DependentService :: Nil => true
         case _ => false
       })
 
-      assert(underlying.services(Service2.Service2).stopLock.toSeq match {
-        case DependentService.DependentService :: xs => true
+      assert(underlying.services(Service2.Service2).stopBarrier.toSeq match {
+        case shutDown :: DependentService.DependentService :: Nil => true
         case _ => false
       })
     }
@@ -125,7 +129,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       s2.expectMsg(Start)
 
       and("Dependent service get no messages")
-      dep.expectNoMsg(300.millis)
+      dep.expectNoMsg(500.millis)
 
       when("Service1 started")
       serviceManager ! ServiceStarted(Service1.Service1)
@@ -201,9 +205,13 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
 
       intercept[IllegalStateException] {
         implicit val id = DependentService.DependentService
-        underlying.register(self, dependOn = Service1.Service1 :: Nil)
+        underlying.register(Props(new EmptyActor), dependOn = Service1.Service1 :: Nil)
       }
     }
+  }
+
+  class EmptyActor extends Actor {
+    protected def receive = null
   }
 
   object Service1 {
@@ -231,7 +239,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
 
     def service1: ActorRef
 
-    register(service1)
+    register(Props(PassThrough(service1)))
   }
 
   trait Service2 {
@@ -241,7 +249,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
 
     def service2: ActorRef
 
-    register(service2)
+    register(Props(PassThrough(service2)))
   }
 
   trait DependentService {
@@ -251,7 +259,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
 
     def dependent: ActorRef
 
-    register(dependent, dependOn = Seq(Service1.Service1, Service2.Service2))
+    register(Props(PassThrough(dependent)), dependOn = Seq(Service1.Service1, Service2.Service2))
   }
 
   class TwoServices(s1: ActorRef, s2: ActorRef) extends Services with Service1 with Service2 {
@@ -274,5 +282,11 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
     def service2 = s2
 
     def dependent = dep
+  }
+
+  case class PassThrough(ref: ActorRef) extends Actor {
+    protected def receive = {
+      case m => ref ! m
+    }
   }
 }

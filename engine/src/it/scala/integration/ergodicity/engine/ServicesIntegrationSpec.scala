@@ -40,21 +40,27 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
     CGate.close()
   }
 
-  class IntegrationEngine extends Engine with UnderlyingListener with UnderlyingConnection with UnderlyingTradingConnections with FutInfoReplication with OptInfoReplication {
+  trait Connections extends UnderlyingConnection with UnderlyingTradingConnections {
     val underlyingConnection = new CGConnection(ReplicationConnection())
 
     def underlyingPublisherConnection = new CGConnection(PublisherConnection())
 
     def underlyingRepliesConnection = new CGConnection(RepliesConnection())
+  }
 
+  trait Replication extends FutInfoReplication with OptInfoReplication {
     val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")
 
     val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
+  }
 
-    def listenerFactory = new ListenerFactory {
+  trait Listener extends UnderlyingListener {
+    val listenerFactory = new ListenerFactory {
       def apply(connection: CGConnection, config: String, subscriber: ISubscriber) = new CGListener(connection, config, subscriber)
     }
   }
+
+  class IntegrationEngine extends Engine with Connections with Replication with Listener
 
   class IntegrationServices(val engine: IntegrationEngine) extends Services with Connection with TradingConnections with InstrumentData
 

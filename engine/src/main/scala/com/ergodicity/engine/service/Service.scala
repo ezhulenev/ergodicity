@@ -16,16 +16,10 @@ object Service {
 }
 
 trait Service {
-  def serviceFailed(message: String)(implicit service: ServiceId): Nothing = {
+  def failed(message: String)(implicit service: ServiceId): Nothing = {
     throw new ServiceFailedException(service, message)
   }
 }
-
-case class ServiceStarted(service: ServiceId)
-
-case class ServiceStopped(service: ServiceId)
-
-
 
 
 

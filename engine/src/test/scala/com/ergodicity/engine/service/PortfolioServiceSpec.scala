@@ -3,16 +3,15 @@ package com.ergodicity.engine.service
 import akka.actor.{Terminated, Props, ActorSystem}
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
-import akka.util.duration._
 import akka.testkit._
 import org.mockito.Mockito._
 import com.ergodicity.cgate.config.Replication
-import com.ergodicity.engine.Services
 import com.ergodicity.engine.underlying.ListenerFactory
 import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, Listener => CGListener}
 import com.ergodicity.engine.service.Service.Start
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.core.PositionsTrackingState
+import com.ergodicity.engine.Services.Reporter
 
 class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -33,7 +32,7 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
       val posReplication = mock(classOf[Replication])
 
 
-      implicit val services = mock(classOf[Services])
+      implicit val reporter = mock(classOf[Reporter])
       val positions = TestProbe()
 
       val service = TestActorRef(Props(new PortfolioService(listenerFactory, underlyingConnection, posReplication) {
@@ -50,14 +49,14 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
       service ! Transition(positions.ref, PositionsTrackingState.Binded, PositionsTrackingState.Online)
 
       then("Service Manager should be notified")
-      verify(services).serviceStarted(Id)
+      verify(reporter).serviceStarted(Id)
     }
 
     "stop service" in {
       val underlyingConnection = mock(classOf[CGConnection])
       val posReplication = mock(classOf[Replication])
 
-      implicit val services = mock(classOf[Services])
+      implicit val reporter = mock(classOf[Reporter])
       val positions = TestProbe()
 
       val service = TestActorRef(Props(new PortfolioService(listenerFactory, underlyingConnection, posReplication) {
@@ -72,7 +71,7 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
       expectMsg(Terminated(service))
 
       and("service manager should be notified")
-      verify(services).serviceStopped
+      verify(reporter).serviceStopped
     }
   }
 }
