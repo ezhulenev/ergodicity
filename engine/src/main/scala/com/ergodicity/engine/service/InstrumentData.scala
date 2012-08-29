@@ -28,7 +28,10 @@ trait InstrumentData {
 
   def engine: Engine with UnderlyingConnection with UnderlyingListener with FutInfoReplication with OptInfoReplication
 
-  register(Props(new InstrumentDataService(engine.listenerFactory, engine.underlyingConnection, engine.futInfoReplication, engine.optInfoReplication)))
+  register(
+    Props(new InstrumentDataService(engine.listenerFactory, engine.underlyingConnection, engine.futInfoReplication, engine.optInfoReplication)),
+    dependOn = Connection.Connection :: Nil
+  )
 }
 
 protected[service] class InstrumentDataService(listener: ListenerFactory, underlyingConnection: CGConnection, futInfoReplication: Replication, optInfoReplication: Replication)
