@@ -40,6 +40,10 @@ object Services {
 
   case object StopAllServices
 
+  case class ResolveService(id: ServiceId)
+
+  case class ServiceRef(id: ServiceId, ref: ActorRef)
+
   // Possible failures
 
   case class ServicesStartupTimedOut(pending: Iterable[ServiceId]) extends RuntimeException
@@ -86,7 +90,7 @@ object Services {
 
     def stop(id: ServiceId) = copy(stopBarrier = stopBarrier.ready(id))
 
-    def lock(id: ServiceId) = copy(stopBarrier = stopBarrier.waitFor(id))
+    def waitFor(id: ServiceId) = copy(stopBarrier = stopBarrier.waitFor(id))
   }
 
   trait Reporter {
@@ -166,6 +170,12 @@ class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
       stop(FSM.Shutdown)
   }
 
+  whenUnhandled {
+    case Event(ResolveService(id), _) =>
+      sender ! ServiceRef(id, service(id))
+      stay()
+  }
+
   override def preStart() {
     log.info("Registered services = " + services.keys)
     services.foreach {
@@ -201,7 +211,7 @@ class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
 
     // Update stop barrier on existing services
     services.transform {
-      case (i, service) if (dependOn contains i) => service.lock(id)
+      case (i, service) if (dependOn contains i) => service.waitFor(id)
       case (_, service) => service
     }
   }
