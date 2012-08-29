@@ -2,18 +2,21 @@ package integration.ergodicity.engine
 
 import akka.testkit.{TestActorRef, TestKit}
 import akka.actor.ActorSystem
+import akka.util.duration._
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import com.ergodicity.cgate.config.CGateConfig
+import com.ergodicity.cgate.config.{Replication, CGateConfig}
 import java.io.File
-import ru.micexrts.cgate.{P2TypeParser, CGate}
 import com.ergodicity.engine.{Engine, Services}
-import com.ergodicity.engine.service.{TradingConnections, Connection}
-import com.ergodicity.engine.underlying.{UnderlyingTradingConnections, UnderlyingConnection}
-import ru.micexrts.cgate.{Connection => CGConnection}
+import com.ergodicity.engine.service.{InstrumentData, TradingConnections, Connection}
+import com.ergodicity.engine.underlying.{UnderlyingListener, ListenerFactory, UnderlyingTradingConnections, UnderlyingConnection}
 import java.util.concurrent.TimeUnit
 import com.ergodicity.engine.Services.StartAllServices
+import com.ergodicity.engine.ReplicationScheme.{OptInfoReplication, FutInfoReplication}
+import ru.micexrts.cgate
+import cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener}
+import com.ergodicity.cgate.Connection.StartMessageProcessing
 
 class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -37,15 +40,23 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
     CGate.close()
   }
 
-  class IntegrationEngine extends Engine with UnderlyingConnection with UnderlyingTradingConnections {
+  class IntegrationEngine extends Engine with UnderlyingListener with UnderlyingConnection with UnderlyingTradingConnections with FutInfoReplication with OptInfoReplication {
     val underlyingConnection = new CGConnection(ReplicationConnection())
 
     def underlyingPublisherConnection = new CGConnection(PublisherConnection())
 
     def underlyingRepliesConnection = new CGConnection(RepliesConnection())
+
+    val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")
+
+    val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
+
+    def listenerFactory = new ListenerFactory {
+      def apply(connection: CGConnection, config: String, subscriber: ISubscriber) = new CGListener(connection, config, subscriber)
+    }
   }
 
-  class IntegrationServices(val engine: IntegrationEngine) extends Services with Connection with TradingConnections
+  class IntegrationServices(val engine: IntegrationEngine) extends Services with Connection with TradingConnections with InstrumentData
 
   "Services" must {
     "support Connection Service" in {
@@ -55,7 +66,7 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
 
       services ! StartAllServices
 
-      Thread.sleep(TimeUnit.DAYS.toMillis(10))
+       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
   }
 

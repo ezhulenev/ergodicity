@@ -23,6 +23,7 @@ import com.ergodicity.cgate.DataStream.BindTable
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
 import sysevents.SysEventDispatcher
 import sysevents.SysEventDispatcher.SubscribeSysEvents
+import java.util.Date
 
 
 class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -134,7 +135,11 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
             log.info("Got Sessions snapshot, size = " + snapshot.data.size)
             snapshot.data foreach {
               rec =>
-                log.info("SessionRecord; Session id = " + rec.get_sess_id() + ", option session id = " + rec.get_opt_sess_id() + ", state = " + SessionState(rec.get_state()))
+                log.info("SessionRecord; Session id = " + rec.get_sess_id() +
+                  ", option session id = " + rec.get_opt_sess_id() +
+                  ", state = " + SessionState(rec.get_state()) +
+                  ", begin = " + new Date(rec.get_begin()) +
+                  ", end = " + new Date(rec.get_end()))
             }
         }
       })))

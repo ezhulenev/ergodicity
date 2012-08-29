@@ -7,6 +7,7 @@ import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import akka.util.duration._
 import com.ergodicity.engine.underlying.UnderlyingConnection
 import ru.micexrts.cgate.{Connection => CGConnection, CGateException}
+import com.ergodicity.cgate.Connection.StartMessageProcessing
 
 object Connection {
 
@@ -68,9 +69,11 @@ protected[service] class ConnectionService(underlyingConnection: CGConnection)(i
       serviceFailed("Connection switched to Error state")
 
     case CurrentState(Connection, com.ergodicity.cgate.Active) =>
+      Connection ! StartMessageProcessing(100.millis)
       serviceStarted
 
     case Transition(Connection, _, com.ergodicity.cgate.Active) =>
+      Connection ! StartMessageProcessing(100.millis)
       serviceStarted
   }
 }
