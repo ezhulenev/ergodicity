@@ -57,6 +57,7 @@ protected[service] class InstrumentDataService(listener: ListenerFactory, underl
 
   private def start: Receive = {
     case Start =>
+      log.info("Start " + id + " service")
       futInfoListener ! Listener.Open(ReplicationParams(Combined))
       optInfoListener ! Listener.Open(ReplicationParams(Combined))
       Sessions ! SubscribeTransitionCallBack(self)
@@ -74,6 +75,7 @@ protected[service] class InstrumentDataService(listener: ListenerFactory, underl
 
   private def stop: Receive = {
     case Stop =>
+      log.info("Stop " + id + " service")
       futInfoListener ! Listener.Close
       optInfoListener ! Listener.Close
       futInfoListener ! Listener.Dispose

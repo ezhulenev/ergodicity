@@ -45,6 +45,7 @@ protected[service] class TradingService(listener: ListenerFactory, underlyingPub
 
   private def start: Receive = {
     case Start =>
+      log.info("Start " + id + " service")
       replyListener ! Listener.Open(RepliesParams)
       TradingBroker ! SubscribeTransitionCallBack(self)
       TradingBroker ! Broker.Open
@@ -62,6 +63,7 @@ protected[service] class TradingService(listener: ListenerFactory, underlyingPub
 
   private def stop: Receive = {
     case Stop =>
+      log.info("Stop " + id + " service")
       TradingBroker ! Broker.Close
       replyListener ! Listener.Close
       replyListener ! Listener.Dispose

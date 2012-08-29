@@ -46,11 +46,13 @@ protected[service] class ConnectionService(underlyingConnection: CGConnection)
 
   private def start: Receive = {
     case Service.Start =>
+      log.info("Start " + id + " service")
       Connection ! CgateConnection.Open
   }
 
   private def stop: Receive = {
     case Service.Stop =>
+      log.info("Stop " + id + " service")
       Connection ! CgateConnection.Close
       Connection ! CgateConnection.Dispose
       context.system.scheduler.scheduleOnce(1.second) {

@@ -70,6 +70,7 @@ protected[service] class TradingConnectionsService(publisherConnection: CGConnec
 
   when(Idle) {
     case Event(Service.Start, Blank) =>
+      log.info("Start " + id + " service")
       // Subscribe for connection states
       PublisherConnection ! SubscribeTransitionCallBack(self)
       RepliesConnection ! SubscribeTransitionCallBack(self)
@@ -97,6 +98,7 @@ protected[service] class TradingConnectionsService(publisherConnection: CGConnec
 
   when(Connected) {
     case Event(Service.Stop, _) =>
+      log.info("Stop " + id + " service")
       PublisherConnection ! CgateConnection.Close
       PublisherConnection ! CgateConnection.Dispose
       RepliesConnection ! CgateConnection.Close

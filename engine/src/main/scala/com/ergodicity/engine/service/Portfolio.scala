@@ -47,6 +47,7 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
 
   private def start: Receive = {
     case Start =>
+      log.info("Start " + id + " service")
       posListener ! Listener.Open(ReplicationParams(Combined))
       Positions ! SubscribeTransitionCallBack(self)
   }
@@ -63,6 +64,7 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
 
   private def stop: Receive = {
     case Stop =>
+      log.info("Stop " + id + " service")
       posListener ! Listener.Close
       posListener ! Listener.Dispose
       context.system.scheduler.scheduleOnce(1.second) {
