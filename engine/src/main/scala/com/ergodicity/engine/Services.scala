@@ -2,11 +2,13 @@ package com.ergodicity.engine
 
 import akka.actor._
 import akka.util.duration._
+import akka.pattern.ask
 import service.{Service, ServiceId}
 import akka.actor.FSM.Normal
 import collection.mutable
 import scalaz._
 import com.ergodicity.engine.ServicesState.PendingServices
+import akka.dispatch.Future
 
 case class ServiceStarted(service: ServiceId)
 
@@ -99,6 +101,10 @@ object Services {
     def serviceStopped(implicit id: ServiceId)
   }
 
+  trait Resolver {
+    def service(id: ServiceId): Future[ServiceRef]
+  }
+
 }
 
 class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
@@ -123,6 +129,10 @@ class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
     def serviceStarted(implicit id: ServiceId) {
       self ! ServiceStarted(id)
     }
+  }
+
+  implicit val resolver = new Resolver {
+    def service(id: ServiceId) = (self ? ResolveService(id)).mapTo[ServiceRef]
   }
 
   startWith(Idle, PendingServices(Nil))
