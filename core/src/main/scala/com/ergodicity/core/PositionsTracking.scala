@@ -11,13 +11,12 @@ import akka.actor.FSM._
 import akka.util.duration._
 import com.ergodicity.cgate.DataStreamState
 import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, Snapshot}
-import position.Position
+import position.{Position, Flat, PositionDynamics, PositionActor}
 import com.ergodicity.cgate.DataStream.BindingSucceed
-import position.Position.UpdatePosition
+import position.PositionActor.UpdatePosition
 import akka.actor.FSM.Transition
 import akka.actor.FSM.CurrentState
 import akka.pattern.ask
-import scala.Some
 import com.ergodicity.cgate.DataStream.BindingFailed
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.DataStream.BindTable
@@ -91,7 +90,7 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       stay()
 
     case Event(GetPosition(isin), _) =>
-      sender ! positions.getOrElseUpdate(isin, context.actorOf(Props(new Position(isin))))
+      sender ! positions.getOrElseUpdate(isin, context.actorOf(Props(new PositionActor(isin))))
       stay()
 
     case Event(s@Snapshot(PositionsRepository, _), _) =>
@@ -102,17 +101,23 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       val (_, discarded) = positions.partition {
         case key => snapshot.data.find(_.get_isin_id() == key._1.id).isDefined
       }
-      discarded.values.foreach(_ ! UpdatePosition(Position.Data()))
+      discarded.values.foreach(_ ! UpdatePosition(Flat, PositionDynamics()))
 
       // Update alive positions and open new one
       snapshot.data.map {
-        case position =>
-          val id = IsinId(position.get_isin_id())
-          val data = Position.Data(position.get_open_qty(), position.get_buys_qty(), position.get_sells_qty(),
-            position.get_pos(), position.get_net_volume_rur(), if (position.get_last_deal_id() == 0) None else Some(position.get_last_deal_id()))
+        case pos =>
+          val id = IsinId(pos.get_isin_id())
+          val position = Position(pos.get_pos())
+          val dynamics = PositionDynamics(
+            Position(pos.get_open_qty()),
+            pos.get_buys_qty(),
+            pos.get_sells_qty(),
+            pos.get_net_volume_rur(),
+            if (pos.get_last_deal_id() == 0) None else Some(pos.get_last_deal_id())
+          )
 
-          val positionActor = positions.getOrElseUpdate(id, context.actorOf(Props(new Position(id)), id.id.toString))
-          positionActor ! UpdatePosition(data)
+          val positionActor = positions.getOrElseUpdate(id, context.actorOf(Props(new PositionActor(id)), id.id.toString))
+          positionActor ! UpdatePosition(position, dynamics)
       }
 
       stay()
