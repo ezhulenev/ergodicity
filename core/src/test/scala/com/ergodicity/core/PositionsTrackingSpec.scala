@@ -14,7 +14,7 @@ import akka.actor.FSM.Transition
 import org.scalatest.{BeforeAndAfter, GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import com.ergodicity.core.PositionsTracking.{GetOpenPositions, GetPosition, OpenPositions}
 import position.PositionActor.{PositionTransition, CurrentPosition, SubscribePositionUpdates}
-import position.{Flat, Long}
+import position.{Position, Flat, Long}
 import com.ergodicity.cgate.repository.Repository.Snapshot
 
 class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll with BeforeAndAfter {
@@ -105,7 +105,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
 
       val positionRef = underlying.positions(IsinId(isin))
       positionRef ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(positionRef, Long(1)))
+      expectMsg(CurrentPosition(positionRef, Position(1)))
     }
 
     "close discarded positions" in {
@@ -120,12 +120,12 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
 
       val positionRef = underlying.positions(IsinId(isin))
       positionRef ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(positionRef, Long(1)))
+      expectMsg(CurrentPosition(positionRef, Position(1)))
 
       positions ! Snapshot(underlying.PositionsRepository, List[Pos.position]())
 
       assert(underlying.positions.size == 1)
-      expectMsg(PositionTransition(positionRef, Long(1), Flat))
+      expectMsg(PositionTransition(positionRef, Position(1), Position.flat))
     }
 
     "update existing positions" in {
@@ -139,10 +139,10 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
 
       val positionRef = underlying.positions(IsinId(isin))
       positionRef ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(positionRef, Long(1)))
+      expectMsg(CurrentPosition(positionRef, Position(1)))
 
       positions ! Snapshot(underlying.PositionsRepository, updatedPosition :: Nil)
-      expectMsg(PositionTransition(positionRef, Long(1), Long(2)))
+      expectMsg(PositionTransition(positionRef, Position(1), Position(2)))
     }
 
     "create new positions if it doesn't exists" in {
@@ -155,7 +155,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
       assert(underlying.positions.size == 1)
 
       position ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(position, Flat))
+      expectMsg(CurrentPosition(position, Position.flat))
     }
 
     "return existing position on track position event" in {
@@ -168,7 +168,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
 
       val positionRef = Await.result((positions ? GetPosition(IsinId(isin))).mapTo[ActorRef], TimeOut.duration)
       positionRef ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(positionRef, Long(1)))
+      expectMsg(CurrentPosition(positionRef, Position(1)))
     }
 
     "get all opened positions" in {

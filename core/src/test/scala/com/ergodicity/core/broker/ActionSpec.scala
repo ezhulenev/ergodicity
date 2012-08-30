@@ -59,7 +59,7 @@ class ActionSpec extends WordSpec {
       when(publisher.newMessage(any(), any())).thenReturn(dataMessage)
       when(dataMessage.getData).thenReturn(ByteBuffer.allocate(1000))
 
-      val cancel = Cancel[Futures](Order(1111))
+      val cancel = Cancel[Futures](OrderId(1111))
       val futDelOrder = new Message.FutDelOrder(cancel.encode(publisher).getData)
 
       assert(futDelOrder.get_order_id() == 1111)
@@ -71,7 +71,7 @@ class ActionSpec extends WordSpec {
       when(publisher.newMessage(any(), any())).thenReturn(dataMessage)
       when(dataMessage.getData).thenReturn(ByteBuffer.allocate(1000))
 
-      val cancel = Cancel[Options](Order(1111))
+      val cancel = Cancel[Options](OrderId(1111))
       val optDelOrder = new Message.OptDelOrder(cancel.encode(publisher).getData)
 
       assert(optDelOrder.get_order_id() == 1111)

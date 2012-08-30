@@ -1,39 +1,24 @@
 package com.ergodicity.core.position
 
-sealed trait Position {
-  protected def abs: Int
+sealed trait Direction
 
-  def +(pos: Position) = Position.apply(abs + pos.abs)
-}
+case object Long extends Direction
+
+case object Short extends Direction
+
+case object Flat extends Direction
 
 object Position {
-  def apply(amount: Int) = {
-    if (amount == 0)
-      Flat
-    else if (amount > 0)
-      Long(amount)
-    else
-      Short(amount.abs)
-  }
+  def flat = Position(0)
 }
 
-case class Long(position: Int) extends Position {
-  if (position <= 0) throw new IllegalArgumentException("Position should be greater then 0")
-
-  protected  def abs = position
+case class Position(pos: Int) {
+  def dir = if (pos == 0) Flat else if (pos < 0) Short else Long
 }
 
-case class Short(position: Int) extends Position {
-  if (position <= 0) throw new IllegalArgumentException("Position should be greater then 0")
-
-  protected def abs = -position
+object PositionDynamics {
+  def empty = PositionDynamics()
 }
-
-case object Flat extends Position {
-  protected  def abs = 0
+case class PositionDynamics(open: Int = 0, buys: Int = 0, sells: Int = 0, volume: BigDecimal = 0, lastDealId: Option[scala.Long] = None) {
+  def aggregated = Position(open + buys - sells)
 }
-
-case class PositionDynamics(open: Position = Flat, buys: Int = 0, sells: Int = 0, volume: BigDecimal = 0, lastDealId: Option[scala.Long] = None) {
-  def aggregated = open + Position(buys) + Position(-sells)
-}
-

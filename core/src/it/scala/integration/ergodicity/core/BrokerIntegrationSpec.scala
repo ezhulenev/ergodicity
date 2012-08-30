@@ -117,19 +117,11 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
 
     Thread.sleep(3000)
 
-    val f = (broker ? Buy[Futures](Isin("RTS-9.12"), 1, 100, GoodTillCancelled)).mapTo[Either[ActionFailed, Order]]
+    val f = (broker ? Buy[Futures](Isin("RTS-9.12"), 1, 100, GoodTillCancelled)).mapTo[OrderId]
 
-    val response = Await.result(f, 5.seconds)
-
-    log.info("Response = " + response)
-
-    assert(response match {
-      case err@Left(Failed(_, _)) => true
-      case _ => false
-    })
+    f onComplete {res => log.info("Result = " + res)}
 
     Thread.sleep(TimeUnit.DAYS.toMillis(10))
-
   }
 
   "order and cancel them later" in {
@@ -164,28 +156,18 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
 
     Thread.sleep(3000)
 
-    val f = (broker ? Buy[Futures](Isin("RTS-9.12"), 1, 142000, GoodTillCancelled)).mapTo[Either[ActionFailed, Order]]
+    val f1 = (broker ? Sell[Futures](Isin("RTS-9.12"), 1, 136000, GoodTillCancelled)).mapTo[OrderId]
 
-    val response = Await.result(f, 5.seconds)
-
-    log.info("Order Response = " + response)
-
-    assert(response match {
-      case err@Right(Order(_)) => true
-      case _ => false
+    f1 onComplete(_ match {
+      case Left(ActionFailedException(code, message)) => log.error("Error = " + code + ", mess = " + message)
+      case Right(order) => log.info("Order Response = " + order)
     })
 
-    response.right.map(order => {
-      val f = (broker ? Cancel[Futures](order)).mapTo[Either[ActionFailed, Cancelled]]
-      val response = Await.result(f, 5.seconds)
 
-      log.info("Cancel Response = " + response)
+    /*val f2 = (broker ? Cancel[Futures](order)).mapTo[Cancelled]
+    val cancelled = Await.result(f2, 5.seconds)
 
-      assert(response match {
-        case err@Right(Cancelled(_)) => true
-        case _ => false
-      })
-    })
+    log.info("Cancel Response = " + cancelled)*/
 
     Thread.sleep(TimeUnit.DAYS.toMillis(10))
   }

@@ -23,8 +23,8 @@ class PositionActor(isin: IsinId) extends Actor with ActorLogging with WhenUnhan
 
   var subscribers = List[ActorRef]()
 
-  protected[position] var position: Position = Flat
-  protected[position] var dynamics: PositionDynamics = PositionDynamics()
+  protected[position] var position: Position = Position.flat
+  protected[position] var dynamics: PositionDynamics = PositionDynamics.empty
 
   protected def receive = handleUpdates orElse subscribe orElse whenUnhandled
 
@@ -33,6 +33,7 @@ class PositionActor(isin: IsinId) extends Actor with ActorLogging with WhenUnhan
       throw new IllegalStateException()
 
     case UpdatePosition(to, d) =>
+      log.info("Position updated to " + to + ", dynamics = " + d)
       subscribers.foreach(_ ! PositionTransition(self, position, to))
       position = to
       dynamics = d

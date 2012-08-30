@@ -4,6 +4,7 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import com.ergodicity.core.{Isin, OrderType, AkkaConfigurations}
 import akka.actor.{FSM, ActorSystem}
+import akka.pattern.ask
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.util.Timeout
 import akka.util.duration._
@@ -18,6 +19,7 @@ import Broker._
 import Protocol._
 import com.ergodicity.core.broker.ReplyEvent.{ReplyData, TimeoutMessage}
 import com.ergodicity.cgate.scheme.Message
+import akka.dispatch.Await
 
 class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -99,10 +101,12 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
       val broker = TestFSMRef(new Broker(publisher, None), "Broker")
       broker.setState(Active)
 
-      broker ! Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
+      val response = broker ? Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
       broker ! TimeoutMessage(1)
 
-      expectMsg(Left(TimedOut))
+      intercept[BrokerTimedOutException] {
+        Await.result(response, 1.second)
+      }
     }
 
     "handle Flood failures" in {
@@ -117,10 +121,12 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
       val broker = TestFSMRef(new Broker(publisher, None), "Broker")
       broker.setState(Active)
 
-      broker ! Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
+      val response = broker ? Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
       broker ! ReplyData(1, 99, errorMsg.getData)
 
-      expectMsg(Left(Flood(10, 50, "Flood")))
+      intercept[FloodException] {
+        Await.result(response, 1.second)
+      }
     }
 
     "handle Error failures" in {
@@ -133,10 +139,12 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
       val broker = TestFSMRef(new Broker(publisher, None), "Broker")
       broker.setState(Active)
 
-      broker ! Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
+      val response = broker ? Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
       broker ! ReplyData(1, 100, errorMsg.getData)
 
-      expectMsg(Left(Error("Error")))
+      intercept[BrokerErrorException] {
+        Await.result(response, 1.second)
+      }
     }
 
     "handle order response" in {
@@ -152,7 +160,7 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
       broker ! Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
       broker ! ReplyData(1, 101, orderMsg.getData)
 
-      expectMsg(Right(Order(111)))
+      expectMsg(OrderId(111))
     }
   }
 

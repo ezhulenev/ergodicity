@@ -21,41 +21,41 @@ class PositionActorSpec extends TestKit(ActorSystem("PositionActorSpec", ConfigW
 
     import PositionActor._
 
-    "initialied in Flat state" in {
+    "initialied in Position.flat state" in {
       val position = TestActorRef(new PositionActor(isin))
-      assert(position.underlyingActor.position == Flat)
+      assert(position.underlyingActor.position == Position.flat)
     }
 
-    "stay in Flat position on update with position = 0" in {
+    "stay in Position.flat position on update with position = 0" in {
       val position = TestActorRef(new PositionActor(isin))
-      position ! UpdatePosition(Flat, PositionDynamics())
-      assert(position.underlyingActor.position == Flat)
+      position ! UpdatePosition(Position.flat, PositionDynamics.empty)
+      assert(position.underlyingActor.position == Position.flat)
     }
 
     "go to Long position on update" in {
       val position = TestActorRef(new PositionActor(isin))
-      position ! UpdatePosition(Long(10), PositionDynamics(buys = 10))
-      assert(position.underlyingActor.position == Long(10))
+      position ! UpdatePosition(Position(10), PositionDynamics(buys = 10))
+      assert(position.underlyingActor.position == Position(10))
     }
 
     "handle position updates" in {
       val position = TestActorRef(new PositionActor(isin))
       position ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(position, Flat))
+      expectMsg(CurrentPosition(position, Position.flat))
 
-      val data1 = Long(10)
+      val data1 = Position(10)
       position ! UpdatePosition(data1, PositionDynamics(buys = 10))
       assert(position.underlyingActor.position == data1)
-      expectMsg(PositionTransition(position, Flat, data1))
+      expectMsg(PositionTransition(position, Position.flat, data1))
 
-      val data2 = Short(2)
-      position ! UpdatePosition(data2, PositionDynamics(open = Flat, buys = 10, sells = 12))
+      val data2 = Position(-2)
+      position ! UpdatePosition(data2, PositionDynamics(open = 0, buys = 10, sells = 12))
       assert(position.underlyingActor.position == data2)
       expectMsg(PositionTransition(position, data1, data2))
 
-      val data3 = Flat
-      position ! UpdatePosition(Flat, PositionDynamics(open = Flat, buys = 12, sells = 12))
-      assert(position.underlyingActor.position == Flat)
+      val data3 = Position.flat
+      position ! UpdatePosition(Position.flat, PositionDynamics(open = 0, buys = 12, sells = 12))
+      assert(position.underlyingActor.position == Position.flat)
       expectMsg(PositionTransition(position, data2, data3))
     }
   }

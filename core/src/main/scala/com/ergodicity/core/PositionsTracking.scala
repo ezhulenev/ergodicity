@@ -101,7 +101,7 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       val (_, discarded) = positions.partition {
         case key => snapshot.data.find(_.get_isin_id() == key._1.id).isDefined
       }
-      discarded.values.foreach(_ ! UpdatePosition(Flat, PositionDynamics()))
+      discarded.values.foreach(_ ! UpdatePosition(Position.flat, PositionDynamics.empty))
 
       // Update alive positions and open new one
       snapshot.data.map {
@@ -109,7 +109,7 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
           val id = IsinId(pos.get_isin_id())
           val position = Position(pos.get_pos())
           val dynamics = PositionDynamics(
-            Position(pos.get_open_qty()),
+            pos.get_open_qty(),
             pos.get_buys_qty(),
             pos.get_sells_qty(),
             pos.get_net_volume_rur(),

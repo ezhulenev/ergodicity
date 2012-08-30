@@ -1,8 +1,6 @@
 package com.ergodicity.core.broker
 
 import org.scalatest.WordSpec
-import org.mockito.Mockito._
-import ru.micexrts.cgate.messages.DataMessage
 import com.ergodicity.cgate.scheme.Message
 import java.nio.ByteBuffer
 
@@ -16,9 +14,9 @@ class ProtocolSpec extends WordSpec {
       val errorMessage = new Message.FORTS_MSG100(ByteBuffer.allocate(1000))
       errorMessage.set_message("Error")
 
-      val res = protocol.deserialize(Message.FORTS_MSG100.MSG_ID, errorMessage.getData)
-
-      assert(res == Left(Error("Error")))
+      intercept[BrokerErrorException] {
+        protocol.deserialize(Message.FORTS_MSG100.MSG_ID, errorMessage.getData)
+      }
     }
 
     "handle flood" in {
@@ -29,9 +27,9 @@ class ProtocolSpec extends WordSpec {
       errorMessage.set_penalty_remain(100)
       errorMessage.set_message("Flood")
 
-      val res = protocol.deserialize(Message.FORTS_MSG99.MSG_ID, errorMessage.getData)
-
-      assert(res == Left(Flood(50, 100, "Flood")))
+      intercept[FloodException] {
+        protocol.deserialize(Message.FORTS_MSG99.MSG_ID, errorMessage.getData)
+      }
     }
 
     "fail on unexpected message" in {
@@ -55,7 +53,7 @@ class ProtocolSpec extends WordSpec {
 
       val res = protocol.deserialize(Message.FORTS_MSG101.MSG_ID, errorMessage.getData)
 
-      assert(res == Right(Order(1111)))
+      assert(res == OrderId(1111))
     }
   }
 
@@ -68,7 +66,7 @@ class ProtocolSpec extends WordSpec {
 
       val res = protocol.deserialize(Message.FORTS_MSG109.MSG_ID, errorMessage.getData)
 
-      assert(res == Right(Order(1111)))
+      assert(res == OrderId(1111))
     }
   }
 }
