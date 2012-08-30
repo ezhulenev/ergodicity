@@ -11,7 +11,7 @@ import akka.actor.{Terminated, Kill, ActorSystem}
 import com.ergodicity.core.session.SessionState
 import com.ergodicity.core.Mocking.{mockOption, mockFuture}
 import com.ergodicity.core.SessionsTracking._
-import session.Session.{OptInfoSessionContents, FutInfoSessionContents}
+import session.SessionActor.{OptInfoSessionContents, FutInfoSessionContents}
 import akka.actor.FSM.Transition
 import akka.actor.FSM.CurrentState
 import com.ergodicity.core.SessionsTracking.OngoingSession

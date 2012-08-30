@@ -12,7 +12,7 @@ import com.ergodicity.cgate.repository.Repository.Snapshot
 import akka.actor.FSM.CurrentState
 import akka.actor.FSM.SubscribeTransitionCallBack
 import akka.testkit.TestActor.AutoPilot
-import com.ergodicity.core.session.Session.GetState
+import com.ergodicity.core.session.SessionActor.GetState
 import Implicits._
 
 class OptionsContentsManagerSpec extends TestKit(ActorSystem("OptionsContentsManagerSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {

@@ -14,7 +14,7 @@ import com.ergodicity.cgate.repository.Repository.Snapshot
 import com.ergodicity.core.Mocking._
 import akka.testkit._
 import akka.testkit.TestActor.AutoPilot
-import com.ergodicity.core.session.Session.GetState
+import com.ergodicity.core.session.SessionActor.GetState
 import Implicits._
 
 

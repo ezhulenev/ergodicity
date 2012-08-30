@@ -7,7 +7,7 @@ import SessionState._
 import akka.event.Logging
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import com.ergodicity.core.AkkaConfigurations._
-import com.ergodicity.core.session.Session.FutInfoSessionContents
+import com.ergodicity.core.session.SessionActor.FutInfoSessionContents
 import akka.testkit.{TestActorRef, ImplicitSender, TestFSMRef, TestKit}
 import akka.actor.{ActorRef, Terminated, ActorSystem}
 import akka.dispatch.Await
@@ -52,11 +52,11 @@ class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedL
 
   "Session" must {
     "be inititliazed in given state and terminate child clearing actor" in {
-      val content = SessionContent(100, 101, primaryInterval, None, None, positionTransferInterval)
-      val session = TestFSMRef(Session(content, SessionState.Online, IntradayClearingState.Oncoming), "Session")
+      val content = Session(100, 101, primaryInterval, None, None, positionTransferInterval)
+      val session = TestFSMRef(SessionActor(content, SessionState.Online, IntradayClearingState.Oncoming), "Session")
 
       assert(session.stateName == SessionState.Online)
-      val intClearing = session.underlyingActor.asInstanceOf[Session].intradayClearing
+      val intClearing = session.underlyingActor.asInstanceOf[SessionActor].intradayClearing
 
       intClearing ! SubscribeTransitionCallBack(self)
 
@@ -64,11 +64,11 @@ class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedL
     }
 
     "apply state and int. clearing updates" in {
-      val content = SessionContent(100, 101, primaryInterval, None, None, positionTransferInterval)
-      val session = TestFSMRef(Session(content, SessionState.Online, IntradayClearingState.Oncoming), "Session")
+      val content = Session(100, 101, primaryInterval, None, None, positionTransferInterval)
+      val session = TestFSMRef(SessionActor(content, SessionState.Online, IntradayClearingState.Oncoming), "Session")
 
       // Subscribe for clearing transitions
-      val intClearing = session.underlyingActor.asInstanceOf[Session].intradayClearing
+      val intClearing = session.underlyingActor.asInstanceOf[SessionActor].intradayClearing
       intClearing ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(intClearing, IntradayClearingState.Oncoming))
 
@@ -80,8 +80,8 @@ class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedL
     }
 
     "handle SessContentsRecord from FutInfo and return instument on request" in {
-      val content = SessionContent(100, 101, primaryInterval, None, None, positionTransferInterval)
-      val session = TestActorRef(new Session(content, SessionState.Online, IntradayClearingState.Oncoming), "Session2")
+      val content = Session(100, 101, primaryInterval, None, None, positionTransferInterval)
+      val session = TestActorRef(new SessionActor(content, SessionState.Online, IntradayClearingState.Oncoming), "Session2")
 
       val future = mockFuture(4023, 166911, "GMKR-6.12", "GMM2", "Фьючерсный контракт GMKR-06.12", 115, 2)
       val repo = mockFuture(4023, 170971, "HYDR-16.04.12R3", "HYDRT0T3", "Репо инструмент на ОАО \"ГидроОГК\"", 4965, 2, 1)

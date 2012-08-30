@@ -11,7 +11,7 @@ import scala.Some
 import com.ergodicity.core.Isins
 
 
-case class SessionContent(id: Int, optionsSessionId: Int, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval) {
+case class Session(id: Int, optionsSessionId: Int, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval) {
   def this(rec: FutInfo.session) = this(
     rec.get_sess_id(),
     rec.get_opt_sess_id(),
@@ -22,12 +22,12 @@ case class SessionContent(id: Int, optionsSessionId: Int, primarySession: Interv
   )
 }
 
-object Session {
+object SessionActor {
   implicit val timeout = Timeout(1, TimeUnit.SECONDS)
 
   def apply(rec: FutInfo.session) = {
-    new Session(
-      new SessionContent(rec),
+    new SessionActor(
+      new Session(rec),
       SessionState(rec.get_state()),
       IntradayClearingState(rec.get_inter_cl_state())
     )
@@ -44,9 +44,9 @@ object Session {
 
 case class GetSessionInstrument(isin: Isins)
 
-case class Session(content: SessionContent, initialState: SessionState, initialIntradayClearingState: IntradayClearingState) extends Actor with LoggingFSM[SessionState, Unit] {
+case class SessionActor(content: Session, initialState: SessionState, initialIntradayClearingState: IntradayClearingState) extends Actor with LoggingFSM[SessionState, Unit] {
 
-  import Session._
+  import SessionActor._
   import SessionState._
 
   val intradayClearing = context.actorOf(Props(new IntradayClearing(initialIntradayClearingState)), "IntradayClearing")

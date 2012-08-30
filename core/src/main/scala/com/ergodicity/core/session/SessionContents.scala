@@ -8,7 +8,7 @@ import com.ergodicity.cgate.repository.Repository.Snapshot
 import com.ergodicity.cgate.WhenUnhandled
 import com.ergodicity.core.{Isin, Isins}
 import collection.mutable
-import com.ergodicity.core.session.Session.GetState
+import com.ergodicity.core.session.SessionActor.GetState
 import akka.dispatch.Await
 import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
 import com.ergodicity.core.session.InstrumentData.Limits

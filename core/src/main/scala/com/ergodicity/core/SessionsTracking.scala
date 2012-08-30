@@ -13,8 +13,8 @@ import akka.dispatch.Await
 import akka.pattern.ask
 import akka.pattern.pipe
 import com.ergodicity.cgate.repository.Repository.GetSnapshot
-import session.Session.{FutInfoSessionContents, OptInfoSessionContents}
-import session.{Session, SessionContent, IntradayClearingState, SessionState}
+import session.SessionActor.{FutInfoSessionContents, OptInfoSessionContents}
+import session.{SessionActor, Session, IntradayClearingState, SessionState}
 import com.ergodicity.cgate.sysevents.SysEventDispatcher.SubscribeSysEvents
 import com.ergodicity.cgate.repository.Repository.SubscribeSnapshots
 import akka.actor.FSM.Transition
@@ -210,10 +210,10 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
         val sessionId = newRecord.get_sess_id()
         val state = SessionState(newRecord.get_state())
         val intClearingState = IntradayClearingState(newRecord.get_inter_cl_state())
-        val content = new SessionContent(newRecord)
-        val session = context.actorOf(Props(new Session(content, state, intClearingState)), sessionId.toString)
+        val session = new Session(newRecord)
+        val sessionActor = context.actorOf(Props(new SessionActor(session, state, intClearingState)), sessionId.toString)
 
-        trackingSessions(SessionId(sessionId, newRecord.get_opt_sess_id())) = session
+        trackingSessions(SessionId(sessionId, newRecord.get_opt_sess_id())) = sessionActor
     }
 
     // Select ongoing session
