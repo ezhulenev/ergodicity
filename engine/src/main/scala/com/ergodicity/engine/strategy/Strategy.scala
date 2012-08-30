@@ -1,15 +1,17 @@
 package com.ergodicity.engine.strategy
 
-import com.ergodicity.core.Isin
 import akka.actor.Props
-import com.ergodicity.engine.Services
 
-abstract class StrategyFactory(family: StrategyFamily) {
-  def apply(resolver: Services.Resolver): Seq[Strategy]
-}
+trait StrategyId
 
-trait Strategy {
-  def isin: Isin
+case class Strategy(props: Props)(implicit val id: StrategyId)
 
-  def apply: Props
+trait StrategiesFactory {
+  factory =>
+
+  def apply(): Iterable[Strategy]
+
+  def &(other: StrategiesFactory) = new StrategiesFactory {
+    def apply() = factory.apply() ++ other.apply()
+  }
 }

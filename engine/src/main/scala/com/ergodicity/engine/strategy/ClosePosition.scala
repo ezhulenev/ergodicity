@@ -2,36 +2,23 @@ package com.ergodicity.engine.strategy
 
 import akka.actor.{ActorLogging, Props, Actor}
 import com.ergodicity.core.Isin
-import com.ergodicity.engine.Services.Resolver
+import com.ergodicity.engine.Services.ServiceResolver
+import com.ergodicity.engine.StrategyEngine
 
-object ClosePosition {
+object CloseAllPositions {
 
-  implicit case object ClosePosition extends StrategyFamily
+  implicit case object CloseAllPositions extends StrategyId
 
-}
-
-object ClosePositionFactory {
-
-  import ClosePosition._
-
-  def apply(isin: Isin) = new StrategyFactory(implicitly[StrategyFamily]) {
-    def strategies() = new ClosePosition(isin) :: Nil
+  def apply() = new StrategiesFactory {
+    def apply() = Strategy(Props(new CloseAllPositions)) :: Nil
   }
 }
 
-class ClosePosition(isin: Isin) extends Strategy {
-
-  import ClosePosition._
-
-  val id = implicitly[StrategyId]
-
-  def apply(resolver: Resolver) = Props(new ClosePositionStrategy(isin))
-}
-
-class ClosePositionStrategy(isin: Isin) extends Actor with ActorLogging {
-  protected def receive = null
+class CloseAllPositions extends Actor with ActorLogging {
 
   override def preStart() {
-    log.info("Started ClosePositionStrategy")
+    log.info("Started CloseAllPositions")
   }
+
+  protected def receive = null
 }

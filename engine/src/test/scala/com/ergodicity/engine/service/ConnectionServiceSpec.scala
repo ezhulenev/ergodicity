@@ -7,7 +7,7 @@ import akka.testkit._
 import ru.micexrts.cgate.{Connection => CGConnection}
 import org.mockito.Mockito._
 import akka.actor.FSM.CurrentState
-import com.ergodicity.engine.Services.{Reporter, ServiceFailedException}
+import com.ergodicity.engine.Services.{ServiceReporter, ServiceFailedException}
 
 class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -19,7 +19,7 @@ class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec",
   "ConnectionService" must {
     "throw exception on error state" in {
       val underlyingConnection = mock(classOf[CGConnection])
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
       implicit val Id = Connection.Connection
 
       val service = TestActorRef(new ConnectionService(underlyingConnection), "ConnectionService")
@@ -30,7 +30,7 @@ class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec",
 
     "notify engine on activated state" in {
       val underlyingConnection = mock(classOf[CGConnection])
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
       implicit val Id = Connection.Connection
 
       val service = TestActorRef(new ConnectionService(underlyingConnection), "ConnectionService")
@@ -41,7 +41,7 @@ class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec",
 
     "stop itselt of Service.Stop message" in {
       val underlyingConnection = mock(classOf[CGConnection])
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
       implicit val Id = Connection.Connection
 
       // CallingThreadDispatcher for TestActorRef breaks test

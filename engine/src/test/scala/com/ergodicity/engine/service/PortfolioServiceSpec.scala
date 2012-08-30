@@ -11,7 +11,7 @@ import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, Listener => C
 import com.ergodicity.engine.service.Service.Start
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.core.PositionsTrackingState
-import com.ergodicity.engine.Services.Reporter
+import com.ergodicity.engine.Services.ServiceReporter
 
 class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -32,7 +32,7 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
       val posReplication = mock(classOf[Replication])
 
 
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
       val positions = TestProbe()
 
       val service = TestActorRef(Props(new PortfolioService(listenerFactory, underlyingConnection, posReplication) {
@@ -56,7 +56,7 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
       val underlyingConnection = mock(classOf[CGConnection])
       val posReplication = mock(classOf[Replication])
 
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
       val positions = TestProbe()
 
       val service = TestActorRef(Props(new PortfolioService(listenerFactory, underlyingConnection, posReplication) {

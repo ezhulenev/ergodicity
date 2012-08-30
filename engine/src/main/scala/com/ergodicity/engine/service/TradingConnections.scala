@@ -14,7 +14,7 @@ import akka.actor.Terminated
 import akka.actor.FSM.SubscribeTransitionCallBack
 import scalaz._
 import Scalaz._
-import com.ergodicity.engine.Services.Reporter
+import com.ergodicity.engine.Services.ServiceReporter
 
 object TradingConnections {
 
@@ -55,7 +55,7 @@ object TradingConnectionsService {
 }
 
 protected[service] class TradingConnectionsService(publisherConnection: CGConnection, repliesConnection: CGConnection)
-                                                  (implicit val reporter: Reporter, id: ServiceId) extends Actor with LoggingFSM[ServiceState, ServiceData] with Service {
+                                                  (implicit val reporter: ServiceReporter, id: ServiceId) extends Actor with LoggingFSM[ServiceState, ServiceData] with Service {
 
   import reporter._
   import TradingConnectionsService._

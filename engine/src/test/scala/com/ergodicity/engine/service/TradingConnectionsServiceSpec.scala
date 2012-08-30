@@ -6,7 +6,7 @@ import akka.event.Logging
 import akka.testkit._
 import org.mockito.Mockito._
 import ru.micexrts.cgate.{Connection => CGConnection}
-import com.ergodicity.engine.Services.{Reporter, ServiceFailedException}
+import com.ergodicity.engine.Services.{ServiceReporter, ServiceFailedException}
 import akka.actor.FSM.CurrentState
 import com.ergodicity.cgate.ConnectionState
 import org.mockito.Mockito
@@ -24,7 +24,7 @@ class TradingConnectionsServiceSpec extends TestKit(ActorSystem("TradingConnecti
     "open connections on Service.Start" in {
       val publisherConnection = mock(classOf[CGConnection])
       val repliesConnection = mock(classOf[CGConnection])
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
 
       val service = TestFSMRef(new TradingConnectionsService(publisherConnection, repliesConnection), "TradingConnectionsService")
 
@@ -43,7 +43,7 @@ class TradingConnectionsServiceSpec extends TestKit(ActorSystem("TradingConnecti
     "throw exception on publisher connection go to error state" in {
       val publisherConnection = mock(classOf[CGConnection])
       val repliesConnection = mock(classOf[CGConnection])
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
 
       val service = TestActorRef(new TradingConnectionsService(publisherConnection, repliesConnection), "TradingConnectionsService")
       val underlying = service.underlyingActor
@@ -56,7 +56,7 @@ class TradingConnectionsServiceSpec extends TestKit(ActorSystem("TradingConnecti
     "notify engine on both connections activated" in {
       val publisherConnection = mock(classOf[CGConnection])
       val repliesConnection = mock(classOf[CGConnection])
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
 
       val service = TestFSMRef(new TradingConnectionsService(publisherConnection, repliesConnection), "TradingConnectionsService")
       val underlying = service.underlyingActor.asInstanceOf[TradingConnectionsService]
@@ -76,7 +76,7 @@ class TradingConnectionsServiceSpec extends TestKit(ActorSystem("TradingConnecti
     "stop itselt of Service.Stop message" in {
       val publisherConnection = mock(classOf[CGConnection])
       val repliesConnection = mock(classOf[CGConnection])
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
 
       Mockito.when(publisherConnection.getState).thenReturn(ru.micexrts.cgate.State.ACTIVE)
       Mockito.when(repliesConnection.getState).thenReturn(ru.micexrts.cgate.State.ACTIVE)

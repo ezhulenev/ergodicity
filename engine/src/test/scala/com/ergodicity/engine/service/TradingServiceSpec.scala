@@ -13,7 +13,7 @@ import com.ergodicity.core.broker.Broker
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.engine.service.Service.Start
 import com.ergodicity.cgate.{Active, Opening}
-import com.ergodicity.engine.Services.Reporter
+import com.ergodicity.engine.Services.ServiceReporter
 
 class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -35,7 +35,7 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
       val publisher = mock(classOf[CGPublisher])
       val repliesConnection = mock(classOf[CGConnection])
 
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
       val broker = TestProbe()
 
       val service =  TestActorRef(new TradingService(listenerFactory, publisher, repliesConnection) {
@@ -59,7 +59,7 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
       val publisher = mock(classOf[CGPublisher])
       val repliesConnection = mock(classOf[CGConnection])
 
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
       val broker = TestProbe()
 
       val service =  TestActorRef(new TradingService(listenerFactory, publisher, repliesConnection){

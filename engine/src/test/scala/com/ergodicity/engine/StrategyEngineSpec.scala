@@ -1,5 +1,14 @@
 package com.ergodicity.engine
 
-class StrategyEngineSpec {
+import org.scalatest.WordSpec
+import strategy.CloseAllPositions
+
+class StrategyEngineSpec extends WordSpec {
+
+  "StrategyEngine" must {
+    "work" in {
+      val engine = new StrategyEngine(CloseAllPositions() & CloseAllPositions())
+    }
+  }
 
 }

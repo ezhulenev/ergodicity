@@ -13,7 +13,7 @@ import com.ergodicity.engine.service.Service.{Stop, Start}
 import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
 import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.engine.Services.Reporter
+import com.ergodicity.engine.Services.ServiceReporter
 
 object Portfolio {
 
@@ -32,7 +32,7 @@ trait Portfolio {
 }
 
 protected[service] class PortfolioService(listener: ListenerFactory, underlyingConnection: CGConnection, posReplication: Replication)
-                                         (implicit val reporter: Reporter, id: ServiceId) extends Actor with ActorLogging with WhenUnhandled {
+                                         (implicit val reporter: ServiceReporter, id: ServiceId) extends Actor with ActorLogging with WhenUnhandled {
 
   import reporter._
 

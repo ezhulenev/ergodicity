@@ -9,6 +9,7 @@ import collection.mutable
 import scalaz._
 import com.ergodicity.engine.ServicesState.PendingServices
 import akka.dispatch.Future
+import akka.util.Timeout
 
 case class ServiceStarted(service: ServiceId)
 
@@ -95,13 +96,13 @@ object Services {
     def waitFor(id: ServiceId) = copy(stopBarrier = stopBarrier.waitFor(id))
   }
 
-  trait Reporter {
+  trait ServiceReporter {
     def serviceStarted(implicit id: ServiceId)
 
     def serviceStopped(implicit id: ServiceId)
   }
 
-  trait Resolver {
+  trait ServiceResolver {
     def service(id: ServiceId): Future[ServiceRef]
   }
 
@@ -113,6 +114,7 @@ class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
   import ServicesState._
 
   implicit val Self = this
+  implicit val timeout = Timeout(5.seconds)
 
   protected[engine] val services = mutable.Map.empty[ServiceId, ManagedService]
 
@@ -121,7 +123,7 @@ class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
     case _: ServiceFailedException => SupervisorStrategy.Stop
   }
 
-  implicit val reporter = new Reporter {
+  implicit val reporter = new ServiceReporter {
     def serviceStopped(implicit id: ServiceId) {
       self ! ServiceStopped(id)
     }
@@ -131,7 +133,7 @@ class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
     }
   }
 
-  implicit val resolver = new Resolver {
+  implicit val resolver = new ServiceResolver {
     def service(id: ServiceId) = (self ? ResolveService(id)).mapTo[ServiceRef]
   }
 

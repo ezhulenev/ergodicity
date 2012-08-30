@@ -12,7 +12,7 @@ import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.core.SessionsTrackingState
 import ru.micexrts.cgate
 import cgate.{Connection => CGConnection, ISubscriber, Listener => CGListener}
-import com.ergodicity.engine.Services.Reporter
+import com.ergodicity.engine.Services.ServiceReporter
 
 class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -34,7 +34,7 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
       val optInfoReplication = mock(classOf[Replication])
       val futInfoReplication = mock(classOf[Replication])
 
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
       val sessions = TestProbe()
 
       val service = TestActorRef(new InstrumentDataService(listenerFactory, underlyingConnection, futInfoReplication, optInfoReplication) {
@@ -59,7 +59,7 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
       val optInfoReplication = mock(classOf[Replication])
       val futInfoReplication = mock(classOf[Replication])
 
-      implicit val reporter = mock(classOf[Reporter])
+      implicit val reporter = mock(classOf[ServiceReporter])
       val sessions = TestProbe()
 
       val service = TestActorRef(new InstrumentDataService(listenerFactory, underlyingConnection, futInfoReplication, optInfoReplication) {
