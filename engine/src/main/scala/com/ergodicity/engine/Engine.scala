@@ -53,7 +53,7 @@ trait Engine extends Actor with FSM[EngineState, EngineData] {
 
   when(Idle) {
     case Event(StartEngine, _) =>
-      //Services ! StartAllServices
+      //Services ! StartServices$
       //Services ! SubscribeTransitionCallBack(self)
       goto(Starting)
   }
@@ -70,7 +70,7 @@ trait Engine extends Actor with FSM[EngineState, EngineData] {
 
   when(Active) {
     case Event(StopEvent, _) =>
-      //Services ! StopAllServices
+      //Services ! StopServices$
       stay()
   }
 

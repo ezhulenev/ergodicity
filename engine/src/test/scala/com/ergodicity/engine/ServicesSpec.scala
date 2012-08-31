@@ -7,7 +7,7 @@ import akka.testkit._
 import akka.util.duration._
 import service.Service.{Stop, Start}
 import service.ServiceId
-import com.ergodicity.engine.Services.{StopAllServices, StartAllServices}
+import com.ergodicity.engine.Services.{StopServices, StartServices}
 import akka.actor.Terminated
 import com.ergodicity.engine.ServicesState.PendingServices
 
@@ -38,7 +38,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       val serviceManager = TestFSMRef(new TwoServices(srv1.ref, srv2.ref), "Services")
 
       when("service manager starts all services")
-      serviceManager ! StartAllServices
+      serviceManager ! StartServices
 
       then("each service get Start message")
       srv1.expectMsg(Start)
@@ -66,7 +66,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       serviceManager.setState(ServicesState.Active)
 
       when("Servie Manager stops all services")
-      serviceManager ! StopAllServices
+      serviceManager ! StopServices
 
       then("should go to Stopping state")
       assert(serviceManager.stateName == ServicesState.Stopping)
@@ -122,7 +122,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       val serviceManager = TestFSMRef(new ThreeServices(s1.ref, s2.ref, dep.ref), "Services")
 
       when("service manager starts all services")
-      serviceManager ! StartAllServices
+      serviceManager ! StartServices
 
       then("Service1 & Service2 get Start message")
       s1.expectMsg(Start)
@@ -159,7 +159,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
       watch(serviceManager)
 
       when("service manager starts all services")
-      serviceManager ! StopAllServices
+      serviceManager ! StopServices
 
       then("Dependent service get Stop message")
       dep.expectMsg(Stop)

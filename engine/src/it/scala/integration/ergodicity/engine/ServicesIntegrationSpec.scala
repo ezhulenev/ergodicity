@@ -12,7 +12,7 @@ import com.ergodicity.engine.{Engine, Services}
 import com.ergodicity.engine.service.{InstrumentData, TradingConnections, Connection}
 import com.ergodicity.engine.underlying.{UnderlyingListener, ListenerFactory, UnderlyingTradingConnections, UnderlyingConnection}
 import java.util.concurrent.TimeUnit
-import com.ergodicity.engine.Services.StartAllServices
+import com.ergodicity.engine.Services.StartServices
 import com.ergodicity.engine.ReplicationScheme.{OptInfoReplication, FutInfoReplication}
 import ru.micexrts.cgate
 import cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener}
@@ -70,7 +70,7 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
       val underlyingEngine = TestActorRef(new IntegrationEngine, "Engine").underlyingActor
       val services = TestActorRef(new IntegrationServices(underlyingEngine), "Services")
 
-      services ! StartAllServices
+      services ! StartServices
 
        Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }

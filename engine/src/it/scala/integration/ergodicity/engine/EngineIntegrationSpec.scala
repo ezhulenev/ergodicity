@@ -43,7 +43,7 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
     "start" in {
   /*    val engine = TestFSMRef(factory, "Engine")
 
-      engine ! StartEngine
+      engine ! StartStrategies$
 
       Thread.sleep(5000)
 

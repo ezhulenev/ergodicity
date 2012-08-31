@@ -39,9 +39,9 @@ object Services {
   private[Services] case object ShutDown extends ServiceId
 
   // Commands
-  case object StartAllServices
+  case object StartServices
 
-  case object StopAllServices
+  case object StopServices
 
   case class ResolveService(id: ServiceId)
 
@@ -140,7 +140,7 @@ class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
   startWith(Idle, PendingServices(Nil))
 
   when(Idle) {
-    case Event(StartAllServices, _) =>
+    case Event(StartServices, _) =>
       log.info("Start all services = " + services.keys)
       started(StartUp)
       goto(Starting) using PendingServices(services.keys)
@@ -162,7 +162,7 @@ class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
   }
 
   when(Active) {
-    case Event(StopAllServices, _) =>
+    case Event(StopServices, _) =>
       log.info("Stop all services = " + services.keys)
       stopped(ShutDown)
       goto(Stopping) using PendingServices(services.keys)

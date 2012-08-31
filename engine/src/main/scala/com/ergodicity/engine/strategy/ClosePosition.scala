@@ -4,13 +4,15 @@ import akka.actor.{ActorLogging, Props, Actor}
 import com.ergodicity.core.Isin
 import com.ergodicity.engine.Services.ServiceResolver
 import com.ergodicity.engine.StrategyEngine
+import com.ergodicity.engine.StrategyEngine.EngineConfig
 
 object CloseAllPositions {
 
   implicit case object CloseAllPositions extends StrategyId
 
   def apply() = new StrategiesFactory {
-    def apply() = Strategy(Props(new CloseAllPositions)) :: Nil
+
+    def strategies(implicit config: EngineConfig) = Props(new CloseAllPositions) :: Nil
   }
 }
 
