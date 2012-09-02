@@ -1,10 +1,6 @@
 package com.ergodicity.engine.strategy
 
 import akka.actor.{ActorLogging, Props, Actor}
-import com.ergodicity.core.Isin
-import com.ergodicity.engine.Services.ServiceResolver
-import com.ergodicity.engine.StrategyEngine
-import com.ergodicity.engine.StrategyEngine.EngineConfig
 
 object CloseAllPositions {
 
@@ -12,7 +8,7 @@ object CloseAllPositions {
 
   def apply() = new StrategiesFactory {
 
-    def strategies(implicit config: EngineConfig) = Props(new CloseAllPositions) :: Nil
+    def strategies = Props(new CloseAllPositions) :: Nil
   }
 }
 

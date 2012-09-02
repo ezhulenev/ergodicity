@@ -3,10 +3,9 @@ package com.ergodicity.core.position
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.actor.ActorSystem
-import com.ergodicity.core.AkkaConfigurations
+import com.ergodicity.core.{IsinId, AkkaConfigurations}
 import AkkaConfigurations._
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
-import com.ergodicity.core.Isins
 
 class PositionActorSpec extends TestKit(ActorSystem("PositionActorSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -15,7 +14,7 @@ class PositionActorSpec extends TestKit(ActorSystem("PositionActorSpec", ConfigW
     system.shutdown()
   }
 
-  val isin = Isins(166911, "GMKR-6.12", "GMM2")
+  val isin = IsinId(166911)
 
   "PositionActor" must {
 

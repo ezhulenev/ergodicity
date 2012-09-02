@@ -1,8 +1,10 @@
 package com.ergodicity.core.session
 
-import akka.actor.{LoggingFSM, Actor}
+import akka.actor.{FSM, LoggingFSM, Actor}
+import akka.util.duration._
 import com.ergodicity.core.Security
-import com.ergodicity.core.session.InstrumentData.Limits
+import com.ergodicity.core.session.Instrument.Limits
+import akka.util.Timeout
 
 sealed trait InstrumentState
 
@@ -37,27 +39,32 @@ object InstrumentState {
 
 }
 
-object InstrumentData {
-  case class Limits(lower: BigDecimal, upper: BigDecimal)
-}
-
-case class InstrumentData(underlying: Security, limits: Limits)
-
 object Instrument {
-  case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
+
+  case class Limits(lower: BigDecimal, upper: BigDecimal)
+
 }
 
-class Instrument(initialState: InstrumentState, data: InstrumentData) extends Actor with LoggingFSM[InstrumentState, Unit] {
+case class Instrument(security: Security, limits: Limits)
 
-  import Instrument._
+object InstrumentActor {
+
+  case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
+
+}
+
+class InstrumentActor(underlying: Instrument) extends Actor with LoggingFSM[InstrumentState, Unit] {
+
+  import InstrumentActor._
   import InstrumentState._
 
   override def preStart() {
-    log.info("Started instrument in state = " + initialState + "; security = " + data.underlying)
+    log.info("Started instrument = " + underlying)
     super.preStart()
   }
 
-  startWith(initialState, ())
+  // Start in suspended state
+  startWith(Suspended, (), timeout = Some(1.second))
 
   when(Assigned) {
     handleInstrumentState
@@ -69,16 +76,23 @@ class Instrument(initialState: InstrumentState, data: InstrumentData) extends Ac
 
   when(Canceled) {
     case Event(Canceled, _) => stay()
-    case Event(e, _) => throw new IllegalLifeCycleEvent("Unexpected event after cancellation", e)
+    case Event(e, _) =>
+      throw new IllegalLifeCycleEvent("Unexpected event after cancellation", e)
   }
 
   when(Completed) {
     case Event(Completed, _) => stay()
-    case Event(e, _) => throw new IllegalLifeCycleEvent("Unexpected event after completion", e)
+    case Event(e, _) =>
+      throw new IllegalLifeCycleEvent("Unexpected event after completion", e)
   }
 
   when(Suspended) {
     handleInstrumentState
+  }
+
+  whenUnhandled {
+    case Event(e@FSM.StateTimeout, _) =>
+      throw new IllegalLifeCycleEvent("Timed out in initial Suspended state", e)
   }
 
   initialize

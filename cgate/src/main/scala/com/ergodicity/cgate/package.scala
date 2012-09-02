@@ -3,7 +3,6 @@ package com.ergodicity
 
 package object cgate {
 
-
   case class Signs(signs: Long) {
 
     def eveningSession = (signs & 0x01) > 0
@@ -30,6 +29,4 @@ package object cgate {
 
     case object Premium extends Type
   }
-
-
 }

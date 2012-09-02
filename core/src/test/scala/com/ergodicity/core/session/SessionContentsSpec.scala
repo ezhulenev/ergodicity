@@ -5,7 +5,6 @@ import akka.event.Logging
 import akka.pattern.ask
 import akka.util.duration._
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
-import com.ergodicity.core.Isins
 import akka.actor.{ActorRef, ActorSystem}
 import akka.dispatch.Await
 import akka.util.Timeout
@@ -14,8 +13,8 @@ import com.ergodicity.cgate.repository.Repository.Snapshot
 import com.ergodicity.core.Mocking._
 import akka.testkit._
 import akka.testkit.TestActor.AutoPilot
-import com.ergodicity.core.session.SessionActor.GetState
-import Implicits._
+import com.ergodicity.core.session.SessionActor.{NoSuchInstrumentAssigned, GetInstrumentActor, GetState}
+import com.ergodicity.core.Isin
 
 
 class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -31,11 +30,15 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
 
   "SessionContentes with FuturesManager" must {
     import com.ergodicity.core.session._
+    import Implicits.FutInfoToFuture
+    import Implicits.OptInfoToOption
 
-    "return None if no instument found" in {
+    "fail if no instument found" in {
       val contents = TestActorRef(new SessionContents[FutInfo.fut_sess_contents](onlineSession) with FuturesContentsManager, "Futures")
-      val future = (contents ? GetSessionInstrument(Isins(100, "BadCode", "BadShortCode"))).mapTo[Option[ActorRef]]
-      assert(Await.result(future, 1.second) == None)
+      val future = (contents ? GetInstrumentActor(Isin("BadCode"))).mapTo[Option[ActorRef]]
+      intercept[NoSuchInstrumentAssigned] {
+        Await.result(future, 1.second)
+      }
     }
 
     "return instument reference if found" in {
@@ -43,7 +46,7 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
       contents ! Snapshot(self, gmkFuture :: Nil)
 
       val gmk = system.actorFor("user/Futures/GMKR-6.12")
-      val future = (contents ? GetSessionInstrument(Isins(166911, "GMKR-6.12", "GMM2"))).mapTo[Option[ActorRef]]
+      val future = (contents ? GetInstrumentActor(Isin("GMKR-6.12"))).mapTo[Option[ActorRef]]
       assert(Await.result(future, 1.second) == Some(gmk))
     }
   }

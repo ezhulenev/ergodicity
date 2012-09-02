@@ -2,23 +2,28 @@ package com.ergodicity.core.session
 
 import org.joda.time.DateTime
 import org.scala_tools.time.Implicits._
-import akka.actor.FSM.{CurrentState, Transition, SubscribeTransitionCallBack}
 import SessionState._
 import akka.event.Logging
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import com.ergodicity.core.AkkaConfigurations._
-import com.ergodicity.core.session.SessionActor.FutInfoSessionContents
+import com.ergodicity.core.session.SessionActor._
 import akka.testkit.{TestActorRef, ImplicitSender, TestFSMRef, TestKit}
-import akka.actor.{ActorRef, Terminated, ActorSystem}
+import akka.actor.{ActorRef, ActorSystem}
 import akka.dispatch.Await
 import akka.pattern.ask
-import com.ergodicity.core.Isins
 import java.util.concurrent.TimeUnit
 import akka.util.{Duration, Timeout}
 import com.ergodicity.core.Mocking._
+import com.ergodicity.core.Isin
+import com.ergodicity.core.session.SessionActor.OptInfoSessionContents
+import akka.actor.FSM.Transition
 import com.ergodicity.cgate.repository.Repository.Snapshot
+import akka.actor.FSM.CurrentState
+import com.ergodicity.core.session.SessionActor.FutInfoSessionContents
+import com.ergodicity.core.session.SessionActor.GetInstrumentActor
+import akka.actor.FSM.SubscribeTransitionCallBack
 
-class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class SessionActorSpec extends TestKit(ActorSystem("SessionActorSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   implicit val timeout = Timeout(1, TimeUnit.SECONDS)
@@ -95,8 +100,27 @@ class SessionSpec extends TestKit(ActorSystem("SessionSpec", ConfigWithDetailedL
       gmkFutures ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(gmkFutures, InstrumentState.Suspended))
 
-      val instrument = (session ? GetSessionInstrument(Isins(166911, "GMKR-6.12", "GMM2"))).mapTo[Option[ActorRef]]
-      assert(Await.result(instrument, Duration(1, TimeUnit.SECONDS)) == Some(gmkFutures))
+      val instrument = (session ? GetInstrumentActor(Isin("GMKR-6.12"))).mapTo[ActorRef]
+      assert(Await.result(instrument, Duration(1, TimeUnit.SECONDS)) == gmkFutures)
+    }
+
+    "return assigned instruments" in {
+      val session = Session(100, 101, primaryInterval, None, None, positionTransferInterval)
+      val sessionActor = TestActorRef(new SessionActor(session, SessionState.Online, IntradayClearingState.Oncoming), "Session2")
+
+      val future = mockFuture(4023, 166911, "GMKR-6.12", "GMM2", "Фьючерсный контракт GMKR-06.12", 115, 2)
+      val option = mockOption(4023, 111111, "RTS OPT", "OPT", "Some option contract", 4695)
+
+      sessionActor ! FutInfoSessionContents(Snapshot(self, future :: Nil))
+      sessionActor ! OptInfoSessionContents(Snapshot(self, option :: Nil))
+
+      Thread.sleep(300)
+
+      val assignedFuture = (sessionActor ? GetAssignedInstruments).mapTo[AssignedInstruments]
+      val assigned = Await.result(assignedFuture, Duration(1, TimeUnit.SECONDS))
+
+      log.info("Assigned instruments = "+assigned)
+      assert(assigned.instruments.size == 2)
     }
   }
 }

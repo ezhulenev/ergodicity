@@ -4,7 +4,6 @@ import com.ergodicity.cgate.scheme.FutTrade
 
 package object order {
 
-
   case class TrackSession(sessionId: Int)
 
   case class DropSession(sessionId: Int)

@@ -40,7 +40,7 @@ class FuturesContentsManagerSpec extends TestKit(ActorSystem("FuturesContentsMan
       instrument ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(instrument, InstrumentState.Suspended))
 
-      // Instrument goes Online
+      // InstrumentActor goes Online
       contents ! Snapshot(self, gmkFuture(ONLINE) :: Nil)
       expectMsg(Transition(instrument, InstrumentState.Suspended, InstrumentState.Online))
 
@@ -48,7 +48,7 @@ class FuturesContentsManagerSpec extends TestKit(ActorSystem("FuturesContentsMan
       contents ! Transition(session, SessionState.Online, SessionState.Suspended)
       expectMsg(Transition(instrument, InstrumentState.Online, InstrumentState.Suspended))
 
-      // Instrument goes Assigned and session Online
+      // InstrumentActor goes Assigned and session Online
       contents ! Snapshot(self, gmkFuture(ASSIGNED) :: Nil)
       contents ! Transition(session, SessionState.Suspended, SessionState.Online)
       expectMsg(Transition(instrument, InstrumentState.Suspended, InstrumentState.Assigned))

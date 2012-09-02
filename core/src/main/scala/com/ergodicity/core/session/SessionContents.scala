@@ -6,12 +6,11 @@ import akka.pattern.ask
 import akka.util.duration._
 import com.ergodicity.cgate.repository.Repository.Snapshot
 import com.ergodicity.cgate.WhenUnhandled
-import com.ergodicity.core.{Isin, Isins}
 import collection.mutable
-import com.ergodicity.core.session.SessionActor.GetState
+import com.ergodicity.core.session.SessionActor.{AssignedInstruments, GetAssignedInstruments, GetInstrumentActor, GetState}
 import akka.dispatch.Await
 import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
-import com.ergodicity.core.session.InstrumentData.Limits
+import com.ergodicity.core.session.Instrument.Limits
 import akka.util.Timeout
 import Implicits._
 
@@ -28,7 +27,7 @@ class SessionContents[T](Session: ActorRef)(implicit val toSecurity: ToSecurity[
 
   implicit val timeout = Timeout(100.millis)
 
-  protected[core] val instruments = mutable.Map[Isin, ActorRef]()
+  protected[core] val instruments = mutable.Map[Instrument, ActorRef]()
 
   var sessionState = Await.result((Session ? GetState).mapTo[SessionState], 500.millis)
 
@@ -37,7 +36,7 @@ class SessionContents[T](Session: ActorRef)(implicit val toSecurity: ToSecurity[
     Session ! SubscribeTransitionCallBack(self)
   }
 
-  protected def receive = receiveSessionState orElse getInstrumet orElse receiveSnapshot orElse whenUnhandled
+  protected def receive = receiveSessionState orElse getInstruments orElse receiveSnapshot orElse whenUnhandled
 
   private def receiveSessionState: Receive = {
     case CurrentState(Session, state: SessionState) =>
@@ -48,44 +47,43 @@ class SessionContents[T](Session: ActorRef)(implicit val toSecurity: ToSecurity[
       handleSessionState(to)
   }
 
-  private def getInstrumet: Receive = {
-    case GetSessionInstrument(isin) =>
-      val i = instruments.get(isin)
-      log.debug("Get session instrument: " + isin + "; Result = " + i)
-      sender ! i
+  private def getInstruments: Receive = {
+    case GetInstrumentActor(isin) =>
+      val instrument = instruments.find(_._1.security.isin == isin)
+      log.debug("Get session instrument: " + isin + "; Result = " + instrument)
+      sender ! instrument.map(_._2)
+
+    case GetAssignedInstruments =>
+      sender ! AssignedInstruments(instruments.keys.toSet)
   }
 
   private def receiveSnapshot: Receive = {
     case Snapshot(_, data) =>
       handleSessionContentsRecord(data.asInstanceOf[Iterable[T]])
   }
-
-  def conformIsinToActorName(isin: String): String = isin.replaceAll(" ", "@")
-
-  def conformIsinToActorName(isin: Isins): String = conformIsinToActorName(isin.isin)
 }
 
 trait FuturesContentsManager extends ContentsManager[FutInfo.fut_sess_contents] {
   contents: SessionContents[FutInfo.fut_sess_contents] =>
 
-  private var originalInstrumentState: Map[Isin, InstrumentState] = Map()
+  private val originalInstrumentState = mutable.Map[Instrument, InstrumentState]()
 
   protected def handleSessionState(state: SessionState) {
     instruments.foreach {
-      case (isin, ref) => ref ! mergeStates(state, originalInstrumentState(isin))
+      case (instrument, ref) => ref ! mergeStates(state, originalInstrumentState(instrument))
     }
   }
 
   def handleSessionContentsRecord(records: Iterable[FutInfo.fut_sess_contents]) {
     records.foreach {
       record =>
-        val isin = record.isin
-        val state = mergeStates(sessionState, InstrumentState(record.get_state()))
-        instruments.get(isin).map(_ ! state) getOrElse {
-          val data = InstrumentData(toSecurity.convert(record), Limits(record.get_limit_down(), record.get_limit_up()))
-          instruments(isin) = context.actorOf(Props(new Instrument(state, data)), isin.isin)
-        }
-        originalInstrumentState = originalInstrumentState + (isin -> InstrumentState(record.get_state()))
+        val instrument = Instrument(toSecurity.convert(record), Limits(record.get_limit_down(), record.get_limit_up()))
+        originalInstrumentState(instrument)  = InstrumentState(record.get_state())
+
+        val mergedState = mergeStates(sessionState, InstrumentState(record.get_state()))
+        val instrumentActor = instruments.getOrElseUpdate(instrument,context.actorOf(Props(new InstrumentActor(instrument)), record.isin.toActorName))
+        instrumentActor ! mergedState
+
     }
   }
 
@@ -122,12 +120,10 @@ trait OptionsContentsManager extends ContentsManager[OptInfo.opt_sess_contents] 
   protected def handleSessionContentsRecord(records: Iterable[OptInfo.opt_sess_contents]) {
     records.foreach {
       record =>
-        val isin = record.isin
         val state = InstrumentState(sessionState)
-        instruments.get(isin).map(_ ! state) getOrElse {
-          val data = InstrumentData(toSecurity.convert(record), Limits(record.get_limit_down(), record.get_limit_up()))
-          instruments(isin) = context.actorOf(Props(new Instrument(state, data)), conformIsinToActorName(isin))
-        }
+        val instrument = Instrument(toSecurity.convert(record), Limits(record.get_limit_down(), record.get_limit_up()))
+        val instrumentActor = instruments.getOrElseUpdate(instrument, context.actorOf(Props(new InstrumentActor(instrument)), record.isin.toActorName))
+        instrumentActor ! state
     }
   }
 }

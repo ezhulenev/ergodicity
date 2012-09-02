@@ -14,6 +14,7 @@ import akka.actor.FSM.SubscribeTransitionCallBack
 import akka.testkit.TestActor.AutoPilot
 import com.ergodicity.core.session.SessionActor.GetState
 import Implicits._
+import com.ergodicity.core.Isin
 
 class OptionsContentsManagerSpec extends TestKit(ActorSystem("OptionsContentsManagerSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
 
@@ -32,7 +33,7 @@ class OptionsContentsManagerSpec extends TestKit(ActorSystem("OptionsContentsMan
       val contents = TestActorRef(new SessionContents[OptInfo.opt_sess_contents](session) with OptionsContentsManager, "Options")
       contents ! Snapshot(self, rtsOption :: Nil)
 
-      val instrument = system.actorFor("user/Options/" + contents.underlyingActor.conformIsinToActorName("RTS-6.12M150612PA 175000"))
+      val instrument = system.actorFor("user/Options/" + Isin("RTS-6.12M150612PA 175000").toActorName)
       instrument ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(instrument, InstrumentState.Online))
 

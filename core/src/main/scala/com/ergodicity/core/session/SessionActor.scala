@@ -3,12 +3,14 @@ package com.ergodicity.core.session
 import org.joda.time.Interval
 import akka.actor._
 import akka.pattern.ask
+import akka.pattern.pipe
 import akka.util.Timeout
 import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
 import com.ergodicity.cgate.repository.Repository.Snapshot
 import scala.Some
-import com.ergodicity.core.Isins
+import com.ergodicity.core.Isin
+import collection.immutable
 
 
 case class Session(id: Int, optionsSessionId: Int, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval) {
@@ -33,16 +35,30 @@ object SessionActor {
     )
   }
 
-  case object GetState
+  // Failures
+
+  class IllegalLifeCycleEvent(msg: String, event: Any) extends RuntimeException(msg)
+
+  class NoSuchInstrumentAssigned(isin: Isin) extends RuntimeException("No such instument assigned: " + isin)
+
+  // Session contents
 
   case class FutInfoSessionContents(snapshot: Snapshot[FutInfo.fut_sess_contents])
 
   case class OptInfoSessionContents(snapshot: Snapshot[OptInfo.opt_sess_contents])
 
-  case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
+  // Actions
+
+  case object GetState
+
+  case object GetAssignedInstruments
+
+  case class AssignedInstruments(instruments: immutable.Set[Instrument])
+
+  case class GetInstrumentActor(isin: Isin)
+
 }
 
-case class GetSessionInstrument(isin: Isins)
 
 case class SessionActor(content: Session, initialState: SessionState, initialIntradayClearingState: IntradayClearingState) extends Actor with LoggingFSM[SessionState, Unit] {
 
@@ -52,7 +68,9 @@ case class SessionActor(content: Session, initialState: SessionState, initialInt
   val intradayClearing = context.actorOf(Props(new IntradayClearing(initialIntradayClearingState)), "IntradayClearing")
 
   // Session contents
+
   import Implicits._
+
   val futures = context.actorOf(Props(new SessionContents[FutInfo.fut_sess_contents](self) with FuturesContentsManager), "Futures")
   val options = context.actorOf(Props(new SessionContents[OptInfo.opt_sess_contents](self) with OptionsContentsManager), "Options")
 
@@ -83,18 +101,24 @@ case class SessionActor(content: Session, initialState: SessionState, initialInt
       sender ! stateName
       stay()
 
-    case Event(GetSessionInstrument(isin), _) =>
-      val replyTo = sender
+    case Event(GetInstrumentActor(isin), _) =>
+      val future = (futures ? GetInstrumentActor(isin)).mapTo[Option[ActorRef]]
+      val option = (options ? GetInstrumentActor(isin)).mapTo[Option[ActorRef]]
 
-      val future = (futures ? GetSessionInstrument(isin)).mapTo[Option[ActorRef]]
-      val option = (options ? GetSessionInstrument(isin)).mapTo[Option[ActorRef]]
+      future zip option map {
+        case (f, o) => (f orElse o).getOrElse(throw new NoSuchInstrumentAssigned(isin))
+      } pipeTo sender
 
-      val instrument = for {
-        f ← future
-        o ← option
-      } yield f orElse o
+      stay()
 
-      instrument onComplete {_.fold(_ => replyTo ! None, replyTo ! _)}
+    case Event(GetAssignedInstruments, _) =>
+      val assignedFutures = (futures ? GetAssignedInstruments).mapTo[AssignedInstruments]
+      val assignedOptions = (options ? GetAssignedInstruments).mapTo[AssignedInstruments]
+
+      assignedFutures zip assignedOptions map {
+        case (AssignedInstruments(fut), AssignedInstruments(opt)) => AssignedInstruments(fut ++ opt)
+      } pipeTo sender
+
       stay()
   }
 

@@ -1,7 +1,7 @@
 package com.ergodicity.engine
 
-import strategy.{Strategy, StrategiesFactory, StrategyId}
-import akka.actor.{LoggingFSM, Actor, ActorLogging, ActorRef}
+import strategy.{StrategyBuilder, StrategiesFactory, StrategyId}
+import akka.actor.{LoggingFSM, Actor, ActorRef}
 import com.ergodicity.engine.StrategyEngine._
 import collection.mutable
 import com.ergodicity.core.position.Position
@@ -93,8 +93,8 @@ class StrategyEngine(factory: StrategiesFactory = StrategiesFactory.empty) exten
 
   initialize
 
-  private def start(strategy: Strategy) {
-    log.info("Start strategy, Id = " + strategy.id)
-    strategies(strategy.id) = ManagedStrategy(context.actorOf(strategy.props, strategy.id.toString))
+  private def start(builder: StrategyBuilder) {
+    log.info("Start strategy, Id = " + builder.id)
+    strategies(builder.id) = ManagedStrategy(context.actorOf(builder.props, builder.id.toString))
   }
 }

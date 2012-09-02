@@ -10,8 +10,6 @@ object Market {
 
 }
 
-case class Isins(id: Int, isin: String, shortIsin: String) extends IsinId with Isin with ShortIsin
-
 object IsinId {
   def apply(value: Int) = new IsinId {
     val id = value
@@ -42,6 +40,8 @@ trait Isin {
   override def hashCode() = isin.hashCode
 
   override def equals(obj: Any) = obj.isInstanceOf[Isin] && obj.asInstanceOf[Isin].isin.equals(isin)
+
+  def toActorName = isin.replaceAll(" ", "@")
 }
 
 object ShortIsin {
@@ -63,14 +63,20 @@ trait ShortIsin {
 
 
 sealed trait Security {
-  def isin: Isins
+  def id: IsinId
+
+  def isin: Isin
+
+  def shortIsin: ShortIsin
+
+  def name: String
 }
 
 sealed trait Derivative extends Security
 
-case class FutureContract(isin: Isins, name: String) extends Derivative
+case class FutureContract(id: IsinId, isin: Isin, shortIsin: ShortIsin, name: String) extends Derivative
 
-case class OptionContract(isin: Isins, name: String) extends Derivative
+case class OptionContract(id: IsinId, isin: Isin, shortIsin: ShortIsin, name: String) extends Derivative
 
 
 sealed trait OrderType

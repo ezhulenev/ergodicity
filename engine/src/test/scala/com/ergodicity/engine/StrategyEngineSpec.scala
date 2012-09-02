@@ -6,8 +6,7 @@ import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.actor._
 import akka.event.Logging
 import akka.util.duration._
-import com.ergodicity.engine.StrategyEngine.{StartStrategies, EngineConfig}
-import com.ergodicity.engine.StrategyEngineState.Starting
+import com.ergodicity.engine.StrategyEngine.StartStrategies
 
 class StrategyEngineSpec extends TestKit(ActorSystem("StrategyEngineSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -20,13 +19,15 @@ class StrategyEngineSpec extends TestKit(ActorSystem("StrategyEngineSpec", com.e
 
     implicit case object TestStrategy extends StrategyId
 
-    def strategies(implicit config: EngineConfig) = Props(new Actor {
+    class TestStrategy extends Actor {
       override def preStart() {
         ref ! "Started"
       }
 
       protected def receive = null
-    }) :: Nil
+    }
+
+    def strategies = Props(new TestStrategy()) :: Nil
   }
 
 
