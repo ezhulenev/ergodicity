@@ -11,7 +11,7 @@ import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, Listener => C
 import com.ergodicity.engine.service.Service.Start
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.core.PositionsTrackingState
-import com.ergodicity.engine.Services.ServiceReporter
+import com.ergodicity.engine.Services
 
 class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -32,7 +32,7 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
       val posReplication = mock(classOf[Replication])
 
 
-      implicit val reporter = mock(classOf[ServiceReporter])
+      implicit val services = mock(classOf[Services])
       val positions = TestProbe()
 
       val service = TestActorRef(Props(new PortfolioService(listenerFactory, underlyingConnection, posReplication) {
@@ -49,14 +49,14 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
       service ! Transition(positions.ref, PositionsTrackingState.Binded, PositionsTrackingState.Online)
 
       then("Service Manager should be notified")
-      verify(reporter).serviceStarted(Id)
+      verify(services).serviceStarted(Id)
     }
 
     "stop service" in {
       val underlyingConnection = mock(classOf[CGConnection])
       val posReplication = mock(classOf[Replication])
 
-      implicit val reporter = mock(classOf[ServiceReporter])
+      implicit val services = mock(classOf[Services])
       val positions = TestProbe()
 
       val service = TestActorRef(Props(new PortfolioService(listenerFactory, underlyingConnection, posReplication) {
@@ -71,7 +71,7 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
       expectMsg(Terminated(service))
 
       and("service manager should be notified")
-      verify(reporter).serviceStopped
+      verify(services).serviceStopped
     }
   }
 }

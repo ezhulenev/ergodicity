@@ -2,13 +2,11 @@ package com.ergodicity.engine
 
 import akka.actor._
 import akka.util.duration._
-import akka.pattern.ask
 import service.{Service, ServiceId}
 import akka.actor.FSM.Normal
 import collection.mutable
 import scalaz._
 import com.ergodicity.engine.ServicesState.PendingServices
-import akka.dispatch.Future
 import akka.util.Timeout
 
 case class ServiceStarted(service: ServiceId)
@@ -95,17 +93,6 @@ object Services {
 
     def waitFor(id: ServiceId) = copy(stopBarrier = stopBarrier.waitFor(id))
   }
-
-  trait ServiceReporter {
-    def serviceStarted(implicit id: ServiceId)
-
-    def serviceStopped(implicit id: ServiceId)
-  }
-
-  trait ServiceResolver {
-    def service(id: ServiceId): Future[ServiceRef]
-  }
-
 }
 
 class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
@@ -121,20 +108,6 @@ class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
   // Stop all services on any failed
   override def supervisorStrategy() = AllForOneStrategy() {
     case _: ServiceFailedException => SupervisorStrategy.Stop
-  }
-
-  implicit val reporter = new ServiceReporter {
-    def serviceStopped(implicit id: ServiceId) {
-      self ! ServiceStopped(id)
-    }
-
-    def serviceStarted(implicit id: ServiceId) {
-      self ! ServiceStarted(id)
-    }
-  }
-
-  implicit val resolver = new ServiceResolver {
-    def service(id: ServiceId) = (self ? ResolveService(id)).mapTo[ServiceRef]
   }
 
   startWith(Idle, PendingServices(Nil))
@@ -240,6 +213,14 @@ class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
     services.transform {
       case (_, service) => service.stop(stopped)
     }
+  }
+
+  def serviceStopped(implicit id: ServiceId) {
+    self ! ServiceStopped(id)
+  }
+
+  def serviceStarted(implicit id: ServiceId) {
+    self ! ServiceStarted(id)
   }
 
 }

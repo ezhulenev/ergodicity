@@ -11,7 +11,6 @@ import com.ergodicity.cgate.config.Replies
 import com.ergodicity.engine.service.Service.{Stop, Start}
 import akka.actor.FSM.{SubscribeTransitionCallBack, CurrentState, Transition, UnsubscribeTransitionCallBack}
 import com.ergodicity.cgate.config.Replies.RepliesParams
-import com.ergodicity.engine.Services.ServiceReporter
 
 object Trading {
 
@@ -32,9 +31,9 @@ trait Trading {
 }
 
 protected[service] class TradingService(listener: ListenerFactory, underlyingPublisher: CGPublisher, underlyingRepliesConnection: CGConnection)
-                                       (implicit val reporter: ServiceReporter, id: ServiceId, config: Broker.Config) extends Actor with ActorLogging with WhenUnhandled {
+                                       (implicit val services: Services, id: ServiceId, config: Broker.Config) extends Actor with ActorLogging with WhenUnhandled {
 
-  import reporter._
+  import services._
 
   val TradingBroker = context.actorOf(Props(new Broker(underlyingPublisher)), "Broker")
 

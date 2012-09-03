@@ -7,6 +7,7 @@ import akka.actor._
 import akka.event.Logging
 import akka.util.duration._
 import com.ergodicity.engine.StrategyEngine.StartStrategies
+import org.mockito.Mockito._
 
 class StrategyEngineSpec extends TestKit(ActorSystem("StrategyEngineSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -27,9 +28,10 @@ class StrategyEngineSpec extends TestKit(ActorSystem("StrategyEngineSpec", com.e
       protected def receive = null
     }
 
-    def strategies = Props(new TestStrategy()) :: Nil
+    def strategies = ((_: StrategyEngine) => Props(new TestStrategy())) :: Nil
   }
 
+  implicit val services = mock(classOf[Services])
 
   "Strategy Engine" must {
     "start all strategies" in {

@@ -13,7 +13,6 @@ import com.ergodicity.core.broker.Broker
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.engine.service.Service.Start
 import com.ergodicity.cgate.{Active, Opening}
-import com.ergodicity.engine.Services.ServiceReporter
 
 class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -35,7 +34,7 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
       val publisher = mock(classOf[CGPublisher])
       val repliesConnection = mock(classOf[CGConnection])
 
-      implicit val reporter = mock(classOf[ServiceReporter])
+      implicit val services = mock(classOf[Services])
       val broker = TestProbe()
 
       val service =  TestActorRef(new TradingService(listenerFactory, publisher, repliesConnection) {
@@ -52,14 +51,14 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
       service ! Transition(broker.ref, Opening, Active)
 
       then("Service Manager should be notified")
-      verify(reporter).serviceStarted(Id)
+      verify(services).serviceStarted(Id)
     }
 
     "stop service" in {
       val publisher = mock(classOf[CGPublisher])
       val repliesConnection = mock(classOf[CGConnection])
 
-      implicit val reporter = mock(classOf[ServiceReporter])
+      implicit val services = mock(classOf[Services])
       val broker = TestProbe()
 
       val service =  TestActorRef(new TradingService(listenerFactory, publisher, repliesConnection){
@@ -74,7 +73,7 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
       expectMsg(Terminated(service))
 
       and("service manager should be notified")
-      verify(reporter).serviceStopped(Id)
+      verify(services).serviceStopped(Id)
     }
   }
 }

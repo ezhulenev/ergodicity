@@ -8,7 +8,6 @@ import akka.util.duration._
 import com.ergodicity.engine.underlying.UnderlyingConnection
 import ru.micexrts.cgate.{Connection => CGConnection, CGateException}
 import com.ergodicity.cgate.Connection.StartMessageProcessing
-import com.ergodicity.engine.Services.ServiceReporter
 
 object Connection {
 
@@ -27,9 +26,9 @@ trait Connection {
 }
 
 protected[service] class ConnectionService(underlyingConnection: CGConnection)
-                                          (implicit val reporter: ServiceReporter, id: ServiceId) extends Actor with ActorLogging with WhenUnhandled with Service {
+                                          (implicit val services: Services, id: ServiceId) extends Actor with ActorLogging with WhenUnhandled with Service {
 
-  import reporter._
+  import services._
 
   val Connection = context.actorOf(Props(new CgateConnection(underlyingConnection)), "Connection")
 

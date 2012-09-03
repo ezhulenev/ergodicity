@@ -6,10 +6,11 @@ import akka.event.Logging
 import akka.testkit._
 import org.mockito.Mockito._
 import ru.micexrts.cgate.{Connection => CGConnection}
-import com.ergodicity.engine.Services.{ServiceReporter, ServiceFailedException}
+import com.ergodicity.engine.Services.ServiceFailedException
 import akka.actor.FSM.CurrentState
 import com.ergodicity.cgate.ConnectionState
 import org.mockito.Mockito
+import com.ergodicity.engine.Services
 
 class TradingConnectionsServiceSpec extends TestKit(ActorSystem("TradingConnectionsServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -24,7 +25,7 @@ class TradingConnectionsServiceSpec extends TestKit(ActorSystem("TradingConnecti
     "open connections on Service.Start" in {
       val publisherConnection = mock(classOf[CGConnection])
       val repliesConnection = mock(classOf[CGConnection])
-      implicit val reporter = mock(classOf[ServiceReporter])
+      implicit val services = mock(classOf[Services])
 
       val service = TestFSMRef(new TradingConnectionsService(publisherConnection, repliesConnection), "TradingConnectionsService")
 
@@ -43,7 +44,7 @@ class TradingConnectionsServiceSpec extends TestKit(ActorSystem("TradingConnecti
     "throw exception on publisher connection go to error state" in {
       val publisherConnection = mock(classOf[CGConnection])
       val repliesConnection = mock(classOf[CGConnection])
-      implicit val reporter = mock(classOf[ServiceReporter])
+      implicit val services = mock(classOf[Services])
 
       val service = TestActorRef(new TradingConnectionsService(publisherConnection, repliesConnection), "TradingConnectionsService")
       val underlying = service.underlyingActor
@@ -56,7 +57,7 @@ class TradingConnectionsServiceSpec extends TestKit(ActorSystem("TradingConnecti
     "notify engine on both connections activated" in {
       val publisherConnection = mock(classOf[CGConnection])
       val repliesConnection = mock(classOf[CGConnection])
-      implicit val reporter = mock(classOf[ServiceReporter])
+      implicit val services = mock(classOf[Services])
 
       val service = TestFSMRef(new TradingConnectionsService(publisherConnection, repliesConnection), "TradingConnectionsService")
       val underlying = service.underlyingActor.asInstanceOf[TradingConnectionsService]
@@ -69,14 +70,14 @@ class TradingConnectionsServiceSpec extends TestKit(ActorSystem("TradingConnecti
 
       Thread.sleep(300)
 
-      verify(reporter).serviceStarted(Id)
+      verify(services).serviceStarted(Id)
       assert(service.stateName == TradingConnectionsService.Connected)
     }
 
     "stop itselt of Service.Stop message" in {
       val publisherConnection = mock(classOf[CGConnection])
       val repliesConnection = mock(classOf[CGConnection])
-      implicit val reporter = mock(classOf[ServiceReporter])
+      implicit val services = mock(classOf[Services])
 
       Mockito.when(publisherConnection.getState).thenReturn(ru.micexrts.cgate.State.ACTIVE)
       Mockito.when(repliesConnection.getState).thenReturn(ru.micexrts.cgate.State.ACTIVE)
@@ -111,7 +112,7 @@ class TradingConnectionsServiceSpec extends TestKit(ActorSystem("TradingConnecti
 
       // Verify manager stopped
       then("should stop service")
-      verify(reporter).serviceStopped(Id)
+      verify(services).serviceStopped(Id)
       expectMsg(Terminated(service))
 
       and("close and dispose connections")

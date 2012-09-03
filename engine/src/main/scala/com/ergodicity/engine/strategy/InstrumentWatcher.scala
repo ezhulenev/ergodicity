@@ -19,9 +19,13 @@ import com.ergodicity.engine.strategy.InstrumentWatchDog.{CatchedState, WatchDog
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack, UnsubscribeTransitionCallBack}
 
 trait InstrumentWatcher {
-  strategy: Strategy =>
+  strategy: Strategy with Actor =>
 
-  val instrumentData = Await.result(services.service(InstrumentDataId).map(_.ref), 1.second)
+  val instrumentData = engine.services.service(InstrumentDataId)
+
+  def watchInstrument(isin: Isin)(implicit config: WatchDogConfig) {
+    context.actorOf(Props(new InstrumentWatchDog(isin, instrumentData)), "WatchDog-" + isin.toActorName)
+  }
 
 }
 
@@ -51,7 +55,7 @@ object InstrumentWatchDog {
 }
 
 
-class InstrumentWatchDog(isin: Isin, config: WatchDogConfig, instrumentData: ActorRef) extends Actor with LoggingFSM[InstrumentWatchDogState, Option[Catched]] {
+class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: WatchDogConfig) extends Actor with LoggingFSM[InstrumentWatchDogState, Option[Catched]] {
 
   import config._
 

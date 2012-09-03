@@ -13,7 +13,6 @@ import com.ergodicity.engine.service.Service.{Stop, Start}
 import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
 import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.engine.Services.ServiceReporter
 
 object InstrumentData {
 
@@ -35,9 +34,9 @@ trait InstrumentData {
 }
 
 protected[service] class InstrumentDataService(listener: ListenerFactory, underlyingConnection: CGConnection, futInfoReplication: Replication, optInfoReplication: Replication)
-                                              (implicit val reporter: ServiceReporter, id: ServiceId) extends Actor with ActorLogging with WhenUnhandled {
+                                              (implicit val services: Services, id: ServiceId) extends Actor with ActorLogging with WhenUnhandled {
 
-  import reporter._
+  import services._
 
   val FutInfoStream = context.actorOf(Props(new DataStream), "FutInfoDataStream")
   val OptInfoStream = context.actorOf(Props(new DataStream), "OptInfoDataStream")

@@ -1,12 +1,12 @@
 package com.ergodicity.engine.strategy
 
 import akka.actor.Props
-import com.ergodicity.engine.StrategyEngine.EngineConfig
+import com.ergodicity.engine.StrategyEngine
 
 trait StrategyId
 
 abstract class StrategyBuilder(val id: StrategyId) {
-  def props(implicit config: EngineConfig): Props
+  def props(implicit engine: StrategyEngine): Props
 }
 
 object StrategiesFactory {
@@ -24,8 +24,8 @@ trait StrategiesFactory {
     def strategies = factory.strategies ++ other.strategies
   }
 
-  implicit def enrichProps(p: Props)(implicit id: StrategyId) = new StrategyBuilder(id) {
-    def props(implicit config: EngineConfig) = p
+  implicit def enrichProps(builder: StrategyEngine => Props)(implicit id: StrategyId) = new StrategyBuilder(id) {
+    def props(implicit engine: StrategyEngine) = builder(engine)
   }
 }
 

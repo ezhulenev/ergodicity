@@ -12,7 +12,7 @@ import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.core.SessionsTrackingState
 import ru.micexrts.cgate
 import cgate.{Connection => CGConnection, ISubscriber, Listener => CGListener}
-import com.ergodicity.engine.Services.ServiceReporter
+import com.ergodicity.engine.Services
 
 class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -34,7 +34,7 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
       val optInfoReplication = mock(classOf[Replication])
       val futInfoReplication = mock(classOf[Replication])
 
-      implicit val reporter = mock(classOf[ServiceReporter])
+      implicit val services = mock(classOf[Services])
       val sessions = TestProbe()
 
       val service = TestActorRef(new InstrumentDataService(listenerFactory, underlyingConnection, futInfoReplication, optInfoReplication) {
@@ -51,7 +51,7 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
       service ! Transition(sessions.ref, SessionsTrackingState.Binded, SessionsTrackingState.Online)
 
       then("Service Manager should be notified")
-      verify(reporter).serviceStarted(InstrumentData.InstrumentData)
+      verify(services).serviceStarted(InstrumentData.InstrumentData)
     }
 
     "stop service" in {
@@ -59,7 +59,7 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
       val optInfoReplication = mock(classOf[Replication])
       val futInfoReplication = mock(classOf[Replication])
 
-      implicit val reporter = mock(classOf[ServiceReporter])
+      implicit val services = mock(classOf[Services])
       val sessions = TestProbe()
 
       val service = TestActorRef(new InstrumentDataService(listenerFactory, underlyingConnection, futInfoReplication, optInfoReplication) {
@@ -74,7 +74,7 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
       expectMsg(Terminated(service))
 
       and("service manager should be notified")
-      verify(reporter).serviceStopped(InstrumentData.InstrumentData)
+      verify(services).serviceStopped(InstrumentData.InstrumentData)
     }
   }
 }

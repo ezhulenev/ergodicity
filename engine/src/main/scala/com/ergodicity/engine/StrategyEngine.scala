@@ -25,26 +25,6 @@ object StrategyEngine {
   case class StrategyPosition(id: StrategyId, isin: Isin, position: Position) extends StrategyNotification
 
   case class StrategyReady(id: StrategyId) extends StrategyNotification
-
-  // Typed traits for strategies notifications
-  trait EngineNotifier {
-    def position(isin: Isin, position: Position)
-
-    def ready()
-  }
-
-  class EngineConfig(engine: ActorRef) {
-    def notifier(implicit id: StrategyId): EngineNotifier = new EngineNotifier {
-      def position(isin: Isin, position: Position) {
-        engine ! StrategyPosition(id, isin, position)
-      }
-
-      def ready() {
-        engine ! StrategyReady(id)
-      }
-    }
-  }
-
 }
 
 sealed trait StrategyEngineState
@@ -67,12 +47,11 @@ object StrategyEngineData {
 
 }
 
-class StrategyEngine(factory: StrategiesFactory = StrategiesFactory.empty) extends Actor with LoggingFSM[StrategyEngineState, StrategyEngineData] {
+class StrategyEngine(factory: StrategiesFactory = StrategiesFactory.empty)
+                    (implicit val services: Services) extends Actor with LoggingFSM[StrategyEngineState, StrategyEngineData] {
 
   import StrategyEngineState._
   import StrategyEngineData._
-
-  implicit object Config extends EngineConfig(self)
 
   protected[engine] val strategies = mutable.Map[StrategyId, ManagedStrategy]()
 
@@ -95,6 +74,14 @@ class StrategyEngine(factory: StrategiesFactory = StrategiesFactory.empty) exten
 
   private def start(builder: StrategyBuilder) {
     log.info("Start strategy, Id = " + builder.id)
-    strategies(builder.id) = ManagedStrategy(context.actorOf(builder.props, builder.id.toString))
+    strategies(builder.id) = ManagedStrategy(context.actorOf(builder.props(this), builder.id.toString))
+  }
+
+  def reportPosition(isin: Isin, position: Position)(implicit id: StrategyId) {
+    self ! StrategyPosition(id, isin, position)
+  }
+
+  def reportReady()(implicit id: StrategyId) {
+    self ! StrategyReady(id)
   }
 }

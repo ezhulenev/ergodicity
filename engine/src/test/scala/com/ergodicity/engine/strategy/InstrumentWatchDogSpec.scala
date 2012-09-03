@@ -31,7 +31,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
     system.shutdown()
   }
 
-  val config = WatchDogConfig(self)
+  implicit val config = WatchDogConfig(self)
 
   val sessionId = SessionId(100, 100)
   val isinId = IsinId(166911)
@@ -41,14 +41,14 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
   "InstrumentWatchDog" must {
     "subscribe for ongoing session" in {
       val instrumentData = TestProbe()
-      val watchdog = TestFSMRef(new InstrumentWatchDog(isin, config, instrumentData.ref), "InstrumentWatchDog")
+      val watchdog = TestFSMRef(new InstrumentWatchDog(isin, instrumentData.ref), "InstrumentWatchDog")
 
       instrumentData.expectMsg(SubscribeOngoingSessions(watchdog))
     }
 
     "catch instument" in {
       val instrumentData = TestProbe()
-      val watchdog = TestFSMRef(new InstrumentWatchDog(isin, config, instrumentData.ref), "InstrumentWatchDog")
+      val watchdog = TestFSMRef(new InstrumentWatchDog(isin, instrumentData.ref), "InstrumentWatchDog")
 
       watchdog ! OngoingSession(Some((sessionId, buildSessionActor(sessionId))))
 
@@ -66,7 +66,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
       val instrumentData = TestProbe()
 
       val guard = TestActorRef(new Actor {
-        val watchdog = context.actorOf(Props(new InstrumentWatchDog(Isin("BadIsin"), config.copy(reportTo = system.deadLetters), instrumentData.ref)), "InstrumentWatchDog")
+        val watchdog = context.actorOf(Props(new InstrumentWatchDog(Isin("BadIsin"), instrumentData.ref)(config.copy(reportTo = system.deadLetters))), "InstrumentWatchDog")
         watchdog ! OngoingSession(Some((sessionId, buildSessionActor(sessionId))))
 
 
@@ -83,7 +83,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
 
     "catch new instrument on session reassigned" in {
       val instrumentData = TestProbe()
-      val watchdog = TestFSMRef(new InstrumentWatchDog(isin, config, instrumentData.ref), "InstrumentWatchDog")
+      val watchdog = TestFSMRef(new InstrumentWatchDog(isin, instrumentData.ref), "InstrumentWatchDog")
 
       val oldSession = Some((sessionId, buildSessionActor(sessionId)))
       watchdog ! OngoingSession(oldSession)
@@ -99,7 +99,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
       val instrumentData = TestProbe()
 
       val guard = TestActorRef(new Actor {
-        val watchdog = context.actorOf(Props(new InstrumentWatchDog(isin, config.copy(reportTo = system.deadLetters), instrumentData.ref)), "InstrumentWatchDog")
+        val watchdog = context.actorOf(Props(new InstrumentWatchDog(isin, instrumentData.ref)(config.copy(reportTo = system.deadLetters))), "InstrumentWatchDog")
         watchdog ! OngoingSession(Some((sessionId, buildSessionActor(sessionId))))
         watchdog ! OngoingSessionTransition(Some((sessionId, buildSessionActor(sessionId))), None)
 
@@ -118,7 +118,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
       val instrumentData = TestProbe()
 
       val guard = TestActorRef(new Actor {
-        val watchdog = context.actorOf(Props(new InstrumentWatchDog(isin, config, instrumentData.ref)), "InstrumentWatchDog")
+        val watchdog = context.actorOf(Props(new InstrumentWatchDog(isin, instrumentData.ref)), "InstrumentWatchDog")
         watchdog ! OngoingSession(Some((sessionId, buildSessionActor(sessionId))))
 
         val catched = receiveOne(100.millis).asInstanceOf[Catched]
@@ -137,7 +137,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
 
     "notify on catched instrument states" in {
       val instrumentData = TestProbe()
-      val watchdog = TestFSMRef(new InstrumentWatchDog(isin, config.copy(notifyOnState = true), instrumentData.ref), "InstrumentWatchDog")
+      val watchdog = TestFSMRef(new InstrumentWatchDog(isin, instrumentData.ref)(config.copy(notifyOnState = true)), "InstrumentWatchDog")
 
       watchdog ! OngoingSession(Some((sessionId, buildSessionActor(sessionId))))
 
