@@ -167,7 +167,7 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
       val underlying = underlyingSessions(sessions)
 
       sessions.setState(SessionsTrackingState.Online)
-      underlying.trackingSessions(SessionId(100l, 0l)) = self
+      underlying.trackingSessions(SessionId(100, 0)) = self
 
       val future1 = mockFuture(100, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
       val future2 = mockFuture(102, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
@@ -184,7 +184,7 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
       val underlying = underlyingSessions(sessions)
 
       sessions.setState(SessionsTrackingState.Online)
-      underlying.trackingSessions(SessionId(0, 100l)) = self
+      underlying.trackingSessions(SessionId(0, 100)) = self
 
       val option1 = mockOption(100, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
       val option2 = mockOption(101, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)

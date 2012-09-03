@@ -29,7 +29,7 @@ import com.ergodicity.cgate.DataStream.BindTable
 import scalaz._
 import Scalaz._
 
-case class SessionId(id: Long, optionSessionId: Long)
+case class SessionId(id: Int, optionSessionId: Int)
 
 object SessionsTracking {
   def apply(FutInfoStream: ActorRef, OptInfoStream: ActorRef) = new SessionsTracking(FutInfoStream, OptInfoStream)
