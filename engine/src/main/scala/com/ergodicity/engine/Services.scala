@@ -32,9 +32,9 @@ object ServicesState {
 object Services {
 
   // Barriers for starting & stopping services
-  private[Services] case object StartUp extends ServiceId
+  case object StartUp extends ServiceId
 
-  private[Services] case object ShutDown extends ServiceId
+  case object ShutDown extends ServiceId
 
   // Commands
   case object StartServices
@@ -95,15 +95,66 @@ object Services {
   }
 }
 
-class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
+abstract class Services {
+  this: Services with Actor with FSM[ServicesState, PendingServices] =>
+
+  import Services._
+
+  implicit val Self = this
+
+  protected[engine] val services = mutable.Map.empty[ServiceId, ManagedService]
+
+  protected[engine] def register(props: Props, dependOn: Seq[ServiceId] = Seq())(implicit id: ServiceId) {
+    log.info("Register service, Id = " + id + ", depends on = " + dependOn)
+
+    if (services.contains(id))
+      throw new IllegalStateException("Service with id = " + id + " has been already registered")
+
+    dependOn.foreach {
+      required =>
+        if (!services.contains(required)) {
+          log.error("Missing required service = " + required + ", for " + id)
+          throw new IllegalStateException("Missing required service = " + required + ", for " + id)
+        }
+    }
+
+    val ref = context.actorOf(props, id.toString)
+
+    val startBarrier = ServiceBarrier(NonEmptyList(StartUp, dependOn: _*)) {
+      ref ! Service.Start
+    }
+    val stopBarrier = ServiceBarrier(NonEmptyList(ShutDown)) {
+      ref ! Service.Stop
+    }
+
+    services(id) = ManagedService(ref, startBarrier, stopBarrier)
+
+    // Update stop barrier on existing services
+    services.transform {
+      case (i, service) if (dependOn contains i) => service.waitFor(id)
+      case (_, service) => service
+    }
+  }
+
+  def service(id: ServiceId): ActorRef = services.get(id).map(_.ref).getOrElse(throw new ServiceNotFoundException(id))
+
+  def serviceStopped(implicit id: ServiceId) {
+    self ! ServiceStopped(id)
+  }
+
+  def serviceStarted(implicit id: ServiceId) {
+    self ! ServiceStarted(id)
+  }
+
+}
+
+
+class ServicesActor extends Services with Actor with LoggingFSM[ServicesState, PendingServices] {
 
   import Services._
   import ServicesState._
 
-  implicit val Self = this
   implicit val timeout = Timeout(5.seconds)
-
-  protected[engine] val services = mutable.Map.empty[ServiceId, ManagedService]
 
   // Stop all services on any failed
   override def supervisorStrategy() = AllForOneStrategy() {
@@ -169,40 +220,6 @@ class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
     }
   }
 
-  protected[engine] def register(props: Props, dependOn: Seq[ServiceId] = Seq())(implicit id: ServiceId) {
-    log.info("Register service, Id = " + id + ", depends on = " + dependOn)
-
-    if (services.contains(id))
-      throw new IllegalStateException("Service with id = " + id + " has been already registered")
-
-    dependOn.foreach {
-      required =>
-        if (!services.contains(required)) {
-          log.error("Missing required service = " + required + ", for " + id)
-          throw new IllegalStateException("Missing required service = " + required + ", for " + id)
-        }
-    }
-
-    val ref = context.actorOf(props, id.toString)
-
-    val startBarrier = ServiceBarrier(NonEmptyList(StartUp, dependOn: _*)) {
-      ref ! Service.Start
-    }
-    val stopBarrier = ServiceBarrier(NonEmptyList(ShutDown)) {
-      ref ! Service.Stop
-    }
-
-    services(id) = ManagedService(ref, startBarrier, stopBarrier)
-
-    // Update stop barrier on existing services
-    services.transform {
-      case (i, service) if (dependOn contains i) => service.waitFor(id)
-      case (_, service) => service
-    }
-  }
-
-  def service(id: ServiceId): ActorRef = services.get(id).map(_.ref).getOrElse(throw new ServiceNotFoundException(id))
-
   private def started(started: ServiceId) {
     services.transform {
       case (_, service) => service.start(started)
@@ -214,13 +231,4 @@ class Services extends Actor with LoggingFSM[ServicesState, PendingServices] {
       case (_, service) => service.stop(stopped)
     }
   }
-
-  def serviceStopped(implicit id: ServiceId) {
-    self ! ServiceStopped(id)
-  }
-
-  def serviceStarted(implicit id: ServiceId) {
-    self ! ServiceStarted(id)
-  }
-
 }

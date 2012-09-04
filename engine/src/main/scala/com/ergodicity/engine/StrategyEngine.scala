@@ -47,13 +47,26 @@ object StrategyEngineData {
 
 }
 
-class StrategyEngine(factory: StrategiesFactory = StrategiesFactory.empty)
-                    (implicit val services: Services) extends Actor with LoggingFSM[StrategyEngineState, StrategyEngineData] {
+abstract class StrategyEngine (factory: StrategiesFactory = StrategiesFactory.empty)
+                     (implicit val services: Services) {
+  engine: StrategyEngine with Actor =>
+
+  protected val strategies = mutable.Map[StrategyId, ManagedStrategy]()
+
+  def reportPosition(isin: Isin, position: Position)(implicit id: StrategyId) {
+    self ! StrategyPosition(id, isin, position)
+  }
+
+  def reportReady()(implicit id: StrategyId) {
+    self ! StrategyReady(id)
+  }
+}
+
+class StrategyEngineActor(factory: StrategiesFactory = StrategiesFactory.empty)
+                         (implicit services: Services) extends StrategyEngine(factory)(services) with Actor with LoggingFSM[StrategyEngineState, StrategyEngineData] {
 
   import StrategyEngineState._
   import StrategyEngineData._
-
-  protected[engine] val strategies = mutable.Map[StrategyId, ManagedStrategy]()
 
   startWith(Idle, Void)
 
@@ -75,13 +88,5 @@ class StrategyEngine(factory: StrategiesFactory = StrategiesFactory.empty)
   private def start(builder: StrategyBuilder) {
     log.info("Start strategy, Id = " + builder.id)
     strategies(builder.id) = ManagedStrategy(context.actorOf(builder.props(this), builder.id.toString))
-  }
-
-  def reportPosition(isin: Isin, position: Position)(implicit id: StrategyId) {
-    self ! StrategyPosition(id, isin, position)
-  }
-
-  def reportReady()(implicit id: StrategyId) {
-    self ! StrategyReady(id)
   }
 }

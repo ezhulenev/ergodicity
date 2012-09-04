@@ -3,7 +3,7 @@ package com.ergodicity.core.position
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.actor.ActorSystem
-import com.ergodicity.core.{IsinId, AkkaConfigurations}
+import com.ergodicity.core.{Isin, AkkaConfigurations}
 import AkkaConfigurations._
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 
@@ -14,7 +14,7 @@ class PositionActorSpec extends TestKit(ActorSystem("PositionActorSpec", ConfigW
     system.shutdown()
   }
 
-  val isin = IsinId(166911)
+  val isin = Isin("RTS-9.12")
 
   "PositionActor" must {
 
@@ -40,22 +40,22 @@ class PositionActorSpec extends TestKit(ActorSystem("PositionActorSpec", ConfigW
     "handle position updates" in {
       val position = TestActorRef(new PositionActor(isin))
       position ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(position, Position.flat))
+      expectMsg(CurrentPosition(isin, Position.flat))
 
       val data1 = Position(10)
       position ! UpdatePosition(data1, PositionDynamics(buys = 10))
       assert(position.underlyingActor.position == data1)
-      expectMsg(PositionTransition(position, Position.flat, data1))
+      expectMsg(PositionTransition(isin, Position.flat, data1))
 
       val data2 = Position(-2)
       position ! UpdatePosition(data2, PositionDynamics(open = 0, buys = 10, sells = 12))
       assert(position.underlyingActor.position == data2)
-      expectMsg(PositionTransition(position, data1, data2))
+      expectMsg(PositionTransition(isin, data1, data2))
 
       val data3 = Position.flat
       position ! UpdatePosition(Position.flat, PositionDynamics(open = 0, buys = 12, sells = 12))
       assert(position.underlyingActor.position == Position.flat)
-      expectMsg(PositionTransition(position, data2, data3))
+      expectMsg(PositionTransition(isin, data2, data3))
     }
   }
 }

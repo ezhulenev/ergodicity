@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
 import com.ergodicity.cgate.repository.Repository.Snapshot
 import scala.Some
-import com.ergodicity.core.Isin
+import com.ergodicity.core.{IsinId, Isin}
 import collection.immutable
 
 
@@ -39,7 +39,10 @@ object SessionActor {
 
   class IllegalLifeCycleEvent(msg: String, event: Any) extends RuntimeException(msg)
 
-  class NoSuchInstrumentAssigned(isin: Isin) extends RuntimeException("No such instument assigned: " + isin)
+  class InstrumentIdNotAssigned(id: IsinId) extends RuntimeException("No such instument assigned: " + id)
+
+  class InstrumentIsinNotAssigned(isin: Isin) extends RuntimeException("No such instument assigned: " + isin)
+
 
   // Session contents
 
@@ -53,7 +56,20 @@ object SessionActor {
 
   case object GetAssignedInstruments
 
-  case class AssignedInstruments(instruments: immutable.Set[Instrument])
+  case class AssignedInstruments(instruments: immutable.Set[Instrument]) {
+    import scalaz._
+    import Scalaz._
+
+    val findByIdMemo = immutableHashMapMemo[IsinId, Option[Instrument]] {
+      id => instruments.find(_.security.id == id)
+    }
+
+    val findByIsinMemo =  immutableHashMapMemo[Isin, Option[Instrument]] {
+      isin => instruments.find(_.security.isin == isin)
+    }
+
+    def isin(id: IsinId) = findByIdMemo(id).getOrElse(throw new InstrumentIdNotAssigned(id)).security.isin
+  }
 
   case class GetInstrumentActor(isin: Isin)
 
@@ -106,7 +122,7 @@ case class SessionActor(content: Session, initialState: SessionState, initialInt
       val option = (options ? GetInstrumentActor(isin)).mapTo[Option[ActorRef]]
 
       future zip option map {
-        case (f, o) => (f orElse o).getOrElse(throw new NoSuchInstrumentAssigned(isin))
+        case (f, o) => (f orElse o).getOrElse(throw new InstrumentIsinNotAssigned(isin))
       } pipeTo sender
 
       stay()

@@ -200,7 +200,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
 
 
     "fail to register Service if dependency is not provided" in {
-      val serviceManager = TestActorRef(new Services, "Services")
+      val serviceManager = TestActorRef(new ServicesActor, "Services")
       val underlying = serviceManager.underlyingActor
 
       intercept[IllegalStateException] {
@@ -262,13 +262,13 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
     register(Props(PassThrough(dependent)), dependOn = Seq(Service1.Service1, Service2.Service2))
   }
 
-  class TwoServices(s1: ActorRef, s2: ActorRef) extends Services with Service1 with Service2 {
+  class TwoServices(s1: ActorRef, s2: ActorRef) extends ServicesActor with Service1 with Service2 {
     def service1 = s1
 
     def service2 = s2
   }
 
-  class ThreeServices(s1: ActorRef, s2: ActorRef, dep: ActorRef) extends Services with Service1 with Service2 with DependentService {
+  class ThreeServices(s1: ActorRef, s2: ActorRef, dep: ActorRef) extends ServicesActor with Service1 with Service2 with DependentService {
     def service1 = s1
 
     def service2 = s2
@@ -276,7 +276,7 @@ class ServicesSpec extends TestKit(ActorSystem("ServicesSpec", com.ergodicity.en
     def dependent = dep
   }
 
-  class BadDependent(s1: ActorRef, s2: ActorRef, dep: ActorRef) extends Services with DependentService with Service1 with Service2 {
+  class BadDependent(s1: ActorRef, s2: ActorRef, dep: ActorRef) extends ServicesActor with DependentService with Service1 with Service2 {
     def service1 = s1
 
     def service2 = s2

@@ -11,7 +11,7 @@ import akka.actor.FSM._
 import akka.util.duration._
 import com.ergodicity.cgate.DataStreamState
 import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, Snapshot}
-import position.{Position, Flat, PositionDynamics, PositionActor}
+import position.{Position, PositionDynamics, PositionActor}
 import com.ergodicity.cgate.DataStream.BindingSucceed
 import position.PositionActor.UpdatePosition
 import akka.actor.FSM.Transition
@@ -20,16 +20,22 @@ import akka.pattern.ask
 import com.ergodicity.cgate.DataStream.BindingFailed
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.DataStream.BindTable
+import session.SessionActor.AssignedInstruments
 
 object PositionsTracking {
   def apply(PosStream: ActorRef) = new PositionsTracking(PosStream)
 
-  case class GetPosition(isin: IsinId)
+  case class GetPositionActor(isin: Isin)
+
+  case class TrackedPosition(isin: Isin, positionActor: ActorRef)
 
   case object GetOpenPositions
 
-  case class OpenPositions(positions: Iterable[IsinId])
+  case class OpenPositions(positions: Iterable[Isin])
 
+  // Failures
+
+  class PositionsTrackingException(message: String) extends RuntimeException(message)
 }
 
 sealed trait PositionsTrackingState
@@ -44,14 +50,14 @@ object PositionsTrackingState {
 
 }
 
-class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTrackingState, Unit] {
+class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTrackingState, AssignedInstruments] {
 
   import PositionsTracking._
   import PositionsTrackingState._
 
   implicit val timeout = Timeout(1.second)
 
-  val positions = mutable.Map[IsinId, ActorRef]()
+  val positions = mutable.Map[Isin, ActorRef]()
 
   // Repositories
 
@@ -65,13 +71,13 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
   val bindingResult = (PosStream ? BindTable(Pos.position.TABLE_INDEX, PositionsRepository)).mapTo[BindingResult]
   Await.result(bindingResult, 1.second) match {
     case BindingSucceed(_, _) =>
-    case BindingFailed(_, _) => throw new IllegalStateException("Positions data stream in invalid state")
+    case BindingFailed(_, _) => throw new PositionsTrackingException("Positions data stream in invalid state")
   }
 
   // Track Data Stream state
   PosStream ! SubscribeTransitionCallBack(self)
 
-  startWith(Binded, ())
+  startWith(Binded, AssignedInstruments(Set()))
 
   when(Binded) {
     case Event(CurrentState(PosStream, DataStreamState.Online), _) => goto(LoadingPositions)
@@ -89,24 +95,24 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       sender ! OpenPositions(positions.keys)
       stay()
 
-    case Event(GetPosition(isin), _) =>
-      sender ! positions.getOrElseUpdate(isin, context.actorOf(Props(new PositionActor(isin))))
+    case Event(GetPositionActor(isin), _) =>
+      sender ! TrackedPosition(isin, positions.getOrElseUpdate(isin, context.actorOf(Props(new PositionActor(isin)))))
       stay()
 
-    case Event(s@Snapshot(PositionsRepository, _), _) =>
+    case Event(s@Snapshot(PositionsRepository, _), assigned) =>
       val snapshot = s.asInstanceOf[Snapshot[Pos.position]]
       log.debug("Got positions repository snapshot, size = " + snapshot.data.size)
 
       // First send empty data for all discarded positions
       val (_, discarded) = positions.partition {
-        case key => snapshot.data.find(_.get_isin_id() == key._1.id).isDefined
+        case key => snapshot.data.find(pos => assigned.isin(IsinId(pos.get_isin_id())) == key._1).isDefined
       }
       discarded.values.foreach(_ ! UpdatePosition(Position.flat, PositionDynamics.empty))
 
       // Update alive positions and open new one
       snapshot.data.map {
         case pos =>
-          val id = IsinId(pos.get_isin_id())
+          val isin = assigned.isin(IsinId(pos.get_isin_id()))
           val position = Position(pos.get_pos())
           val dynamics = PositionDynamics(
             pos.get_open_qty(),
@@ -116,11 +122,18 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
             if (pos.get_last_deal_id() == 0) None else Some(pos.get_last_deal_id())
           )
 
-          val positionActor = positions.getOrElseUpdate(id, context.actorOf(Props(new PositionActor(id)), id.id.toString))
+          val positionActor = positions.getOrElseUpdate(isin, context.actorOf(Props(new PositionActor(isin)), isin.toActorName))
           positionActor ! UpdatePosition(position, dynamics)
       }
 
       stay()
+  }
+
+
+  whenUnhandled {
+    case Event(assigned: AssignedInstruments, old) =>
+      log.debug("Assigned instruments = " + assigned)
+      stay() using assigned
   }
 
   onTransition {

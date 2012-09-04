@@ -8,7 +8,7 @@ import akka.event.Logging
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.config.{Replication, CGateConfig}
 import java.io.File
-import com.ergodicity.engine.{Engine, Services}
+import com.ergodicity.engine.{ServicesActor, Engine, Services}
 import com.ergodicity.engine.service.{InstrumentData, TradingConnections, Connection}
 import com.ergodicity.engine.underlying.{UnderlyingListener, ListenerFactory, UnderlyingTradingConnections, UnderlyingConnection}
 import java.util.concurrent.TimeUnit
@@ -62,7 +62,7 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
 
   class IntegrationEngine extends Engine with Connections with Replication with Listener
 
-  class IntegrationServices(val engine: IntegrationEngine) extends Services with Connection with TradingConnections with InstrumentData
+  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with Connection with TradingConnections with InstrumentData
 
   "Services" must {
     "support Connection Service" in {

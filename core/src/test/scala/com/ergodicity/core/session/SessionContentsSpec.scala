@@ -13,7 +13,7 @@ import com.ergodicity.cgate.repository.Repository.Snapshot
 import com.ergodicity.core.Mocking._
 import akka.testkit._
 import akka.testkit.TestActor.AutoPilot
-import com.ergodicity.core.session.SessionActor.{NoSuchInstrumentAssigned, GetInstrumentActor, GetState}
+import com.ergodicity.core.session.SessionActor.{InstrumentIsinNotAssigned, GetInstrumentActor, GetState}
 import com.ergodicity.core.Isin
 
 
@@ -36,7 +36,7 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
     "fail if no instument found" in {
       val contents = TestActorRef(new SessionContents[FutInfo.fut_sess_contents](onlineSession) with FuturesContentsManager, "Futures")
       val future = (contents ? GetInstrumentActor(Isin("BadCode"))).mapTo[Option[ActorRef]]
-      intercept[NoSuchInstrumentAssigned] {
+      intercept[InstrumentIsinNotAssigned] {
         Await.result(future, 1.second)
       }
     }

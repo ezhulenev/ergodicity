@@ -9,7 +9,7 @@ import akka.util.duration._
 import com.ergodicity.engine.StrategyEngine.StartStrategies
 import org.mockito.Mockito._
 
-class StrategyEngineSpec extends TestKit(ActorSystem("StrategyEngineSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
+class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   override def afterAll() {
@@ -36,7 +36,7 @@ class StrategyEngineSpec extends TestKit(ActorSystem("StrategyEngineSpec", com.e
   "Strategy Engine" must {
     "start all strategies" in {
       given("Engine with one Strategy")
-      val engine = TestFSMRef(new StrategyEngine(testFactory(self)), "StrategyEngine")
+      val engine = TestFSMRef(new StrategyEngineActor(testFactory(self)), "StrategyEngine")
       expectNoMsg(300.millis)
       assert(engine.stateName == StrategyEngineState.Idle)
 
@@ -52,7 +52,7 @@ class StrategyEngineSpec extends TestKit(ActorSystem("StrategyEngineSpec", com.e
 
     "fail to start strategies with same name" in {
       given("Engine with one Strategy")
-      val engine = TestFSMRef(new StrategyEngine(testFactory(self) & testFactory(self)), "StrategyEngine")
+      val engine = TestFSMRef(new StrategyEngineActor(testFactory(self) & testFactory(self)), "StrategyEngine")
 
       when("engine receives StartStrategies message")
       intercept[InvalidActorNameException] {
