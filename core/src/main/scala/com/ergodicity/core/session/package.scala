@@ -65,7 +65,5 @@ package object session {
         new OptionContract(enriched.id, enriched.isin, enriched.shortIsin, record.get_name().trim)
       }
     }
-
   }
-
 }

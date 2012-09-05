@@ -19,7 +19,7 @@ import session.Instrument.Limits
 import session.SessionActor.AssignedInstruments
 import akka.actor.FSM.Transition
 import com.ergodicity.cgate.repository.Repository.Snapshot
-import com.ergodicity.core.PositionsTracking.OpenPositions
+import com.ergodicity.core.PositionsTracking.Positions
 import com.ergodicity.core.PositionsTracking.TrackedPosition
 
 class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll with BeforeAndAfter {
@@ -195,9 +195,9 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
 
       positions ! Snapshot(underlying.PositionsRepository, position :: Nil)
 
-      val openPositions = Await.result((positions ? GetOpenPositions).mapTo[OpenPositions], TimeOut.duration)
+      val openPositions = Await.result((positions ? GetPositions).mapTo[Positions], TimeOut.duration)
       assert(openPositions.positions.size == 1)
-      assert(openPositions.positions.iterator.next() == isin)
+      assert(openPositions.positions(isin) == Position(1))
     }
   }
 

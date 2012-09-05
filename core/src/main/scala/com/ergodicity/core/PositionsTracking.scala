@@ -5,17 +5,18 @@ import collection.mutable
 import com.ergodicity.cgate.repository.Repository
 import com.ergodicity.cgate.scheme.Pos
 import com.ergodicity.cgate.DataStream.BindingResult
-import akka.dispatch.Await
+import akka.dispatch.{Future, Await}
 import akka.actor.FSM._
 import akka.util.duration._
 import com.ergodicity.cgate.DataStreamState
 import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, Snapshot}
 import position.{Position, PositionDynamics, PositionActor}
 import com.ergodicity.cgate.DataStream.BindingSucceed
-import position.PositionActor.UpdatePosition
+import position.PositionActor.{GetCurrentPosition, CurrentPosition, UpdatePosition}
 import akka.actor.FSM.Transition
 import akka.actor.FSM.CurrentState
 import akka.pattern.ask
+import akka.pattern.pipe
 import com.ergodicity.cgate.DataStream.BindingFailed
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.DataStream.BindTable
@@ -29,17 +30,14 @@ object PositionsTracking {
 
   case class TrackedPosition(isin: Isin, positionActor: ActorRef)
 
-  case object GetOpenPositions
+  case object GetPositions
 
-  case class SubscribeOpenPositions(ref: ActorRef)
-
-  case class OpenPositions(positions: Iterable[Isin])
-
-  case class NewPosition(isin: Isin)
+  case class Positions(positions: Map[Isin, Position])
 
   // Failures
 
   class PositionsTrackingException(message: String) extends RuntimeException(message)
+
 }
 
 sealed trait PositionsTrackingState
@@ -60,6 +58,7 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
   import PositionsTrackingState._
 
   implicit val timeout = Timeout(1.second)
+  implicit val executionContext = context.system
 
   val positions = mutable.Map[Isin, ActorRef]()
   var subscribers = Set[ActorRef]()
@@ -96,13 +95,9 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
   }
 
   when(Online) {
-    case Event(GetOpenPositions, _) =>
-      sender ! OpenPositions(positions.keys)
-      stay()
-
-    case Event(SubscribeOpenPositions(ref), _) =>
-      subscribers = subscribers + ref
-      sender ! OpenPositions(positions.keys)
+    case Event(GetPositions, _) =>
+      val currentPositions = Future.sequence(positions.values.map(ref => (ref ? GetCurrentPosition).mapTo[CurrentPosition]))
+      currentPositions.map(_.map(_.tuple).toMap) map (Positions(_)) pipeTo sender
       stay()
 
     case Event(GetPositionActor(isin), _) =>
@@ -158,11 +153,6 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       log.debug("Positions goes online")
   }
 
-  private def createPosition(isin: Isin) = {
-    val ref = context.actorOf(Props(new PositionActor(isin)), isin.toActorName)
-    subscribers.foreach(_ ! NewPosition(isin))
-    ref
-  }
-
+  private def createPosition(isin: Isin) = context.actorOf(Props(new PositionActor(isin)), isin.toActorName)
 }
 

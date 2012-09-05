@@ -5,13 +5,12 @@ import akka.util.duration._
 import akka.pattern.ask
 import com.ergodicity.engine.StrategyEngine
 import com.ergodicity.engine.service.Portfolio
-import com.ergodicity.core.PositionsTracking.{TrackedPosition, GetPositionActor, GetOpenPositions, OpenPositions}
-import akka.dispatch.{Future, Await}
+import com.ergodicity.core.PositionsTracking.{GetPositions, Positions}
+import akka.dispatch.Await
 import com.ergodicity.engine.strategy.InstrumentWatchDog.WatchDogConfig
 import com.ergodicity.core.position.Position
 import com.ergodicity.core.Isin
 import akka.util.{Duration, Timeout}
-import com.ergodicity.core.position.PositionActor.{GetCurrentPosition, CurrentPosition}
 
 object CloseAllPositions {
 
@@ -64,17 +63,7 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   }
 
   private def getOpenedPositions(atMost: Duration): Map[Isin, Position] = {
-    val future = (portfolio ? GetOpenPositions).mapTo[OpenPositions].flatMap {
-      case OpenPositions(open) =>
-        log.debug("Open positions = " + open)
-        val trackedPositions = Future.sequence(open.map(isin => (portfolio ? GetPositionActor(isin)).mapTo[TrackedPosition]))
-        val currentPositions = trackedPositions.flatMap(positions => {
-          Future.sequence(positions.map(position => (position.positionActor ? GetCurrentPosition).mapTo[CurrentPosition]))
-        })
-
-        currentPositions.map(_.map(_.tuple).toMap)
-    }
-
-    Await.result(future, atMost)
+    val future = (portfolio ? GetPositions).mapTo[Positions]
+    Await.result(future, atMost).positions
   }
 }

@@ -7,7 +7,9 @@ package object cgate {
 
     def eveningSession = (signs & 0x01) > 0
 
+
     def optionType = if ((signs & 0x02) == 1) Margin else Premium
+
 
     def spot = (signs & 0x04) > 0
 
