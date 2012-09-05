@@ -16,11 +16,10 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
     system.shutdown()
   }
 
+  implicit case object TestStrategy extends StrategyId
+
   def testFactory(ref: ActorRef) = new StrategiesFactory {
-
-    implicit case object TestStrategy extends StrategyId
-
-    class TestStrategy extends Actor {
+  class TestStrategy extends Actor {
       override def preStart() {
         ref ! "Started"
       }
@@ -52,7 +51,7 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
 
     "fail to start strategies with same name" in {
       given("Engine with one Strategy")
-      val engine = TestFSMRef(new StrategyEngineActor(testFactory(self) & testFactory(self)), "StrategyEngine")
+      val engine = TestFSMRef(new StrategyEngineActor(testFactory(system.deadLetters) & testFactory(system.deadLetters)), "StrategyEngine")
 
       when("engine receives StartStrategies message")
       intercept[InvalidActorNameException] {
@@ -60,5 +59,4 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
       }
     }
   }
-
 }

@@ -3,16 +3,28 @@ package com.ergodicity.engine.service
 import com.ergodicity.engine.underlying.{ListenerFactory, UnderlyingConnection, UnderlyingListener}
 import com.ergodicity.engine.{Services, Engine}
 import com.ergodicity.engine.ReplicationScheme.PosReplication
-import akka.actor.{Actor, ActorLogging, Props}
+import akka.actor.{ActorRef, Actor, ActorLogging, Props}
 import akka.util.duration._
 import ru.micexrts.cgate.{Connection => CGConnection}
 import com.ergodicity.cgate.config.Replication
 import com.ergodicity.cgate.{Listener, DataStreamSubscriber, DataStream, WhenUnhandled}
-import com.ergodicity.core.{PositionsTrackingState, PositionsTracking}
+import com.ergodicity.core.{Isin, PositionsTrackingState, PositionsTracking}
 import com.ergodicity.engine.service.Service.{Stop, Start}
-import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
-import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
+import com.ergodicity.core.position.Position
+import com.ergodicity.engine.strategy.StrategyId
+import collection.mutable
+import com.ergodicity.core.PositionsTracking._
+import akka.actor.FSM.Transition
+import com.ergodicity.cgate.config.Replication.ReplicationParams
+import com.ergodicity.core.PositionsTracking.GetPositionActor
+import com.ergodicity.core.PositionsTracking.NewPosition
+import akka.actor.FSM.CurrentState
+import akka.actor.FSM.UnsubscribeTransitionCallBack
+import com.ergodicity.core.PositionsTracking.OpenPositions
+import com.ergodicity.core.PositionsTracking.SubscribeOpenPositions
+import akka.actor.FSM.SubscribeTransitionCallBack
+import com.ergodicity.core.position.PositionActor.{PositionTransition, CurrentPosition, SubscribePositionUpdates}
 
 object Portfolio {
 
@@ -70,5 +82,46 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
         serviceStopped
         context.stop(self)
       }
+  }
+}
+
+object PortfolioReconciliation {
+
+  sealed trait Reconciliation
+
+  case object Reconciled extends Reconciliation
+
+  case object Mismatched extends Reconciliation
+
+  case class Mismatch(isin: Isin, portfolioPosition: Position, strategiesPositions: Position, strategiesAllocation: Map[StrategyId, Position])
+}
+
+class PortfolioReconciliation(portfolio: ActorRef) extends Actor with ActorLogging with WhenUnhandled {
+
+  val portfolioPositions = mutable.Map[Isin, Position]()
+
+  override def preStart() {
+    log.info("Start portfolione reconcillation")
+    portfolio ! SubscribeOpenPositions(self)
+  }
+
+  protected def receive = handlePortfolioMessages orElse whenUnhandled
+
+  private def handlePortfolioMessages: Receive = {
+    case OpenPositions(positions) =>
+      positions foreach (portfolio ! GetPositionActor(_))
+
+    case NewPosition(isin) =>
+      portfolio ! GetPositionActor(isin)
+
+    case TrackedPosition(isin, positionActor) =>
+      log.debug("Subscribe for position updates = " + isin + ", ref = " + positionActor)
+      positionActor ! SubscribePositionUpdates(self)
+
+    case CurrentPosition(isin, position) =>
+      portfolioPositions(isin) = position
+
+    case PositionTransition(isin, _, position) =>
+      portfolioPositions(isin) = position
   }
 }

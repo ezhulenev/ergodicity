@@ -25,6 +25,8 @@ class CloseAllPositionsSpec  extends TestKit(ActorSystem("CloseAllPositionsSpec"
     system.shutdown()
   }
 
+  implicit val id = CloseAllPositions.CloseAllPositions
+
   implicit val isin1 = Isin("RTS-9.12")
   implicit val isinId1 = IsinId(100)
 
@@ -72,6 +74,8 @@ class CloseAllPositionsSpec  extends TestKit(ActorSystem("CloseAllPositionsSpec"
       assert(underlying.positions.size == 2)
       assert(underlying.positions(isin1) == Position(1))
       assert(underlying.positions(isin2) == Position(3))
+
+      verify(engine).reportReady(Map[Isin, Position](isin1 -> Position(1), isin2 -> Position(3)))(CloseAllPositions.CloseAllPositions)
     }
   }
 }

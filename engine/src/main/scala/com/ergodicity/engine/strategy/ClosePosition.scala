@@ -29,14 +29,17 @@ sealed trait CloseAllPositionsState
 
 object CloseAllPositionsState {
 
-  case object CatchingInstruments extends CloseAllPositionsState
+  case object Ready extends CloseAllPositionsState
 
+  case object CatchingInstruments extends CloseAllPositionsState
 
 }
 
-class CloseAllPositions(val engine: StrategyEngine) extends Strategy with Actor with FSM[CloseAllPositionsState, Unit] with InstrumentWatcher {
+class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) extends Strategy with Actor with FSM[CloseAllPositionsState, Unit] with InstrumentWatcher {
 
   import CloseAllPositionsState._
+
+  val portfolio = engine.services.service(Portfolio.Portfolio)
 
   // Configuration and implicits
   implicit object WatchDog extends WatchDogConfig(self, true, true)
@@ -45,19 +48,18 @@ class CloseAllPositions(val engine: StrategyEngine) extends Strategy with Actor 
 
   implicit val executionContext = context.system
 
-  val portfolio = engine.services.service(Portfolio.Portfolio)
-
   // Positions that we are going to close
   val positions: Map[Isin, Position] = getOpenedPositions(5.seconds)
 
   override def preStart() {
     log.info("Started CloseAllPositions")
     log.debug("Going to close positions = " + positions)
+    engine.reportReady(positions)
   }
 
-  startWith(CatchingInstruments, ())
+  startWith(Ready, ())
 
-  when(CatchingInstruments) {
+  when(Ready) {
     case Event(_, _) => stay()
   }
 

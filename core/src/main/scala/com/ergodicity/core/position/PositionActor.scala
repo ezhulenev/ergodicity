@@ -26,7 +26,7 @@ class PositionActor(isin: Isin) extends Actor with ActorLogging with WhenUnhandl
 
   import PositionActor._
 
-  var subscribers = List[ActorRef]()
+  var subscribers = Set[ActorRef]()
 
   protected[position] var position: Position = Position.flat
   protected[position] var dynamics: PositionDynamics = PositionDynamics.empty
@@ -46,7 +46,7 @@ class PositionActor(isin: Isin) extends Actor with ActorLogging with WhenUnhandl
 
   private def subscriptions: Receive = {
     case SubscribePositionUpdates(ref) =>
-      subscribers = ref :: subscribers
+      subscribers = subscribers + ref
       ref ! CurrentPosition(isin, position)
 
     case UnsubscribePositionUpdates(ref) =>

@@ -1,7 +1,6 @@
 package com.ergodicity.core
 
 import akka.actor.{Props, FSM, Actor, ActorRef}
-import akka.util.Timeout
 import collection.mutable
 import com.ergodicity.cgate.repository.Repository
 import com.ergodicity.cgate.scheme.Pos
@@ -21,6 +20,7 @@ import com.ergodicity.cgate.DataStream.BindingFailed
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.DataStream.BindTable
 import session.SessionActor.AssignedInstruments
+import akka.util.Timeout
 
 object PositionsTracking {
   def apply(PosStream: ActorRef) = new PositionsTracking(PosStream)
@@ -31,7 +31,11 @@ object PositionsTracking {
 
   case object GetOpenPositions
 
+  case class SubscribeOpenPositions(ref: ActorRef)
+
   case class OpenPositions(positions: Iterable[Isin])
+
+  case class NewPosition(isin: Isin)
 
   // Failures
 
@@ -58,6 +62,7 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
   implicit val timeout = Timeout(1.second)
 
   val positions = mutable.Map[Isin, ActorRef]()
+  var subscribers = Set[ActorRef]()
 
   // Repositories
 
@@ -95,8 +100,13 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       sender ! OpenPositions(positions.keys)
       stay()
 
+    case Event(SubscribeOpenPositions(ref), _) =>
+      subscribers = subscribers + ref
+      sender ! OpenPositions(positions.keys)
+      stay()
+
     case Event(GetPositionActor(isin), _) =>
-      sender ! TrackedPosition(isin, positions.getOrElseUpdate(isin, context.actorOf(Props(new PositionActor(isin)))))
+      sender ! TrackedPosition(isin, positions.getOrElseUpdate(isin, createPosition(isin)))
       stay()
 
     case Event(s@Snapshot(PositionsRepository, _), assigned) =>
@@ -122,7 +132,7 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
             if (pos.get_last_deal_id() == 0) None else Some(pos.get_last_deal_id())
           )
 
-          val positionActor = positions.getOrElseUpdate(isin, context.actorOf(Props(new PositionActor(isin)), isin.toActorName))
+          val positionActor = positions.getOrElseUpdate(isin, createPosition(isin))
           positionActor ! UpdatePosition(position, dynamics)
       }
 
@@ -146,6 +156,12 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
 
     case LoadingPositions -> Online =>
       log.debug("Positions goes online")
+  }
+
+  private def createPosition(isin: Isin) = {
+    val ref = context.actorOf(Props(new PositionActor(isin)), isin.toActorName)
+    subscribers.foreach(_ ! NewPosition(isin))
+    ref
   }
 
 }

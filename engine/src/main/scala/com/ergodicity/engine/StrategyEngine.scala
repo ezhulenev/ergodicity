@@ -24,7 +24,7 @@ object StrategyEngine {
 
   case class StrategyPosition(id: StrategyId, isin: Isin, position: Position) extends StrategyNotification
 
-  case class StrategyReady(id: StrategyId) extends StrategyNotification
+  case class StrategyReady(id: StrategyId, positions: Map[Isin, Position]) extends StrategyNotification
 }
 
 sealed trait StrategyEngineState
@@ -47,8 +47,8 @@ object StrategyEngineData {
 
 }
 
-abstract class StrategyEngine (factory: StrategiesFactory = StrategiesFactory.empty)
-                     (implicit val services: Services) {
+abstract class StrategyEngine(factory: StrategiesFactory = StrategiesFactory.empty)
+                             (implicit val services: Services) {
   engine: StrategyEngine with Actor =>
 
   protected val strategies = mutable.Map[StrategyId, ManagedStrategy]()
@@ -57,8 +57,8 @@ abstract class StrategyEngine (factory: StrategiesFactory = StrategiesFactory.em
     self ! StrategyPosition(id, isin, position)
   }
 
-  def reportReady()(implicit id: StrategyId) {
-    self ! StrategyReady(id)
+  def reportReady(positions: Map[Isin, Position])(implicit id: StrategyId) {
+    self ! StrategyReady(id, positions)
   }
 }
 
@@ -67,6 +67,8 @@ class StrategyEngineActor(factory: StrategiesFactory = StrategiesFactory.empty)
 
   import StrategyEngineState._
   import StrategyEngineData._
+
+  private val positions = mutable.Map[(StrategyId, Isin), Position]()
 
   startWith(Idle, Void)
 
@@ -78,9 +80,19 @@ class StrategyEngineActor(factory: StrategiesFactory = StrategiesFactory.empty)
   }
 
   when(Starting) {
-    case Event(StrategyReady(id), w@AwaitingReadiness(awaiting)) =>
-      log.info("Strategy ready, Id = " + id)
+    case Event(StrategyReady(id, strategyPositions), w@AwaitingReadiness(awaiting)) =>
+      log.info("Strategy ready, Id = " + id + ", positions = " + positions)
+      strategyPositions.foreach {
+        case (isin, position) =>
+          positions(id -> isin) = position
+      }
       stay() using (w.copy(strategies = awaiting filterNot (_ == id)))
+  }
+
+  whenUnhandled {
+    case Event(pos@StrategyPosition(id, isin, position), _) =>
+      positions(id -> isin) = position
+      stay()
   }
 
   initialize
