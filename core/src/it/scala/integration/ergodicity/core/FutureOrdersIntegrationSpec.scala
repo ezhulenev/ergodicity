@@ -7,7 +7,7 @@ import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 import akka.util.duration._
 import java.util.concurrent.TimeUnit
-import com.ergodicity.core.order.FutureOrders
+import com.ergodicity.core.order.OrdersTracking
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import ru.micexrts.cgate.{CGate, Connection => CGConnection, Listener => CGListener}
 import com.ergodicity.cgate.Connection.StartMessageProcessing
@@ -49,8 +49,8 @@ class FutureOrdersIntegrationSpec extends TestKit(ActorSystem("FutureOrdersInteg
       val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(dataStream))
       val listener = TestFSMRef(new Listener(underlyingListener), "FutTradeListener")
 
-      // Construct FutureOrders
-      val futureOrders = TestFSMRef(new FutureOrders(dataStream), "FutureOrders")
+      // Construct OrdersTracking
+      val futureOrders = TestFSMRef(new OrdersTracking(dataStream), "OrdersTracking")
 
       Thread.sleep(1000)
 

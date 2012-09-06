@@ -56,23 +56,23 @@ class FutureSessionOrdersSpec extends TestKit(ActorSystem("FutureSessionOrdersSp
     ord
   }
 
-  "FutureSessionOrders" must {
+  "SessionOrdersTracking" must {
     "skip record with other session" in {
-      val orders = TestActorRef(new FutureSessionOrders(1000), "FutureSessionOrders")
+      val orders = TestActorRef(new SessionOrdersTracking(1000), "SessionOrdersTracking")
       val underlying = orders.underlyingActor
       orders ! create
       assert(underlying.orders.size == 0)
     }
 
     "create new futOrder" in {
-      val orders = TestActorRef(new FutureSessionOrders(4072), "FutureSessionOrders")
+      val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
       val underlying = orders.underlyingActor
       orders ! create
       assert(underlying.orders.size == 1)
     }
 
     "cancel futOrder" in {
-      val orders = TestActorRef(new FutureSessionOrders(4072), "FutureSessionOrders")
+      val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
       val underlying = orders.underlyingActor
 
       orders ! create
@@ -87,7 +87,7 @@ class FutureSessionOrdersSpec extends TestKit(ActorSystem("FutureSessionOrdersSp
     }
 
     "fill futOrder" in {
-      val orders = TestActorRef(new FutureSessionOrders(4072), "FutureSessionOrders")
+      val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
       val underlying = orders.underlyingActor
 
       orders ! create
