@@ -33,7 +33,7 @@ class SessionOrdersTrackingSpec extends TestKit(ActorSystem("SessionOrdersTracki
       val futOrders = TestFSMRef(new OrdersTracking(ds), "OrdersTracking")
       futOrders.setState(OrdersTrackingState.Binded)
 
-      futOrders ! TrackSession(100)
+      futOrders ! GetOrdersTracking(100)
       expectMsgType[ActorRef]
 
       assert(futOrders.stateData.size == 1)
@@ -44,7 +44,7 @@ class SessionOrdersTrackingSpec extends TestKit(ActorSystem("SessionOrdersTracki
       val futOrders = TestFSMRef(new OrdersTracking(ds), "OrdersTracking")
       futOrders.setState(OrdersTrackingState.Binded)
 
-      futOrders ! TrackSession(100)
+      futOrders ! GetOrdersTracking(100)
       futOrders ! DropSession(100)
 
       assert(futOrders.stateData.size == 0)

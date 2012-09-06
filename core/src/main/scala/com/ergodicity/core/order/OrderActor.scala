@@ -2,8 +2,7 @@ package com.ergodicity.core.order
 
 import com.ergodicity.core.{IsinId, OrderDirection, OrderType}
 import akka.actor.{FSM, Actor}
-import akka.actor.FSM.Failure
-import com.ergodicity.core.order.Order.IllegalLifeCycleEvent
+import com.ergodicity.core.order.OrderActor.IllegalLifeCycleEvent
 
 sealed trait OrderState
 
@@ -30,11 +29,11 @@ case class FillOrder(price: BigDecimal, amount: Int)
 
 case class CancelOrder(amount: Int)
 
-object Order {
+object OrderActor {
   case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
 }
 
-class Order(val order: OrderProps) extends Actor with FSM[OrderState, RestAmount] {
+class OrderActor(val order: OrderProps) extends Actor with FSM[OrderState, RestAmount] {
 
   import OrderState._
 

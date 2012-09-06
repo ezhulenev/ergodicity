@@ -9,7 +9,7 @@ import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.actor.{Terminated, ActorSystem}
 import com.ergodicity.core.OrderType._
 import com.ergodicity.core.OrderDirection._
-import com.ergodicity.core.order.Order.IllegalLifeCycleEvent
+import com.ergodicity.core.order.OrderActor.IllegalLifeCycleEvent
 
 
 class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -23,8 +23,8 @@ class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLoggi
 
   "Order" must {
     "create new futOrder in New state" in {
-      val order = TestFSMRef(new Order(props), "TestOrder")
-      val underlying = order.underlyingActor.asInstanceOf[Order]
+      val order = TestFSMRef(new OrderActor(props), "TestOrder")
+      val underlying = order.underlyingActor.asInstanceOf[OrderActor]
 
       assert(underlying.order.amount == 1)
       assert(order.stateName == OrderState.Active)
@@ -32,7 +32,7 @@ class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLoggi
     }
 
     "move from Active to Filled" in {
-      val order = TestFSMRef(new Order(props), "TestOrder")
+      val order = TestFSMRef(new OrderActor(props), "TestOrder")
 
       order ! FillOrder(BigDecimal(100), 1)
       assert(order.stateName == OrderState.Filled)
@@ -40,7 +40,7 @@ class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLoggi
     }
 
     "stay in Active and move to Filled later" in {
-      val order = TestFSMRef(new Order(props.copy(amount = 2)), "TestOrder")
+      val order = TestFSMRef(new OrderActor(props.copy(amount = 2)), "TestOrder")
 
       order ! FillOrder(BigDecimal(100), 1)
       assert(order.stateName == OrderState.Active)
@@ -52,7 +52,7 @@ class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLoggi
     }
 
     "fail to fill more then rest amount" in {
-      val order = TestFSMRef(new Order(props), "TestOrder")
+      val order = TestFSMRef(new OrderActor(props), "TestOrder")
 
       intercept[IllegalArgumentException] {
         order.receive(FillOrder(BigDecimal(100), 100))
@@ -60,13 +60,13 @@ class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLoggi
     }
 
     "cancel futOrder" in {
-      val order = TestFSMRef(new Order(props.copy(amount = 2)), "TestOrder")
+      val order = TestFSMRef(new OrderActor(props.copy(amount = 2)), "TestOrder")
       order ! CancelOrder(1)
       assert(order.stateName == OrderState.Cancelled)
     }
 
     "fail cancel futOrder twice" in {
-      val order = TestFSMRef(new Order(props.copy(amount = 2)), "TestOrder")
+      val order = TestFSMRef(new OrderActor(props.copy(amount = 2)), "TestOrder")
       order ! CancelOrder(1)
       assert(order.stateName == OrderState.Cancelled)
 
