@@ -7,7 +7,7 @@ import com.ergodicity.cgate.DataStream._
 import com.ergodicity.cgate.StreamEvent._
 import com.ergodicity.cgate.scheme.{OptTrade, FutTrade}
 import akka.dispatch.Await
-import com.ergodicity.cgate.{WhenUnhandled, DataStreamState, Reads}
+import com.ergodicity.cgate.{Protocol, WhenUnhandled, DataStreamState, Reads}
 import collection.mutable
 import akka.util
 import com.ergodicity.cgate.DataStream.BindingSucceed
@@ -19,8 +19,7 @@ import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.StreamEvent.ClearDeleted
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.DataStream.BindTable
-import com.ergodicity.core.order
-import order.OrdersTracking.{IllegalEvent, StickyAction}
+import com.ergodicity.core.order.OrdersTracking.{StickyAction, IllegalEvent}
 
 
 private[order] sealed trait OrdersTrackingState
@@ -36,10 +35,13 @@ private[order] object OrdersTrackingState {
 }
 
 object OrdersTracking {
+  case class GetOrdersTracking(sessionId: Int)
+
+  case class DropSession(sessionId: Int)
 
   case class IllegalEvent(event: Any) extends IllegalArgumentException
 
-  case class StickyAction(sessionId: Int, action: OrderAction)
+  case class StickyAction(sessionId: Int, action: Action)
 }
 
 class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends Actor with FSM[OrdersTrackingState, StreamStates] {
@@ -54,8 +56,8 @@ class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends
   log.debug("Bind to FutTrade & OptTrade data streams")
 
   // Bind to tables
-  val futuresDispatcher = context.actorOf(Props(new FutureOrdersDispatcher(self)), "FutureOrdersDispatcher")
-  val optionsDispatcher = context.actorOf(Props(new OptionOrdersDispatcher(self)), "OptionOrdersDispatcher")
+  val futuresDispatcher = context.actorOf(Props(new FutureOrdersDispatcher(self)(Protocol.ReadsFutTradeOrders)), "FutureOrdersDispatcher")
+  val optionsDispatcher = context.actorOf(Props(new OptionOrdersDispatcher(self)(Protocol.ReadsOptTradeOrders)), "OptionOrdersDispatcher")
   val futuresBinding = (FutTradeStream ? BindTable(FutTrade.orders_log.TABLE_INDEX, futuresDispatcher)).mapTo[BindingResult]
   val optionsBinding = (OptTradeStream ? BindTable(OptTrade.orders_log.TABLE_INDEX, optionsDispatcher)).mapTo[BindingResult]
 
@@ -108,39 +110,38 @@ class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends
   }
 }
 
-class FutureOrdersDispatcher(ordersTracking: ActorRef)(implicit val read: Reads[FutTrade.orders_log]) extends Actor with ActorLogging with WhenUnhandled {
-  protected def receive = handleDataStreamEvents orElse whenUnhandled
+abstract class OrdersDispatcher(ordersTracking: ActorRef) extends Actor with ActorLogging with WhenUnhandled {
+  def dispatch: Receive
 
-  private def handleDataStreamEvents: Receive = {
+  def defaultDispatcher: Receive = {
     case TnBegin =>
 
     case TnCommit =>
 
     case e@ClearDeleted(_, _) =>
+  }
 
+  protected def receive = dispatch orElse defaultDispatcher orElse whenUnhandled
+
+}
+
+class FutureOrdersDispatcher(ordersTracking: ActorRef)(implicit val read: Reads[FutTrade.orders_log]) extends OrdersDispatcher(ordersTracking) {
+  def dispatch = {
     case e@StreamData(_, data) if (read(data).get_replAct() != 0) => throw new IllegalEvent(e)
 
     case StreamData(_, data) =>
       val record = read(data)
-      ordersTracking ! StickyAction(record.get_sess_id(), com.ergodicity.core.order.OrderAction(record))
+      ordersTracking ! StickyAction(record.get_sess_id(), Action(record))
   }
 }
 
-class OptionOrdersDispatcher(ordersTracking: ActorRef)(implicit val read: Reads[OptTrade.orders_log]) extends Actor with ActorLogging with WhenUnhandled {
-  protected def receive = handleDataStreamEvents orElse whenUnhandled
-
-  private def handleDataStreamEvents: Receive = {
-    case TnBegin =>
-
-    case TnCommit =>
-
-    case e@ClearDeleted(_, _) =>
-
+class OptionOrdersDispatcher(ordersTracking: ActorRef)(implicit val read: Reads[OptTrade.orders_log]) extends OrdersDispatcher(ordersTracking) {
+  def dispatch = {
     case e@StreamData(_, data) if (read(data).get_replAct() != 0) => throw new IllegalEvent(e)
 
     case StreamData(_, data) =>
       val record = read(data)
-      ordersTracking ! StickyAction(record.get_sess_id(), com.ergodicity.core.order.OrderAction(record))
+      ordersTracking ! StickyAction(record.get_sess_id(), Action(record))
   }
 }
 
@@ -150,11 +151,10 @@ class SessionOrdersTracking(sessionId: Int) extends Actor with ActorLogging with
   protected def receive = handleCreateOrder orElse handleDeleteOrder orElse handleFillOrder orElse whenUnhandled
 
   private def handleCreateOrder: Receive = {
-    case Create(props) =>
-      val orderId = props.id
-      log.debug("Create new order, id = " + orderId)
-      val order = context.actorOf(Props(new OrderActor(props)), "Order-" + orderId)
-      orders(orderId) = order
+    case Create(order) =>
+      log.debug("Create new order, id = " + order.id)
+      val orderActor = context.actorOf(Props(new OrderActor(order)), "Order-" + order.id)
+      orders(order.id) = orderActor
   }
 
   private def handleDeleteOrder: Receive = {

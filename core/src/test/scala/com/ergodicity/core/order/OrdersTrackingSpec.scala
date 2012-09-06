@@ -11,6 +11,7 @@ import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.DataStream
 import akka.testkit.{TestProbe, TestFSMRef, ImplicitSender, TestKit}
 import com.ergodicity.cgate.DataStream.{BindingSucceed, BindTable}
+import com.ergodicity.core.order.OrdersTracking.{DropSession, GetOrdersTracking}
 
 class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -23,31 +24,36 @@ class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", Confi
   "Future Orders" must {
 
     "bind data stream" in {
-      val ds = TestFSMRef(new DataStream)
-      val futOrders = TestFSMRef(new OrdersTracking(ds), "OrdersTracking")
-      assert(futOrders.stateName == OrdersTrackingState.Binded)
+      val futDs = TestFSMRef(new DataStream)
+      val optDs = TestFSMRef(new DataStream)
+      val ordersTracking = TestFSMRef(new OrdersTracking(futDs, optDs), "OrdersTracking")
+      assert(ordersTracking.stateName == OrdersTrackingState.Binded)
     }
 
     "create new session orders on request" in {
-      val ds = TestFSMRef(new DataStream)
-      val futOrders = TestFSMRef(new OrdersTracking(ds), "OrdersTracking")
-      futOrders.setState(OrdersTrackingState.Binded)
+      val futDs = TestFSMRef(new DataStream)
+      val optDs = TestFSMRef(new DataStream)
+      val ordersTracking = TestFSMRef(new OrdersTracking(futDs, optDs), "OrdersTracking")
+      ordersTracking.setState(OrdersTrackingState.Binded)
+      val underlying = ordersTracking.underlyingActor.asInstanceOf[OrdersTracking]
 
-      futOrders ! GetOrdersTracking(100)
+      ordersTracking ! GetOrdersTracking(100)
       expectMsgType[ActorRef]
 
-      assert(futOrders.stateData.size == 1)
+      assert(underlying.sessions.size == 1)
     }
 
     "drop session orders" in {
-      val ds = TestFSMRef(new DataStream)
-      val futOrders = TestFSMRef(new OrdersTracking(ds), "OrdersTracking")
-      futOrders.setState(OrdersTrackingState.Binded)
+      val futDs = TestFSMRef(new DataStream)
+      val optDs = TestFSMRef(new DataStream)
+      val ordersTracking = TestFSMRef(new OrdersTracking(futDs, optDs), "OrdersTracking")
+      ordersTracking.setState(OrdersTrackingState.Binded)
+      val underlying = ordersTracking.underlyingActor.asInstanceOf[OrdersTracking]
 
-      futOrders ! GetOrdersTracking(100)
-      futOrders ! DropSession(100)
+      ordersTracking ! GetOrdersTracking(100)
+      ordersTracking ! DropSession(100)
 
-      assert(futOrders.stateData.size == 0)
+      assert(underlying.sessions.size == 0)
     }
 
     "handle DataInserted event" in {
@@ -59,13 +65,15 @@ class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", Confi
         record.getData
       }
 
-      val ds = TestFSMRef(new DataStream)
-      val futOrders = TestFSMRef(new OrdersTracking(ds), "OrdersTracking")
-      futOrders.setState(OrdersTrackingState.Binded)
+      val futDs = TestFSMRef(new DataStream)
+      val optDs = TestFSMRef(new DataStream)
+      val ordersTracking = TestFSMRef(new OrdersTracking(futDs, optDs), "OrdersTracking")
+      ordersTracking.setState(OrdersTrackingState.Binded)
+      val underlying = ordersTracking.underlyingActor.asInstanceOf[OrdersTracking]
 
-      records.foreach(futOrders ! StreamData(FutTrade.orders_log.TABLE_INDEX, _))
+      records.foreach(ordersTracking ! StreamData(FutTrade.orders_log.TABLE_INDEX, _))
 
-      assert(futOrders.stateData.size == 10)
+      assert(underlying.sessions.size == 10)
     }
   }
 }

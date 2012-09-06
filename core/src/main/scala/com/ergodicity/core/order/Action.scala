@@ -1,0 +1,27 @@
+package com.ergodicity.core.order
+
+import com.ergodicity.cgate.scheme.{OptTrade, FutTrade}
+
+sealed trait Action
+
+case class Create(order: Order) extends Action
+
+case class Delete(orderId: Long, amount: Int) extends Action
+
+case class Fill(orderId: Long, deal: Long, amount: Int, price: BigDecimal, rest: Int) extends Action
+
+object Action {
+  def apply(record: FutTrade.orders_log) = record.get_action() match {
+    case 0 => Delete(record.get_id_ord(), record.get_amount())
+    case 1 => Create(record)
+    case 2 => Fill(record.get_id_ord(), record.get_id_deal(), record.get_amount(), record.get_deal_price(), record.get_amount_rest())
+    case _ => throw new IllegalArgumentException("Illegal 'orders_log' action: " + record.get_action())
+  }
+
+  def apply(record: OptTrade.orders_log) = record.get_action() match {
+    case 0 => Delete(record.get_id_ord(), record.get_amount())
+    case 1 => Create(record)
+    case 2 => Fill(record.get_id_ord(), record.get_id_deal(), record.get_amount(), record.get_deal_price(), record.get_amount_rest())
+    case _ => throw new IllegalArgumentException("Illegal 'orders_log' action: " + record.get_action())
+  }
+}

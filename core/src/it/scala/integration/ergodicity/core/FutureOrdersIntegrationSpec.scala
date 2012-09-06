@@ -42,15 +42,20 @@ class FutureOrdersIntegrationSpec extends TestKit(ActorSystem("FutureOrdersInteg
 
       val connection = TestFSMRef(new Connection(underlyingConnection, Some(500.millis)), "Connection")
 
-      val dataStream = TestFSMRef(new DataStream, "FutTradeDataStream")
+      val futTrade = TestFSMRef(new DataStream, "FutTradeDataStream")
+      val optTrade = TestFSMRef(new DataStream, "OptTradeDataStream")
 
       // Listeners
-      val listenerConfig = Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/fut_trades.ini"), "CustReplScheme")
-      val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(dataStream))
-      val listener = TestFSMRef(new Listener(underlyingListener), "FutTradeListener")
+      val futListenerConfig = Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/fut_trades.ini"), "CustReplScheme")
+      val underlyingFutListener = new CGListener(underlyingConnection, futListenerConfig(), new DataStreamSubscriber(futTrade))
+      val futListener = TestFSMRef(new Listener(underlyingFutListener), "FutTradeListener")
+
+      val optListenerConfig = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/opt_trades.ini"), "CustReplScheme")
+      val underlyingOptListener = new CGListener(underlyingConnection, optListenerConfig(), new DataStreamSubscriber(optTrade))
+      val optListener = TestFSMRef(new Listener(underlyingOptListener), "OptTradeListener")
 
       // Construct OrdersTracking
-      val futureOrders = TestFSMRef(new OrdersTracking(dataStream), "OrdersTracking")
+      TestFSMRef(new OrdersTracking(futTrade, optTrade), "OrdersTracking")
 
       Thread.sleep(1000)
 
@@ -59,7 +64,9 @@ class FutureOrdersIntegrationSpec extends TestKit(ActorSystem("FutureOrdersInteg
         protected def receive = {
           case Transition(_, _, Active) =>
             // Open Listener in Combined mode
-            listener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
+            futListener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
+            optListener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
+
 
             // Process messages
             connection ! StartMessageProcessing(500.millis)

@@ -1,6 +1,5 @@
 package com.ergodicity.core.order
 
-import com.ergodicity.core.{IsinId, OrderDirection, OrderType}
 import akka.actor.{FSM, Actor}
 import com.ergodicity.core.order.OrderActor.IllegalLifeCycleEvent
 
@@ -16,10 +15,6 @@ object OrderState {
 
 }
 
-case class OrderProps(id: Long, sessionId: Int, isin: IsinId,
-                      orderType: OrderType, direction: OrderDirection,
-                      price: BigDecimal, amount: Int)
-
 case class RestAmount(amount: Int) {
   if (amount < 0) throw new IllegalArgumentException("Rest amount should be greater then 0")
 }
@@ -33,7 +28,7 @@ object OrderActor {
   case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
 }
 
-class OrderActor(val order: OrderProps) extends Actor with FSM[OrderState, RestAmount] {
+class OrderActor(val order: Order) extends Actor with FSM[OrderState, RestAmount] {
 
   import OrderState._
 

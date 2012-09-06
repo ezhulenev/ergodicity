@@ -12,14 +12,14 @@ import com.ergodicity.core.OrderDirection._
 import com.ergodicity.core.order.OrderActor.IllegalLifeCycleEvent
 
 
-class OrderSpec extends TestKit(ActorSystem("OrderSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   override def afterAll() {
     system.shutdown()
   }
 
-  val props = OrderProps(100, 100, IsinId(111), GoodTillCancelled, Buy, BigDecimal(100), 1)
+  val props = Order(100, 100, IsinId(111), GoodTillCancelled, Buy, BigDecimal(100), 1)
 
   "Order" must {
     "create new futOrder in New state" in {
