@@ -4,13 +4,12 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import com.ergodicity.core.AkkaConfigurations
 import AkkaConfigurations._
-import akka.actor.{ActorRef, ActorSystem}
-import com.ergodicity.cgate.scheme.FutTrade
+import akka.actor.ActorSystem
+import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
+import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import java.nio.ByteBuffer
-import com.ergodicity.cgate.StreamEvent.StreamData
-import com.ergodicity.cgate.DataStream
-import akka.testkit.{TestProbe, TestFSMRef, ImplicitSender, TestKit}
-import com.ergodicity.cgate.DataStream.{BindingSucceed, BindTable}
+import com.ergodicity.cgate.scheme.FutTrade
+import java.math.BigDecimal
 
 class SessionOrdersTrackingSpec extends TestKit(ActorSystem("SessionOrdersTrackingSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -19,53 +18,99 @@ class SessionOrdersTrackingSpec extends TestKit(ActorSystem("SessionOrdersTracki
     system.shutdown()
   }
 
+  val orderId = 2876875842l
+  val create = {
+    val ord = baseOrder()
+    ord.set_action(1)
+    ord.set_status(1025)
+    ord.set_amount(3)
+    ord.set_amount_rest(3)
+    ord
+  }
+  val fill1 = {
+    val ord = baseOrder()
+    ord.set_action(2)
+    ord.set_status(4097)
+    ord.set_amount(1)
+    ord.set_amount_rest(2)
+    ord.set_id_deal(28261086)
+    ord.set_deal_price(new BigDecimal("128690.00000"))
+    ord
+  }
+  val fill2 = {
+    val ord = baseOrder()
+    ord.set_action(2)
+    ord.set_status(4097)
+    ord.set_amount(2)
+    ord.set_amount_rest(0)
+    ord.set_id_deal(28261087)
+    ord.set_deal_price(new BigDecimal("128695.00000"))
+    ord
+  }
+  val cancel = {
+    val ord = baseOrder()
+    ord.set_action(0)
+    ord.set_status(4097)
+    ord.set_amount(3)
+    ord.set_amount_rest(0)
+    ord
+  }
 
-  "Future Orders" must {
-
-    "bind data stream" in {
-      val ds = TestFSMRef(new DataStream)
-      val futOrders = TestFSMRef(new OrdersTracking(ds), "OrdersTracking")
-      assert(futOrders.stateName == OrdersTrackingState.Binded)
+  "SessionOrdersTracking" must {
+    "skip record with other session" in {
+      val orders = TestActorRef(new SessionOrdersTracking(1000), "SessionOrdersTracking")
+      val underlying = orders.underlyingActor
+      orders ! create
+      assert(underlying.orders.size == 0)
     }
 
-    "create new session orders on request" in {
-      val ds = TestFSMRef(new DataStream)
-      val futOrders = TestFSMRef(new OrdersTracking(ds), "OrdersTracking")
-      futOrders.setState(OrdersTrackingState.Binded)
-
-      futOrders ! GetOrdersTracking(100)
-      expectMsgType[ActorRef]
-
-      assert(futOrders.stateData.size == 1)
+    "create new futOrder" in {
+      val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
+      val underlying = orders.underlyingActor
+      orders ! create
+      assert(underlying.orders.size == 1)
     }
 
-    "drop session orders" in {
-      val ds = TestFSMRef(new DataStream)
-      val futOrders = TestFSMRef(new OrdersTracking(ds), "OrdersTracking")
-      futOrders.setState(OrdersTrackingState.Binded)
+    "cancel futOrder" in {
+      val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
+      val underlying = orders.underlyingActor
 
-      futOrders ! GetOrdersTracking(100)
-      futOrders ! DropSession(100)
+      orders ! create
 
-      assert(futOrders.stateData.size == 0)
+      val order = underlying.orders(orderId)
+      order ! SubscribeTransitionCallBack(self)
+      expectMsg(CurrentState(order, OrderState.Active))
+
+      orders ! cancel
+
+      expectMsg(Transition(order, OrderState.Active, OrderState.Cancelled))
     }
 
-    "handle DataInserted event" in {
+    "fill futOrder" in {
+      val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
+      val underlying = orders.underlyingActor
 
-      val records = (1 to 10).toList.map {case i =>
-        val buff = ByteBuffer.allocate(100)
-        val record = new FutTrade.orders_log(buff)
-        record.set_sess_id(100+i)
-        record.getData
-      }
+      orders ! create
 
-      val ds = TestFSMRef(new DataStream)
-      val futOrders = TestFSMRef(new OrdersTracking(ds), "OrdersTracking")
-      futOrders.setState(OrdersTrackingState.Binded)
+      val order = underlying.orders(orderId)
+      order ! SubscribeTransitionCallBack(self)
+      expectMsg(CurrentState(order, OrderState.Active))
 
-      records.foreach(futOrders ! StreamData(FutTrade.orders_log.TABLE_INDEX, _))
+      orders ! fill1
+      orders ! fill2
 
-      assert(futOrders.stateData.size == 10)
+      expectMsg(Transition(order, OrderState.Active, OrderState.Filled))
     }
+  }
+
+  private def baseOrder() = {
+    val buff = ByteBuffer.allocate(1000)
+    val ord = new FutTrade.orders_log(buff)
+    ord.set_id_ord(orderId)
+    ord.set_sess_id(4072)
+    ord.set_isin_id(167566)
+    ord.set_dir(1)
+    ord.set_price(new BigDecimal("130000.00000"))
+    ord
   }
 }
