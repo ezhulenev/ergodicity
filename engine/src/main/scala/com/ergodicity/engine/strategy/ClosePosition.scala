@@ -38,7 +38,7 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
 
   import CloseAllPositionsState._
 
-  val portfolio = engine.services.service(Portfolio.Portfolio)
+  val portfolio = engine.services(Portfolio.Portfolio)
 
   // Configuration and implicits
   implicit object WatchDog extends WatchDogConfig(self, true, true)

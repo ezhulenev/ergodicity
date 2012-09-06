@@ -138,6 +138,8 @@ abstract class Services {
 
   def service(id: ServiceId): ActorRef = services.get(id).map(_.ref).getOrElse(throw new ServiceNotFoundException(id))
 
+  def apply(id: ServiceId) = service(id)
+
   def serviceStopped(implicit id: ServiceId) {
     self ! ServiceStopped(id)
   }

@@ -1,22 +1,29 @@
 package com.ergodicity.engine
 
+import service.Portfolio.Portfolio
 import strategy.{StrategyBuilder, StrategiesFactory, StrategyId}
 import akka.actor.{LoggingFSM, Actor, ActorRef}
 import com.ergodicity.engine.StrategyEngine._
 import collection.mutable
+import collection.immutable
 import com.ergodicity.core.position.Position
 import com.ergodicity.core.Isin
 import com.ergodicity.engine.StrategyEngine.ManagedStrategy
 import akka.util.Timeout
 import akka.util.duration._
+import akka.pattern.ask
+import akka.pattern.pipe
 import scalaz._
 import Scalaz._
+import com.ergodicity.core.PositionsTracking.{Positions, GetPositions}
 
 object StrategyEngine {
 
   case class ManagedStrategy(ref: ActorRef)
 
   // Engine messages
+  case object PrepareStrategies
+
   case object StartStrategies
 
   case object StopStrategies
@@ -39,6 +46,8 @@ object StrategyEngine {
 
   case class Mismatch(isin: Isin, portfolioPosition: Position, strategiesPosition: Position, strategiesAllocation: Map[StrategyId, Position])
 
+  class ReconciliationFailed(mismatches: Iterable[Mismatch]) extends RuntimeException("Reconciliation failed; Mismatches size = " + mismatches.size)
+
 }
 
 sealed trait StrategyEngineState
@@ -47,7 +56,11 @@ object StrategyEngineState {
 
   case object Idle extends StrategyEngineState
 
-  case object Starting extends StrategyEngineState
+  case object Preparing extends StrategyEngineState
+
+  case object Reconciling extends StrategyEngineState
+
+  case object StrategiesReady extends StrategyEngineState
 
 }
 
@@ -57,13 +70,17 @@ object StrategyEngineData {
 
   case object Void extends StrategyEngineData
 
-  case class AwaitingReadiness(strategies: Iterable[StrategyId]) extends StrategyEngineData
+  case class AwaitingReadiness(strategies: Iterable[StrategyId]) extends StrategyEngineData {
+    def isEmpty = strategies.size == 0
+  }
+
 
 }
 
 abstract class StrategyEngine(factory: StrategiesFactory = StrategiesFactory.empty)
                              (implicit val services: Services) {
   engine: StrategyEngine with Actor =>
+
 
   protected val strategies = mutable.Map[StrategyId, ManagedStrategy]()
 
@@ -74,57 +91,12 @@ abstract class StrategyEngine(factory: StrategiesFactory = StrategiesFactory.emp
   def reportReady(positions: Map[Isin, Position])(implicit id: StrategyId) {
     self ! StrategyReady(id, positions)
   }
-}
 
-class StrategyEngineActor(factory: StrategiesFactory = StrategiesFactory.empty)
-                         (implicit services: Services) extends StrategyEngine(factory)(services) with Actor with LoggingFSM[StrategyEngineState, StrategyEngineData] {
-
-  import StrategyEngineState._
-  import StrategyEngineData._
-
-  type PortfolioPosition = Map[Isin, Position]
-  type StrategiesPositions = Map[(StrategyId, Isin), Position]
-
-  implicit val timeout = Timeout(5.seconds)
-
-  private val positions = mutable.Map[(StrategyId, Isin), Position]()
-
-  startWith(Idle, Void)
-
-  when(Idle) {
-    case Event(StartStrategies, Void) =>
-      factory.strategies foreach start
-      log.info("Started strategies = " + strategies.keys)
-      goto(Starting) using AwaitingReadiness(strategies.keys)
-  }
-
-  when(Starting) {
-    case Event(StrategyReady(id, strategyPositions), w@AwaitingReadiness(awaiting)) =>
-      log.info("Strategy ready, Id = " + id + ", positions = " + positions)
-      strategyPositions.foreach {
-        case (isin, position) =>
-          positions(id -> isin) = position
-      }
-      stay() using (w.copy(strategies = awaiting filterNot (_ == id)))
-  }
-
-  whenUnhandled {
-    case Event(pos@StrategyPosition(id, isin, position), _) =>
-      positions(id -> isin) = position
-      stay()
-  }
-
-  initialize
-
-  private def start(builder: StrategyBuilder) {
-    log.info("Start strategy, Id = " + builder.id)
-    strategies(builder.id) = ManagedStrategy(context.actorOf(builder.props(this), builder.id.toString))
-  }
-
-  protected[engine] def reconciliation(portfolioPositions: PortfolioPosition, strategiesPositions: StrategiesPositions): Reconciliation = {
+  protected[engine] def reconcile(portfolioPositions: immutable.Map[Isin, Position],
+                                       strategiesPositions: immutable.Map[(StrategyId, Isin), Position]): Reconciliation = {
 
     // Find each side position for given isin
-    val groupedByIsin =  (portfolioPositions.keySet ++ strategiesPositions.keySet.map(_._2)).map(isin => {
+    val groupedByIsin = (portfolioPositions.keySet ++ strategiesPositions.keySet.map(_._2)).map(isin => {
       val portfolioPos = portfolioPositions.get(isin) getOrElse Position.flat
       val strategiesPos = strategiesPositions.filterKeys(_._2 == isin).values.foldLeft(Position.flat)(_ |+| _)
 
@@ -144,5 +116,67 @@ class StrategyEngineActor(factory: StrategiesFactory = StrategiesFactory.empty)
     // If found any mismath, reconcilation failed
     val flatten = mismatches.flatten
     if (flatten.isEmpty) Reconciled else Mismatched(flatten)
+  }
+}
+
+class StrategyEngineActor(factory: StrategiesFactory = StrategiesFactory.empty)
+                         (implicit services: Services) extends StrategyEngine(factory)(services) with Actor with LoggingFSM[StrategyEngineState, StrategyEngineData] {
+
+  import StrategyEngineState._
+  import StrategyEngineData._
+
+  implicit val timeout = Timeout(5.seconds)
+
+  private val positions = mutable.Map[(StrategyId, Isin), Position]()
+
+  startWith(Idle, Void)
+
+  when(Idle) {
+    case Event(PrepareStrategies, Void) =>
+      factory.strategies foreach start
+      log.info("Preparing strategies = " + strategies.keys)
+      goto(Preparing) using AwaitingReadiness(strategies.keys)
+  }
+
+  when(Preparing) {
+    case Event(StrategyReady(id, strategyPositions), w@AwaitingReadiness(awaiting)) =>
+      log.info("Strategy ready, Id = " + id + ", positions = " + strategyPositions)
+      strategyPositions.foreach {
+        case (isin, position) =>
+          positions(id -> isin) = position
+      }
+      val remaining = w.copy(strategies = awaiting filterNot (_ == id))
+
+      if (remaining.isEmpty) {
+        (services(Portfolio) ? GetPositions).mapTo[Positions] map (p => reconcile(p.positions, positions.toMap)) pipeTo self
+        goto(Reconciling) using Void
+      }
+      else stay() using remaining
+  }
+
+  when(Reconciling) {
+    case Event(Reconciled, Void) =>
+      goto(StrategiesReady)
+
+    case Event(Mismatched(mismatches), Void) =>
+      log.error("Reconciliation failed, mismatches = "+mismatches)
+      throw new ReconciliationFailed(mismatches)
+  }
+
+  when(StrategiesReady) {
+    case Event(_, _) => stay()
+  }
+
+  whenUnhandled {
+    case Event(pos@StrategyPosition(id, isin, position), _) =>
+      positions(id -> isin) = position
+      stay()
+  }
+
+  initialize
+
+  private def start(builder: StrategyBuilder) {
+    log.info("Start strategy, Id = " + builder.id)
+    strategies(builder.id) = ManagedStrategy(context.actorOf(builder.props(this), builder.id.toString))
   }
 }
