@@ -85,18 +85,18 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
 
     val BrokerName = "Ergodicity"
 
-    val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/forts_messages.ini"))
+    val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/FortsMessages.ini"))
     val underlyingPublisher = new CGPublisher(underlyingPublisherConnection, messagesConfig())
   }
 
   trait SessionsConfig extends FutInfoReplication with OptInfoReplication {
-    val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")
+    val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/OptInfo.ini"), "CustReplScheme")
 
-    val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
+    val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/FutInfo.ini"), "CustReplScheme")
   }
 
   trait PositionsConfig extends PosReplication {
-    def posReplication = Replication("FORTS_POS_REPL", new File("cgate/scheme/pos.ini"), "CustReplScheme")
+    def posReplication = Replication("FORTS_POS_REPL", new File("cgate/scheme/Pos.ini"), "CustReplScheme")
   }
 
 }

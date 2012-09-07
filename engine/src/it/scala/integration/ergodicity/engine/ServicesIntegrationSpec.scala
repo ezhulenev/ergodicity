@@ -49,9 +49,9 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
   }
 
   trait Replication extends FutInfoReplication with OptInfoReplication {
-    val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")
+    val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/OptInfo.ini"), "CustReplScheme")
 
-    val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
+    val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/FutInfo.ini"), "CustReplScheme")
   }
 
   trait Listener extends UnderlyingListener {

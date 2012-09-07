@@ -46,7 +46,7 @@ class PositionsTrackingIntegrationSpec extends TestKit(ActorSystem("PositionsTra
       val dataStream = TestFSMRef(new DataStream, "PositionsDataStream")
 
       // Listeners
-      val listenerConfig = Replication("FORTS_POS_REPL", new File("cgate/scheme/pos.ini"), "CustReplScheme")
+      val listenerConfig = Replication("FORTS_POS_REPL", new File("cgate/scheme/Pos.ini"), "CustReplScheme")
       val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(dataStream))
       val listener = TestFSMRef(new Listener(underlyingListener), "PosListener")
 

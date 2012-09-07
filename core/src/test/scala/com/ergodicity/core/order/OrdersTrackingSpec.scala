@@ -8,10 +8,11 @@ import akka.actor.{ActorRef, ActorSystem}
 import com.ergodicity.cgate.scheme.FutTrade
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.StreamEvent.StreamData
-import com.ergodicity.cgate.DataStream
+import com.ergodicity.cgate.{DataStreamState, DataStream}
 import akka.testkit.{TestProbe, TestFSMRef, ImplicitSender, TestKit}
 import com.ergodicity.cgate.DataStream.{BindingSucceed, BindTable}
 import com.ergodicity.core.order.OrdersTracking.{DropSession, GetOrdersTracking}
+import akka.actor.FSM.CurrentState
 
 class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -28,6 +29,17 @@ class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", Confi
       val optDs = TestFSMRef(new DataStream)
       val ordersTracking = TestFSMRef(new OrdersTracking(futDs, optDs), "OrdersTracking")
       assert(ordersTracking.stateName == OrdersTrackingState.Binded)
+    }
+
+    "go to online state as streams goes online" in {
+      val futDs = TestFSMRef(new DataStream)
+      val optDs = TestFSMRef(new DataStream)
+      val ordersTracking = TestFSMRef(new OrdersTracking(futDs, optDs), "OrdersTracking")
+
+      ordersTracking ! CurrentState(futDs, DataStreamState.Online)
+      ordersTracking ! CurrentState(optDs, DataStreamState.Online)
+
+      assert(ordersTracking.stateName == OrdersTrackingState.Online)
     }
 
     "create new session orders on request" in {
@@ -71,7 +83,10 @@ class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", Confi
       ordersTracking.setState(OrdersTrackingState.Binded)
       val underlying = ordersTracking.underlyingActor.asInstanceOf[OrdersTracking]
 
-      records.foreach(ordersTracking ! StreamData(FutTrade.orders_log.TABLE_INDEX, _))
+      records.foreach(underlying.futuresDispatcher ! StreamData(FutTrade.orders_log.TABLE_INDEX, _))
+
+      // Let dispatchers proceed messages
+      Thread.sleep(100)
 
       assert(underlying.sessions.size == 10)
     }

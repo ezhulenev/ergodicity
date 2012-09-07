@@ -12,18 +12,16 @@ import com.ergodicity.cgate._
 import config.{Replication, CGateConfig}
 import repository.Repository
 import repository.Repository.{Snapshot, SubscribeSnapshots}
-import scheme.OptInfo
+import scheme.OptTrade
 import com.ergodicity.cgate.config.Replication._
-import akka.testkit.{TestActorRef, TestFSMRef, ImplicitSender, TestKit}
+import akka.testkit.{ImplicitSender, TestKit}
 import akka.event.Logging
 import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.Protocol._
-import com.ergodicity.cgate.repository.ReplicaExtractor._
 import com.ergodicity.cgate.DataStream.BindTable
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
 
-
-class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class DataStreamIntegrationSpec extends TestKit(ActorSystem("DataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   val Host = "localhost"
@@ -42,40 +40,40 @@ class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec
     CGate.close()
   }
 
-  "OptInfo DataStream" must {
-    "load contents to Reportitory" in {
+  "DataStream" must {
+    "go online" in {
       val underlyingConnection = new CGConnection(RouterConnection())
 
-      val connection = TestFSMRef(new Connection(underlyingConnection), "Connection")
+      val connection = system.actorOf(Props(new Connection(underlyingConnection)), "Connection")
 
-      val OptInfoDataStream = TestFSMRef(new DataStream, "OptInfoDataStream")
+      val DataStream = system.actorOf(Props(new DataStream), "DataStream")
 
       // Listener
-      val listenerConfig = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/OptInfo.ini"), "CustReplScheme")
-      val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(OptInfoDataStream))
-      val listener = TestFSMRef(new Listener(underlyingListener), "Listener")
+      val listenerConfig = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptTrade.ini"), "CustReplScheme")
+      val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(DataStream))
+      val listener = system.actorOf(Props(new Listener(underlyingListener)), "Listener")
 
-      val optionsRepository = TestFSMRef(Repository[OptInfo.opt_sess_contents], "OptionsRepository")
-      OptInfoDataStream ! BindTable(OptInfo.opt_sess_contents.TABLE_INDEX, optionsRepository)
+      // Repository
+      val repository = system.actorOf(Props(Repository[OptTrade.orders_log]), "Repository")
+      DataStream ! BindTable(OptTrade.orders_log.TABLE_INDEX, repository)
 
       // Handle repository data
-      optionsRepository ! SubscribeSnapshots(TestActorRef(new Actor {
+      repository ! SubscribeSnapshots(system.actorOf(Props(new Actor {
         protected def receive = {
-          case snapshot: Snapshot[OptInfo.opt_sess_contents] =>
-            log.info("Got Options Contents snapshot, size = " + snapshot.data.size)
+          case snapshot: Snapshot[OptTrade.orders_log] =>
+            log.info("Got snapshot, size = " + snapshot.data.size)
             snapshot.data foreach {
-              rec =>
-                log.info("ContentsRecord; Option isin = " + rec.get_isin() + ", isin id = " + rec.get_isin_id() + ", name = " + rec.get_name() + ", session = " + rec.get_sess_id())
+              rec => log.info("Record = " + rec)
             }
         }
-      }))
+      })))
 
       // On connection Activated open listeners etc
       connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
         protected def receive = {
           case Transition(_, _, Active) =>
             // Open Listener in Combined mode
-            listener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
+            listener ! Listener.Open(ReplicationParams(ReplicationMode.Combined, tables = Some(Set("orders_log"))))
 
             // Process messages
             connection ! StartMessageProcessing(500.millis)
@@ -88,6 +86,5 @@ class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
   }
-
 
 }

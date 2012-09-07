@@ -17,7 +17,7 @@ import config.{Replication, CGateConfig}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 
-class FutureOrdersIntegrationSpec extends TestKit(ActorSystem("FutureOrdersIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class OrdersTrackingIntegrationSpec extends TestKit(ActorSystem("OrdersTrackingIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   val Host = "localhost"
@@ -46,11 +46,11 @@ class FutureOrdersIntegrationSpec extends TestKit(ActorSystem("FutureOrdersInteg
       val optTrade = TestFSMRef(new DataStream, "OptTradeDataStream")
 
       // Listeners
-      val futListenerConfig = Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/fut_trades.ini"), "CustReplScheme")
+      val futListenerConfig = Replication("FORTS_FUTTRADE_REPL", new File("core/scheme/FutOrdersOnly.ini"), "CustReplScheme")
       val underlyingFutListener = new CGListener(underlyingConnection, futListenerConfig(), new DataStreamSubscriber(futTrade))
       val futListener = TestFSMRef(new Listener(underlyingFutListener), "FutTradeListener")
 
-      val optListenerConfig = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/opt_trades.ini"), "CustReplScheme")
+      val optListenerConfig = Replication("FORTS_OPTTRADE_REPL", new File("core/scheme/OptOrdersOnly.ini"), "CustReplScheme")
       val underlyingOptListener = new CGListener(underlyingConnection, optListenerConfig(), new DataStreamSubscriber(optTrade))
       val optListener = TestFSMRef(new Listener(underlyingOptListener), "OptTradeListener")
 

@@ -50,11 +50,11 @@ class SessionsTrackingIntegrationSpec extends TestKit(ActorSystem("SessionsTrack
       val OptInfoDataStream = system.actorOf(Props(new DataStream), "OptInfoDataStream")
 
       // Listeners
-      val futInfoListenerConfig = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
+      val futInfoListenerConfig = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/FutInfo.ini"), "CustReplScheme")
       val underlyingFutInfoListener = new CGListener(underlyingConnection, futInfoListenerConfig(), new DataStreamSubscriber(FutInfoDataStream))
       val futInfoListener = system.actorOf(Props(new Listener(underlyingFutInfoListener)), "FutInfoListener")
 
-      val optInfoListenerConfig = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme")
+      val optInfoListenerConfig = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/OptInfo.ini"), "CustReplScheme")
       val underlyingOptInfoListener = new CGListener(underlyingConnection, optInfoListenerConfig(), new DataStreamSubscriber(OptInfoDataStream))
       val optInfoListener = system.actorOf(Props(new Listener(underlyingOptInfoListener)), "OptInfoListener")
 

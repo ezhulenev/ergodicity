@@ -12,11 +12,11 @@ new CaptureEngineConfig {
   val cgateConfig = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
 
   val replication = ReplicationScheme(
-    Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme"),
-    Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/opt_info.ini"), "CustReplScheme"),
-    Replication("FORTS_ORDLOG_REPL", new File("cgate/scheme/ordLog_trades.ini"), "CustReplScheme"),
-    Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/fut_trades.ini"), "CustReplScheme"),
-    Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/opt_trades.ini"), "CustReplScheme")
+    Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/FutInfo.ini"), "CustReplScheme"),
+    Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/OptInfo.ini"), "CustReplScheme"),
+    Replication("FORTS_ORDLOG_REPL", new File("cgate/scheme/OrdLog.ini"), "CustReplScheme"),
+    Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/FutTrade.ini"), "CustReplScheme"),
+    Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptTrade.ini"), "CustReplScheme")
   )
 
   val database = MongoRemote("ergodicity01", "MarketCaptureDev")

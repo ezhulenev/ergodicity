@@ -45,14 +45,20 @@ object Replication {
 
   }
 
-  case class ReplicationParams(mode: ReplicationMode, state: Option[ReplState] = None) extends ListenerOpenParams {
+  case class ReplicationParams(mode: ReplicationMode, tables: Option[Set[String]] = None, state: Option[ReplState] = None) extends ListenerOpenParams {
     private val modeParam = "mode=" + mode.name
-    val config = state.map(modeParam + ";replstate=" + _.state).getOrElse(modeParam)
+    val config = {
+      var conf = modeParam
+      if (tables.isDefined) conf = conf + ";table=" + tables.get.mkString(",")
+      if (state.isDefined) conf = conf + ";replstate=" + state.get
+      conf
+    }
   }
 
   case object EmptyParams extends ListenerOpenParams {
     val config = ""
   }
+
 }
 
 

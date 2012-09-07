@@ -1,6 +1,6 @@
 package com.ergodicity.cgate
 
-import akka.actor.{ActorRef, Actor, FSM}
+import akka.actor.{LoggingFSM, ActorRef, Actor, FSM}
 import ru.micexrts.cgate.{ErrorCode, MessageType}
 import ru.micexrts.cgate.messages._
 import scalaz._

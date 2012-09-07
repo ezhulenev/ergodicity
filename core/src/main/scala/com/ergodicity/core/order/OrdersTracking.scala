@@ -44,7 +44,7 @@ object OrdersTracking {
   case class StickyAction(sessionId: Int, action: Action)
 }
 
-class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends Actor with FSM[OrdersTrackingState, StreamStates] {
+class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends Actor with LoggingFSM[OrdersTrackingState, StreamStates] {
 
   import OrdersTracking._
   import OrdersTrackingState._
@@ -53,13 +53,15 @@ class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends
 
   val sessions = mutable.Map[Int, ActorRef]()
 
+  // Dispatch Futures and Options orders
+  val futuresDispatcher = context.actorOf(Props(new FutureOrdersDispatcher(self)(Protocol.ReadsFutTradeOrders)), "FutureOrdersDispatcher")
+  val optionsDispatcher = context.actorOf(Props(new OptionOrdersDispatcher(self)(Protocol.ReadsOptTradeOrders)), "OptionOrdersDispatcher")
+
   log.debug("Bind to FutTrade & OptTrade data streams")
 
   // Bind to tables
-  val futuresDispatcher = context.actorOf(Props(new FutureOrdersDispatcher(self)(Protocol.ReadsFutTradeOrders)), "FutureOrdersDispatcher")
-  val optionsDispatcher = context.actorOf(Props(new OptionOrdersDispatcher(self)(Protocol.ReadsOptTradeOrders)), "OptionOrdersDispatcher")
-  val futuresBinding = (FutTradeStream ? BindTable(FutTrade.orders_log.TABLE_INDEX, futuresDispatcher)).mapTo[BindingResult]
-  val optionsBinding = (OptTradeStream ? BindTable(OptTrade.orders_log.TABLE_INDEX, optionsDispatcher)).mapTo[BindingResult]
+  private val futuresBinding = (FutTradeStream ? BindTable(FutTrade.orders_log.TABLE_INDEX, futuresDispatcher)).mapTo[BindingResult]
+  private val optionsBinding = (OptTradeStream ? BindTable(OptTrade.orders_log.TABLE_INDEX, optionsDispatcher)).mapTo[BindingResult]
 
   Await.result(futuresBinding zip optionsBinding, 1.second) match {
     case (_: BindingSucceed, _: BindingSucceed) => log.info("Successfully binded to FutTrade & OptTrade streams")
@@ -73,9 +75,17 @@ class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends
   startWith(Binded, StreamStates())
 
   when(Binded)(handleSessionEvents orElse trackSession orElse dropSession orElse {
-    case Event(CurrentState(FutTradeStream, DataStreamState.Online), _) => goto(Online)
-    case Event(Transition(FutTradeStream, _, DataStreamState.Online), _) => goto(Online)
+    case Event(CurrentState(FutTradeStream, state: DataStreamState), states) =>
+      handleStreamStates(states.copy(fut = Some(state)))
 
+    case Event(Transition(FutTradeStream, _, state: DataStreamState), states) =>
+      handleStreamStates(states.copy(fut = Some(state)))
+
+    case Event(CurrentState(OptTradeStream, state: DataStreamState), states) =>
+      handleStreamStates(states.copy(opt = Some(state)))
+
+    case Event(Transition(OptTradeStream, _, state: DataStreamState), states) =>
+      handleStreamStates(states.copy(opt = Some(state)))
   })
 
   when(Online) {
@@ -88,16 +98,21 @@ class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends
       OptTradeStream ! UnsubscribeTransitionCallBack(self)
   }
 
+  private def handleStreamStates(states: StreamStates) = states match {
+    case StreamStates(Some(DataStreamState.Online), Some(DataStreamState.Online)) => goto(Online) using states
+    case _ => stay() using(states)
+  }
+
   private def handleSessionEvents: StateFunction = {
     case Event(StickyAction(sessionId, action), _) =>
-      lazy val actor = context.actorOf(Props(new SessionOrdersTracking(sessionId)), "Session-" + sessionId)
+      lazy val actor = context.actorOf(Props(new SessionOrdersTracking(sessionId)), sessionId.toString)
       sessions.getOrElseUpdate(sessionId, actor) ! action
       stay()
   }
 
   private def trackSession: StateFunction = {
     case Event(GetOrdersTracking(sessionId), _) =>
-      lazy val actor = context.actorOf(Props(new SessionOrdersTracking(sessionId)), "Session-" + sessionId)
+      lazy val actor = context.actorOf(Props(new SessionOrdersTracking(sessionId)), sessionId.toString)
       sender ! sessions.getOrElseUpdate(sessionId, actor)
       stay()
   }
@@ -105,7 +120,7 @@ class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends
   private def dropSession: StateFunction = {
     case Event(DropSession(sessionId), _) if (sessions.contains(sessionId)) =>
       log.info("Drop session: " + sessionId)
-      sessions(sessionId) ! Kill
+      sessions.remove(sessionId) foreach (_ ! Kill)
       stay()
   }
 }
@@ -153,7 +168,7 @@ class SessionOrdersTracking(sessionId: Int) extends Actor with ActorLogging with
   private def handleCreateOrder: Receive = {
     case Create(order) =>
       log.debug("Create new order, id = " + order.id)
-      val orderActor = context.actorOf(Props(new OrderActor(order)), "Order-" + order.id)
+      val orderActor = context.actorOf(Props(new OrderActor(order)), order.id.toString)
       orders(order.id) = orderActor
   }
 

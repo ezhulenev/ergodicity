@@ -10,14 +10,14 @@ object SchemeTools {
   }
 
   private val Schemes = List(
-    SchemeProps("fut_info.ini", "FutInfo", "CustReplScheme"),
-    SchemeProps("opt_info.ini", "OptInfo", "CustReplScheme"),
-    SchemeProps("fut_trades.ini", "FutTrade", "CustReplScheme"),
-    SchemeProps("opt_trades.ini", "OptTrade", "CustReplScheme"),
-    SchemeProps("pos.ini", "Pos", "CustReplScheme"),
-    SchemeProps("ordLog_trades.ini", "OrdLog", "CustReplScheme"),
-    SchemeProps("forts_messages.ini", "Message", "message"),
-    SchemeProps("orderbook.ini", "OrderBook", "CustReplScheme")
+    SchemeProps("FutInfo.ini", "FutInfo", "CustReplScheme"),
+    SchemeProps("OptInfo.ini", "OptInfo", "CustReplScheme"),
+    SchemeProps("FutTrade.ini", "FutTrade", "CustReplScheme"),
+    SchemeProps("OptTrade.ini", "OptTrade", "CustReplScheme"),
+    SchemeProps("Pos.ini", "Pos", "CustReplScheme"),
+    SchemeProps("OrdLog.ini", "OrdLog", "CustReplScheme"),
+    SchemeProps("FortsMessages.ini", "Message", "message"),
+    SchemeProps("Orderbook.ini", "OrderBook", "CustReplScheme")
   )
 
   def generateSchemes(projectDir: File, outDir: File): Seq[File] = {

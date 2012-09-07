@@ -111,7 +111,7 @@ class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec
       val FutInfoDataStream = system.actorOf(Props(new DataStream), "FutInfoDataStream")
 
       // Listener
-      val listenerConfig = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/fut_info.ini"), "CustReplScheme")
+      val listenerConfig = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/FutInfo.ini"), "CustReplScheme")
       val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(FutInfoDataStream))
       val listener = system.actorOf(Props(new Listener(underlyingListener)), "Listener")
 

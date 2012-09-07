@@ -23,8 +23,8 @@ import akka.actor.FSM.Transition
 import scala.Some
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.Connection.StartMessageProcessing
-import akka.dispatch.Await
 import akka.util.Timeout
+import akka.dispatch.Await
 
 class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -56,7 +56,7 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
       val underlyingConnection = new CGConnection(RouterConnection())
       val connection = system.actorOf(Props(new Connection(underlyingConnection, Some(500.millis))), "Connection")
 
-      val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/forts_messages.ini"))
+      val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/FortsMessages.ini"))
       val underlyingPublisher = new CGPublisher(underlyingConnection, messagesConfig())
 
       val broker = system.actorOf(Props(new Broker(underlyingPublisher)), "Broker")
@@ -90,7 +90,7 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
     val underlyingConnection = new CGConnection(RouterConnection())
     val connection = system.actorOf(Props(new Connection(underlyingConnection, Some(500.millis))), "Connection")
 
-    val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/forts_messages.ini"))
+    val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/FortsMessages.ini"))
     val underlyingPublisher = new CGPublisher(underlyingConnection, messagesConfig())
 
     val broker = system.actorOf(Props(new Broker(underlyingPublisher)), "Broker")
@@ -119,7 +119,9 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
 
     val f = (broker ? Buy[Futures](Isin("RTS-9.12"), 1, 100, GoodTillCancelled)).mapTo[OrderId]
 
-    f onComplete {res => log.info("Result = " + res)}
+    f onComplete {
+      res => log.info("Result = " + res)
+    }
 
     Thread.sleep(TimeUnit.DAYS.toMillis(10))
   }
@@ -129,7 +131,7 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
     val underlyingConnection = new CGConnection(RouterConnection())
     val connection = system.actorOf(Props(new Connection(underlyingConnection, Some(500.millis))), "Connection")
 
-    val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/forts_messages.ini"))
+    val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/FortsMessages.ini"))
     val underlyingPublisher = new CGPublisher(underlyingConnection, messagesConfig())
 
     val broker = system.actorOf(Props(new Broker(underlyingPublisher)), "Broker")
@@ -156,18 +158,19 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
 
     Thread.sleep(3000)
 
-    val f1 = (broker ? Sell[Futures](Isin("RTS-9.12"), 1, 136000, GoodTillCancelled)).mapTo[OrderId]
+    val f1 = (broker ? Buy[Futures](Isin("RTS-9.12"), 1, 145000, GoodTillCancelled)).mapTo[OrderId]
 
-    f1 onComplete(_ match {
-      case Left(ActionFailedException(code, message)) => log.error("Error = " + code + ", mess = " + message)
-      case Right(order) => log.info("Order Response = " + order)
+    f1 onComplete (_ match {
+      case Left(ActionFailedException(code, message)) =>
+        log.error("Error placing order; Code = " + code + ", mess = " + message)
+
+      case Right(order) =>
+        log.info("Order Response = " + order)
+        val f2 = (broker ? Cancel[Futures](order)).mapTo[Cancelled]
+        val cancelled = Await.result(f2, 5.seconds)
+
+        log.info("Cancel Response = " + cancelled)
     })
-
-
-    /*val f2 = (broker ? Cancel[Futures](order)).mapTo[Cancelled]
-    val cancelled = Await.result(f2, 5.seconds)
-
-    log.info("Cancel Response = " + cancelled)*/
 
     Thread.sleep(TimeUnit.DAYS.toMillis(10))
   }
