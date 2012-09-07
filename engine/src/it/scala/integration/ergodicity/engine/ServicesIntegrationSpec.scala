@@ -9,11 +9,11 @@ import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.config.{Replication, CGateConfig}
 import java.io.File
 import com.ergodicity.engine.{ServicesActor, Engine, Services}
-import com.ergodicity.engine.service.{InstrumentData, TradingConnections, Connection}
+import com.ergodicity.engine.service.{Portfolio, InstrumentData, TradingConnections, Connection}
 import com.ergodicity.engine.underlying.{UnderlyingListener, ListenerFactory, UnderlyingTradingConnections, UnderlyingConnection}
 import java.util.concurrent.TimeUnit
 import com.ergodicity.engine.Services.StartServices
-import com.ergodicity.engine.ReplicationScheme.{OptInfoReplication, FutInfoReplication}
+import com.ergodicity.engine.ReplicationScheme.{PosReplication, OptInfoReplication, FutInfoReplication}
 import ru.micexrts.cgate
 import cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener}
 import com.ergodicity.cgate.Connection.StartMessageProcessing
@@ -48,10 +48,12 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
     def underlyingRepliesConnection = new CGConnection(RepliesConnection())
   }
 
-  trait Replication extends FutInfoReplication with OptInfoReplication {
+  trait Replication extends FutInfoReplication with OptInfoReplication with PosReplication {
     val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/OptInfo.ini"), "CustReplScheme")
 
     val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/FutInfo.ini"), "CustReplScheme")
+
+    val posReplication = Replication("FORTS_POS_REPL", new File("cgate/scheme/Pos.ini"), "CustReplScheme")
   }
 
   trait Listener extends UnderlyingListener {
@@ -62,7 +64,7 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
 
   class IntegrationEngine extends Engine with Connections with Replication with Listener
 
-  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with Connection with TradingConnections with InstrumentData
+  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with Connection with TradingConnections with InstrumentData with Portfolio
 
   "Services" must {
     "support Connection Service" in {
@@ -72,7 +74,7 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
 
       services ! StartServices
 
-       Thread.sleep(TimeUnit.DAYS.toMillis(10))
+      Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
   }
 

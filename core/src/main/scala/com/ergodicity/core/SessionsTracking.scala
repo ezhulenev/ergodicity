@@ -4,7 +4,6 @@ import akka.actor._
 import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
 import com.ergodicity.cgate.sysevents.{SysEventDispatcher, SysEvent}
 import com.ergodicity.cgate.DataStreamState
-import akka.util.Timeout
 import akka.util.duration._
 import collection.mutable
 import com.ergodicity.cgate.repository.Repository
@@ -28,6 +27,8 @@ import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.DataStream.BindTable
 import scalaz._
 import Scalaz._
+import akka.util.Timeout
+import akka.util
 
 case class SessionId(id: Int, optionSessionId: Int)
 
@@ -50,32 +51,21 @@ object SessionsTracking {
         context.parent ! StreamSysEvent(stream, event)
     }
   }
-
-  case class StreamStates(futures: Option[DataStreamState] = None, options: Option[DataStreamState] = None)
-
 }
 
-sealed trait SessionsTrackingState
-
-object SessionsTrackingState {
-
-  case object Binded extends SessionsTrackingState
-
-  case object Online extends SessionsTrackingState
-
-}
-
-class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor with LoggingFSM[SessionsTrackingState, SessionsTracking.StreamStates] {
+class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor with ActorLogging {
 
   import SessionsTracking._
-  import SessionsTrackingState._
 
-  implicit val timeout = Timeout(1.second)
+  implicit val timeout = util.Timeout(1.second)
 
-  // Subscribers for ongoing sessions
   var subscribers: List[ActorRef] = Nil
 
   var ongoingSession: Option[(SessionId, ActorRef)] = None
+
+  var readyFutureSessions = Seq[Long]()
+
+  var readyOptionSessions = Seq[Long]()
 
   val trackingSessions = mutable.Map[SessionId, ActorRef]()
 
@@ -85,33 +75,10 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
   val FutSessContentsRepository = context.actorOf(Props(Repository[FutInfo.fut_sess_contents]), "FutSessContentsRepository")
   val OptSessContentsRepository = context.actorOf(Props(Repository[OptInfo.opt_sess_contents]), "OptSessContentsRepository")
 
-  // SysEventsDispatcher
-  val sysEventsDispatcher = context.actorOf(Props(new SysEventDispatcher[FutInfo.sys_events]), "FutInfoSysEventsDispatcher")
-  sysEventsDispatcher ! SubscribeSysEvents(context.actorOf(Props(new StreamSysEvents(FutInfoStream)), "FutInfoEventsWrapper"))
-  FutInfoStream ? BindTable(FutInfo.sys_events.TABLE_INDEX, sysEventsDispatcher)
-
-  log.debug("Bind to FutInfo and OptInfo data streams")
-
-  // Bind to tables
-  val sessionsBindingResult = (FutInfoStream ? BindTable(FutInfo.session.TABLE_INDEX, SessionRepository)).mapTo[BindingResult]
-  val futuresBindingResult = (FutInfoStream ? BindTable(FutInfo.fut_sess_contents.TABLE_INDEX, FutSessContentsRepository)).mapTo[BindingResult]
-  val optionsBindingResult = (OptInfoStream ? BindTable(OptInfo.opt_sess_contents.TABLE_INDEX, OptSessContentsRepository)).mapTo[BindingResult]
-
-  val bindingResult = for {
-    sess <- sessionsBindingResult
-    fut <- futuresBindingResult
-    opt <- optionsBindingResult
-  } yield (sess, fut, opt)
-
-  Await.result(bindingResult, 1.second) match {
-    case (BindingSucceed(_, _), BindingSucceed(_, _), BindingSucceed(_, _)) =>
-    case _ => throw new IllegalStateException("Failed Bind to data streams")
-  }
-
   override def preStart() {
-    log.debug("Subscribe for FutInfo and OptInfo states")
-    FutInfoStream ! SubscribeTransitionCallBack(self)
-    OptInfoStream ! SubscribeTransitionCallBack(self)
+    // Bind to data streams
+    bindSysEvents()
+    bindPayload()
 
     // Subscribe for snapshots data
     SessionRepository ! SubscribeSnapshots(self)
@@ -119,32 +86,13 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
     OptSessContentsRepository ! SubscribeSnapshots(self)
   }
 
-  startWith(Binded, StreamStates(None, None))
 
-  when(Binded) {
-    // Handle FutInfo and OptInfo data streams state updates
-    case Event(CurrentState(FutInfoStream, state: DataStreamState), states) =>
-      handleBindingState(states.copy(futures = Some(state)))
+  protected def receive = null /*{
+    //case StreamSysEvent(FutInfoStream, SessionDataReady(id)) if(readyOptionSessions contains id)
 
-    case Event(CurrentState(OptInfoStream, state: DataStreamState), states) =>
-      handleBindingState(states.copy(options = Some(state)))
+  }*/
 
-    case Event(Transition(FutInfoStream, _, state: DataStreamState), states) =>
-      handleBindingState(states.copy(futures = Some(state)))
-
-    case Event(Transition(OptInfoStream, _, state: DataStreamState), states) =>
-      handleBindingState(states.copy(options = Some(state)))
-  }
-
-  when(Online) {
-    case Event(t@Transition(OptInfoStream, _, _), _) =>
-      throw new RuntimeException("Unexpected OptInfo data stream transtition = ")
-
-    case Event(t@Transition(FutInfoStream, _, _), _) =>
-      throw new RuntimeException("Unexpected FutInfo data stream transtition = ")
-  }
-
-  whenUnhandled {
+  /*whenUnhandled {
     case Event(SubscribeOngoingSessions(ref), _) =>
       subscribers = ref +: subscribers
       ref ! OngoingSession(ongoingSession)
@@ -156,7 +104,7 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
       stay()
 
     case Event(UpdateOngoingSessions(snapshot), _) =>
-      val newOngoingSession = updateOngoingSessions(snapshot)
+      val newOngoingSession = updateOngoingSession(snapshot)
       log.debug("New ongoing session = " + newOngoingSession + ", previously was = " + ongoingSession)
       if (newOngoingSession != ongoingSession) {
         subscribers.foreach(_ ! OngoingSessionTransition(ongoingSession, newOngoingSession))
@@ -180,15 +128,9 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
       stay()
   }
 
-  onTransition {
-    case Binded -> Online =>
-      log.debug("Sessions goes online")
-      FutInfoStream ! UnsubscribeTransitionCallBack(self)
-      OptInfoStream ! UnsubscribeTransitionCallBack(self)
-  }
+  */
 
-
-  protected def updateOngoingSessions(snapshot: Snapshot[FutInfo.session]): Option[(SessionId, ActorRef)] = {
+  protected def updateOngoingSession(snapshot: Snapshot[FutInfo.session]): Option[(SessionId, ActorRef)] = {
     val records = snapshot.data
     log.info("Update ongoing sessions based on record = " + records)
 
@@ -255,10 +197,40 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
     }
   }
 
-  protected def handleBindingState(state: StreamStates): State = {
-    (state.futures <**> state.options)((_, _)) match {
-      case Some((DataStreamState.Online, DataStreamState.Online)) => goto(Online) using state
-      case _ => stay() using state
+  private def bindSysEvents() {
+    log.debug("Bind to FutInfo and OptInfo sys events")
+
+    val futInfoSysEventsDispatcher = context.actorOf(Props(new SysEventDispatcher[FutInfo.sys_events]), "FutInfoSysEventsDispatcher")
+    futInfoSysEventsDispatcher ! SubscribeSysEvents(context.actorOf(Props(new StreamSysEvents(FutInfoStream)), "FutInfoEventsWrapper"))
+    val futBinding = (FutInfoStream ? BindTable(FutInfo.sys_events.TABLE_INDEX, futInfoSysEventsDispatcher)).mapTo[BindingResult]
+
+    val optInfoSysEventsDispatcher = context.actorOf(Props(new SysEventDispatcher[OptInfo.sys_events]), "OptInfoSysEventsDispatcher")
+    optInfoSysEventsDispatcher ! SubscribeSysEvents(context.actorOf(Props(new StreamSysEvents(OptInfoStream)), "OptInfoEventsWrapper"))
+    val optBinding = (OptInfoStream ? BindTable(OptInfo.sys_events.TABLE_INDEX, optInfoSysEventsDispatcher)).mapTo[BindingResult]
+
+    Await.result(futBinding zip optBinding, 1.second) match {
+      case (_: BindingSucceed, _: BindingSucceed) =>
+      case _ => throw new IllegalStateException("Failed Bind to system events")
+    }
+  }
+
+  private def bindPayload() {
+    log.debug("Bind to FutInfo and OptInfo payload")
+
+    // Bind to tables
+    val sessionsBindingResult = (FutInfoStream ? BindTable(FutInfo.session.TABLE_INDEX, SessionRepository)).mapTo[BindingResult]
+    val futuresBindingResult = (FutInfoStream ? BindTable(FutInfo.fut_sess_contents.TABLE_INDEX, FutSessContentsRepository)).mapTo[BindingResult]
+    val optionsBindingResult = (OptInfoStream ? BindTable(OptInfo.opt_sess_contents.TABLE_INDEX, OptSessContentsRepository)).mapTo[BindingResult]
+
+    val bindingResult = for {
+      sess <- sessionsBindingResult
+      fut <- futuresBindingResult
+      opt <- optionsBindingResult
+    } yield (sess, fut, opt)
+
+    Await.result(bindingResult, 1.second) match {
+      case (_: BindingSucceed, _: BindingSucceed, _: BindingSucceed) =>
+      case _ => throw new IllegalStateException("Failed Bind to data streams")
     }
   }
 }

@@ -36,15 +36,15 @@ private[broker] object Action {
 }
 
 
-sealed trait BrokerException extends RuntimeException
+sealed abstract class BrokerException(message: String) extends RuntimeException(message)
 
-case class BrokerTimedOutException() extends BrokerException
+case class BrokerTimedOutException() extends BrokerException("Broker timed out")
 
-case class BrokerErrorException(message: String) extends BrokerException
+case class BrokerErrorException(message: String) extends BrokerException(message)
 
-case class FloodException(queueSize: Int, penaltyRemain: Int, message: String) extends BrokerException
+case class FloodException(queueSize: Int, penaltyRemain: Int, message: String) extends BrokerException("Flood error; Queue size = "+queueSize+"; penaltyRemain = " + penaltyRemain+", message = "+message)
 
-case class ActionFailedException(code: Int, message: String) extends BrokerException
+case class ActionFailedException(code: Int, message: String) extends BrokerException("Action failed; code = "+code+"; message = "+message)
 
 
 sealed trait Reaction

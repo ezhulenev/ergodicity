@@ -26,7 +26,11 @@ object Protocol {
   implicit val ReadsOptInfoSessionContents = new Reads[OptInfo.opt_sess_contents] {
     def read(in: ByteBuffer) = new OptInfo.opt_sess_contents(in)
   }
-  
+
+  implicit val ReadsOptInfoSysEvents = new Reads[OptInfo.sys_events] {
+    def read(in: ByteBuffer) = new OptInfo.sys_events(in)
+  }
+
   implicit val ReadsPosPositions = new Reads[Pos.position] {
     def read(in: ByteBuffer) = new Pos.position(in)
   }

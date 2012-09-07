@@ -158,7 +158,7 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
 
     Thread.sleep(3000)
 
-    val f1 = (broker ? Buy[Futures](Isin("RTS-9.12"), 1, 145000, GoodTillCancelled)).mapTo[OrderId]
+    val f1 = (broker ? Sell[Futures](Isin("RTS-9.12"), 2, 145000, GoodTillCancelled)).mapTo[OrderId]
 
     f1 onComplete (_ match {
       case Left(ActionFailedException(code, message)) =>

@@ -102,6 +102,8 @@ abstract class Services {
 
   implicit val Self = this
 
+  implicit val timeout = Timeout(5.seconds)
+
   protected[engine] val services = mutable.Map.empty[ServiceId, ManagedService]
 
   protected[engine] def register(props: Props, dependOn: Seq[ServiceId] = Seq())(implicit id: ServiceId) {
@@ -155,8 +157,6 @@ class ServicesActor extends Services with Actor with LoggingFSM[ServicesState, P
 
   import Services._
   import ServicesState._
-
-  implicit val timeout = Timeout(5.seconds)
 
   // Stop all services on any failed
   override def supervisorStrategy() = AllForOneStrategy() {

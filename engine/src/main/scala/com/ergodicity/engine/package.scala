@@ -9,9 +9,9 @@ package object engine {
     akka.event-handlers = ["akka.testkit.TestEventListener"]
 
     akka.actor.debug {
-      receive = on
-      lifecycle = on
-      fsm = on
+      receive = off
+      lifecycle = off
+      fsm = off
     }
 
     deque-dispatcher {

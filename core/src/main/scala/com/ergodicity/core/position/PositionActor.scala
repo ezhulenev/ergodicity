@@ -31,6 +31,11 @@ class PositionActor(isin: Isin) extends Actor with ActorLogging with WhenUnhandl
   protected[position] var position: Position = Position.flat
   protected[position] var dynamics: PositionDynamics = PositionDynamics.empty
 
+
+  override def preStart() {
+    log.info("Opened position; Isin = " + isin)
+  }
+
   protected def receive = getPosition orElse handleUpdates orElse subscriptions orElse whenUnhandled
 
   private def handleUpdates: Receive = {
@@ -38,7 +43,7 @@ class PositionActor(isin: Isin) extends Actor with ActorLogging with WhenUnhandl
       throw new IllegalStateException()
 
     case UpdatePosition(to, d) =>
-      log.info("Position updated to " + to + ", dynamics = " + d)
+      log.debug("Position updated to " + to + ", dynamics = " + d)
       subscribers.foreach(_ ! PositionTransition(isin, position, to))
       position = to
       dynamics = d

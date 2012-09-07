@@ -35,6 +35,7 @@ private[order] object OrdersTrackingState {
 }
 
 object OrdersTracking {
+
   case class GetOrdersTracking(sessionId: Int)
 
   case class DropSession(sessionId: Int)
@@ -42,6 +43,7 @@ object OrdersTracking {
   case class IllegalEvent(event: Any) extends IllegalArgumentException
 
   case class StickyAction(sessionId: Int, action: Action)
+
 }
 
 class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends Actor with LoggingFSM[OrdersTrackingState, StreamStates] {
@@ -100,7 +102,7 @@ class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends
 
   private def handleStreamStates(states: StreamStates) = states match {
     case StreamStates(Some(DataStreamState.Online), Some(DataStreamState.Online)) => goto(Online) using states
-    case _ => stay() using(states)
+    case _ => stay() using (states)
   }
 
   private def handleSessionEvents: StateFunction = {
@@ -174,13 +176,13 @@ class SessionOrdersTracking(sessionId: Int) extends Actor with ActorLogging with
 
   private def handleDeleteOrder: Receive = {
     case Delete(orderId, amount) =>
-      log.debug("Cancel futOrder, id = " + orderId)
+      log.debug("Cancel order, id = " + orderId)
       orders(orderId) ! CancelOrder(amount)
   }
 
   private def handleFillOrder: Receive = {
     case Fill(orderId, deal, amount, price, rest) =>
-      log.debug("Fill order, id = " + orderId + ", amount = " + amount + ", rest = " + rest + ", deal id = " + deal)
+      log.debug("Fill order, id = " + orderId + ", amount = " + amount + ", rest = " + rest + ", deal id = " + deal + ", price = " + price)
       orders(orderId) ! FillOrder(price, amount)
   }
 }

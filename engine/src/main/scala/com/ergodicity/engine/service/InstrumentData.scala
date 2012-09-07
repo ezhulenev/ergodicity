@@ -13,6 +13,7 @@ import com.ergodicity.engine.service.Service.{Stop, Start}
 import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
 import akka.actor.FSM.{Transition, UnsubscribeTransitionCallBack, CurrentState, SubscribeTransitionCallBack}
+import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
 
 object InstrumentData {
 
@@ -52,7 +53,11 @@ protected[service] class InstrumentDataService(listener: ListenerFactory, underl
   val underlyingOptInfoListener = listener(underlyingConnection, optInfoReplication(), new DataStreamSubscriber(OptInfoStream))
   val optInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)), "OptInfoListener")
 
-  protected def receive = start orElse stop orElse handleSessionsGoesOnline orElse whenUnhandled
+  protected def receive = start orElse stop orElse handleSessionsGoesOnline orElse forwardSessionsTracking orElse whenUnhandled
+
+  private def forwardSessionsTracking: Receive = {
+    case subscribe: SubscribeOngoingSessions => Sessions ! subscribe
+  }
 
   private def start: Receive = {
     case Start =>

@@ -22,14 +22,14 @@ class SessionOrdersTrackingSpec extends TestKit(ActorSystem("SessionOrdersTracki
   val orderId = 2876875842l
 
   "SessionOrdersTracking" must {
-    "create new futOrder" in {
+    "create new order" in {
       val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
       val underlying = orders.underlyingActor
       orders ! Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1))
       assert(underlying.orders.size == 1)
     }
 
-    "cancel futOrder" in {
+    "cancel order" in {
       val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
       val underlying = orders.underlyingActor
 
@@ -44,7 +44,7 @@ class SessionOrdersTrackingSpec extends TestKit(ActorSystem("SessionOrdersTracki
       expectMsg(Transition(order, OrderState.Active, OrderState.Cancelled))
     }
 
-    "fill futOrder" in {
+    "fill order" in {
       val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
       val underlying = orders.underlyingActor
 
