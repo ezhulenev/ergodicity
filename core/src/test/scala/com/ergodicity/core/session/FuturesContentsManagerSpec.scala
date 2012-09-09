@@ -58,13 +58,13 @@ class FuturesContentsManagerSpec extends TestKit(ActorSystem("FuturesContentsMan
       val contents = TestActorRef(new SessionContents[FutInfo.fut_sess_contents](onlineSession) with FuturesContentsManager, "Futures")
       val underlying = contents.underlyingActor
 
-      assert(underlying.mergeStates(SessionState.Canceled, InstrumentState.Online) == InstrumentState.Canceled)
-      assert(underlying.mergeStates(SessionState.Completed, InstrumentState.Online) == InstrumentState.Completed)
-      assert(underlying.mergeStates(SessionState.Suspended, InstrumentState.Canceled) == InstrumentState.Canceled)
-      assert(underlying.mergeStates(SessionState.Assigned, InstrumentState.Canceled) == InstrumentState.Canceled)
-      assert(underlying.mergeStates(SessionState.Assigned, InstrumentState.Online) == InstrumentState.Assigned)
-      assert(underlying.mergeStates(SessionState.Online, InstrumentState.Completed) == InstrumentState.Completed)
-      assert(underlying.mergeStates(SessionState.Online, InstrumentState.Assigned) == InstrumentState.Assigned)
+      assert(underlying.merge(SessionState.Canceled, InstrumentState.Online) == InstrumentState.Canceled)
+      assert(underlying.merge(SessionState.Completed, InstrumentState.Online) == InstrumentState.Completed)
+      assert(underlying.merge(SessionState.Suspended, InstrumentState.Canceled) == InstrumentState.Canceled)
+      assert(underlying.merge(SessionState.Assigned, InstrumentState.Canceled) == InstrumentState.Canceled)
+      assert(underlying.merge(SessionState.Assigned, InstrumentState.Online) == InstrumentState.Assigned)
+      assert(underlying.merge(SessionState.Online, InstrumentState.Completed) == InstrumentState.Completed)
+      assert(underlying.merge(SessionState.Online, InstrumentState.Assigned) == InstrumentState.Assigned)
     }
   }
 

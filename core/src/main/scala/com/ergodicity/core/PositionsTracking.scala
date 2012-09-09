@@ -1,27 +1,21 @@
 package com.ergodicity.core
 
-import akka.actor.{Props, FSM, Actor, ActorRef}
+import akka.actor._
 import collection.mutable
-import com.ergodicity.cgate.repository.Repository
 import com.ergodicity.cgate.scheme.Pos
-import com.ergodicity.cgate.DataStream.BindingResult
-import akka.dispatch.{Future, Await}
-import akka.actor.FSM._
+import com.ergodicity.cgate.DataStream._
+import akka.dispatch.Future
 import akka.util.duration._
-import com.ergodicity.cgate.DataStreamState
-import com.ergodicity.cgate.repository.Repository.{SubscribeSnapshots, Snapshot}
+import com.ergodicity.cgate.{Reads, WhenUnhandled}
 import position.{Position, PositionDynamics, PositionActor}
-import com.ergodicity.cgate.DataStream.BindingSucceed
 import position.PositionActor.{GetCurrentPosition, CurrentPosition, UpdatePosition}
-import akka.actor.FSM.Transition
-import akka.actor.FSM.CurrentState
 import akka.pattern.ask
 import akka.pattern.pipe
-import com.ergodicity.cgate.DataStream.BindingFailed
-import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.cgate.DataStream.BindTable
-import session.SessionActor.AssignedInstruments
 import akka.util.Timeout
+import session.SessionActor.AssignedInstruments
+import scala.Some
+import com.ergodicity.cgate.StreamEvent.{StreamData, ClearDeleted, TnCommit, TnBegin}
+import com.ergodicity.core.PositionsTracking.{PositionDiscarded, PositionUpdated}
 
 object PositionsTracking {
   def apply(PosStream: ActorRef) = new PositionsTracking(PosStream)
@@ -38,18 +32,17 @@ object PositionsTracking {
 
   class PositionsTrackingException(message: String) extends RuntimeException(message)
 
+  // Dispatching
+  case class PositionUpdated(id: IsinId, position: Position, dynamics: PositionDynamics)
+
+  case class PositionDiscarded(id: IsinId)
+
 }
 
 sealed trait PositionsTrackingState
 
 object PositionsTrackingState {
-
-  case object Binded extends PositionsTrackingState
-
-  case object LoadingPositions extends PositionsTrackingState
-
-  case object Online extends PositionsTrackingState
-
+  case object Tracking extends PositionsTrackingState
 }
 
 class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTrackingState, AssignedInstruments] {
@@ -63,38 +56,11 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
   val positions = mutable.Map[Isin, ActorRef]()
   var subscribers = Set[ActorRef]()
 
-  // Repositories
+  val dispatcher = context.actorOf(Props(new PositionsDispatcher(self, PosStream)), "PositionsDispatcher")
 
-  import com.ergodicity.cgate.Protocol.ReadsPosPositions
+  startWith(Tracking, AssignedInstruments(Set()))
 
-  val PositionsRepository = context.actorOf(Props(Repository[Pos.position]), "PositionsRepository")
-
-  log.debug("Bind to Pos data stream")
-
-  // Bind to tables
-  val bindingResult = (PosStream ? BindTable(Pos.position.TABLE_INDEX, PositionsRepository)).mapTo[BindingResult]
-  Await.result(bindingResult, 1.second) match {
-    case BindingSucceed(_, _) =>
-    case BindingFailed(_, _) => throw new PositionsTrackingException("Positions data stream in invalid state")
-  }
-
-  // Track Data Stream state
-  PosStream ! SubscribeTransitionCallBack(self)
-
-  startWith(Binded, AssignedInstruments(Set()))
-
-  when(Binded) {
-    case Event(CurrentState(PosStream, DataStreamState.Online), _) => goto(LoadingPositions)
-    case Event(Transition(PosStream, _, DataStreamState.Online), _) => goto(LoadingPositions)
-  }
-
-  when(LoadingPositions) {
-    case Event(s@Snapshot(PositionsRepository, _), _) =>
-      self ! s
-      goto(Online)
-  }
-
-  when(Online) {
+  when(Tracking) {
     case Event(GetPositions, _) =>
       val currentPositions = Future.sequence(positions.values.map(ref => (ref ? GetCurrentPosition).mapTo[CurrentPosition]))
       currentPositions.map(_.map(_.tuple).toMap) map (Positions(_)) pipeTo sender
@@ -104,33 +70,17 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       sender ! TrackedPosition(isin, positions.getOrElseUpdate(isin, createPosition(isin)))
       stay()
 
-    case Event(s@Snapshot(PositionsRepository, _), assigned) =>
-      val snapshot = s.asInstanceOf[Snapshot[Pos.position]]
-      log.debug("Got positions repository snapshot, size = " + snapshot.data.size)
+    case Event(PositionDiscarded(id), assigned) =>
+      val isin = assigned.isin(id)
+      log.debug("Position discarded; Isin = "+isin)
+      positions.find(_._1 == isin) foreach (_._2 ! UpdatePosition(Position.flat, PositionDynamics.empty))
+      stay()
 
-      // First send empty data for all discarded positions
-      val (_, discarded) = positions.partition {
-        case key => snapshot.data.find(pos => assigned.isin(IsinId(pos.get_isin_id())) == key._1).isDefined
-      }
-      discarded.values.foreach(_ ! UpdatePosition(Position.flat, PositionDynamics.empty))
-
-      // Update alive positions and open new one
-      snapshot.data.map {
-        case pos =>
-          val isin = assigned.isin(IsinId(pos.get_isin_id()))
-          val position = Position(pos.get_pos())
-          val dynamics = PositionDynamics(
-            pos.get_open_qty(),
-            pos.get_buys_qty(),
-            pos.get_sells_qty(),
-            pos.get_net_volume_rur(),
-            if (pos.get_last_deal_id() == 0) None else Some(pos.get_last_deal_id())
-          )
-
-          val positionActor = positions.getOrElseUpdate(isin, createPosition(isin))
-          positionActor ! UpdatePosition(position, dynamics)
-      }
-
+    case Event(PositionUpdated(id, position, dynamics), assigned) =>
+      val isin = assigned.isin(id)
+      log.debug("Position updated; Isin = "+isin)
+      val positionActor = positions.getOrElseUpdate(isin, createPosition(isin))
+      positionActor ! UpdatePosition(position, dynamics)
       stay()
   }
 
@@ -141,18 +91,43 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       stay() using assigned
   }
 
-  onTransition {
-    case Binded -> LoadingPositions =>
-      log.debug("Load opened positions")
-      // Unsubscribe from updates
-      PosStream ! UnsubscribeTransitionCallBack(self)
-      // Subscribe for sessions snapshots
-      PositionsRepository ! SubscribeSnapshots(self)
+  private def createPosition(isin: Isin) = context.actorOf(Props(new PositionActor(isin)), isin.toActorName)
+}
 
-    case LoadingPositions -> Online =>
-      log.debug("Positions goes online")
+class PositionsDispatcher(positionsTracking: ActorRef, stream: ActorRef) extends Actor with ActorLogging with WhenUnhandled {
+
+  override def preStart() {
+    stream ! SubscribeStreamEvents(self)
   }
 
-  private def createPosition(isin: Isin) = context.actorOf(Props(new PositionActor(isin)), isin.toActorName)
+  protected def receive = handleEvents orElse whenUnhandled
+
+  private def handleEvents: Receive = {
+    case TnBegin =>
+
+    case TnCommit =>
+
+    case _: ClearDeleted =>
+
+    case StreamData(Pos.position.TABLE_INDEX, data) =>
+      val record = implicitly[Reads[Pos.position]] apply data
+      val id = IsinId(record.get_isin_id())
+
+      // Position updated or created
+      if (record.get_replAct() == 0) {
+        val position = Position(record.get_pos())
+        val dynamics = PositionDynamics(
+          record.get_open_qty(),
+          record.get_buys_qty(),
+          record.get_sells_qty(),
+          record.get_net_volume_rur(),
+          if (record.get_last_deal_id() == 0) None else Some(record.get_last_deal_id())
+        )
+        positionsTracking ! PositionUpdated(id, position, dynamics)
+      } else {
+        // Position deleted
+        positionsTracking ! PositionDiscarded(id)
+      }
+  }
 }
 

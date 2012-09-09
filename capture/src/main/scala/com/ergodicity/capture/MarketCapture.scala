@@ -17,7 +17,7 @@ import scala.Some
 import com.ergodicity.cgate.StreamEvent.ReplState
 import akka.actor.AllForOneStrategy
 import com.ergodicity.marketdb.model.Market
-import com.ergodicity.cgate.DataStream.{DataStreamReplState, SubscribeReplState}
+import com.ergodicity.cgate.DataStream.{DataStreamClosed, SubscribeReplState}
 import com.ergodicity.core.{Isin, Security}
 import com.ergodicity.marketdb.model.TradePayload
 import akka.actor.Terminated
@@ -227,15 +227,15 @@ class MarketCapture(val replication: ReplicationScheme,
   }
 
   when(CaptureState.ShuttingDown, stateTimeout = 30.seconds) {
-    case Event(DataStreamReplState(FutTradeStream, state), s: StreamStates) =>
+    case Event(DataStreamClosed(FutTradeStream, state), s: StreamStates) =>
       repository.setReplicationState(replication.futTrade.stream, state)
       handleStreamState(s.copy(futTrade = Some(ReplState(state))))
 
-    case Event(DataStreamReplState(OptTradeStream, state), s: StreamStates) =>
+    case Event(DataStreamClosed(OptTradeStream, state), s: StreamStates) =>
       repository.setReplicationState(replication.optTrade.stream, state)
       handleStreamState(s.copy(optTrade = Some(ReplState(state))))
 
-    case Event(DataStreamReplState(OrdLogStream, state), s: StreamStates) =>
+    case Event(DataStreamClosed(OrdLogStream, state), s: StreamStates) =>
       repository.setReplicationState(replication.ordLog.stream, state)
       handleStreamState(s.copy(ordLog = Some(ReplState(state))))
 

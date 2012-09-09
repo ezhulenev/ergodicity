@@ -26,7 +26,7 @@ import sysevents.SysEventDispatcher.SubscribeSysEvents
 import java.util.Date
 
 
-class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class InfoIntegrationSpec extends TestKit(ActorSystem("InfoIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   val Host = "localhost"

@@ -1,12 +1,11 @@
 package com.ergodicity.cgate
 
-import akka.actor.{LoggingFSM, ActorRef, Actor, FSM}
+import akka.actor.{ActorRef, Actor, FSM}
 import ru.micexrts.cgate.{ErrorCode, MessageType}
 import ru.micexrts.cgate.messages._
-import scalaz._
-import Scalaz._
-import java.nio.{ByteOrder, ByteBuffer}
-import akka.event.Logging
+import java.nio.ByteBuffer
+import com.ergodicity.cgate.DataStream.StreamEventSubscribers
+import com.ergodicity.cgate.StreamEvent.ReplState
 
 
 sealed trait DataStreamState
@@ -20,7 +19,6 @@ object DataStreamState {
   case object Online extends DataStreamState
 
 }
-
 
 sealed trait StreamEvent
 
@@ -90,38 +88,36 @@ class DataStreamSubscriber(dataStream: ActorRef) extends Subscriber {
 
 object DataStream {
 
-  case class BindTable(tableIndex: Int, ref: ActorRef)
+  class UnsupportedMessageException(message: String) extends RuntimeException(message)
 
-  case class SubscribeReplState(ref: ActorRef)
+  case class SubscribeCloseEvent(ref: ActorRef)
 
-  case class UnsubscribeReplState(ref: ActorRef)
+  case class DataStreamClosed(stream: ActorRef, state: ReplState)
 
-  case class DataStreamReplState(stream: ActorRef, state: String)
+  case class SubscribeStreamEvents(ref: ActorRef)
 
-  sealed trait BindingResult
+  case class StreamEventSubscribers(set: Set[ActorRef] = Seq[ActorRef]()) {
+    def apply(msg: Any) {
+      set foreach (_ ! msg)
+    }
 
-  case class BindingFailed(ds: ActorRef, tableIndex: Int) extends BindingResult
-
-  case class BindingSucceed(ds: ActorRef, tableIndex: Int) extends BindingResult
+    def subscribe(ref: ActorRef) = StreamEventSubscribers(set + ref)
+  }
 
 }
 
-class DataStream extends Actor with FSM[DataStreamState, Map[Int, Seq[ActorRef]]] {
+class DataStream extends Actor with FSM[DataStreamState, StreamEventSubscribers] {
 
   import DataStream._
   import StreamEvent._
   import DataStreamState._
 
-  var replStateSubscribers: Seq[ActorRef] = Seq()
+  var onClosedSubscribers: Set[ActorRef] = Set()
 
-  startWith(Closed, Map())
+  startWith(Closed, StreamEventSubscribers())
 
   when(Closed) {
     case Event(Open, _) => goto(Opened)
-
-    case Event(BindTable(idx, ref), subscribers) =>
-      sender ! BindingSucceed(self, idx)
-      stay() using (subscribers <+> Map(idx -> Seq(ref)))
   }
 
   when(Opened)(handleStreamEvents orElse {
@@ -135,40 +131,37 @@ class DataStream extends Actor with FSM[DataStreamState, Map[Int, Seq[ActorRef]]
   })
 
   whenUnhandled {
-    case Event(e@LifeNumChanged(_), subscribers) =>
-      subscribers.values.foreach(_.foreach(_ ! e))
+    case Event(SubscribeStreamEvents(ref), subscribers) =>
+      stay() using subscribers.subscribe(ref)
+
+    case Event(SubscribeCloseEvent(ref), _) =>
+      onClosedSubscribers = onClosedSubscribers + ref
       stay()
 
-    case Event(BindTable(idx, _), _) =>
-      sender ! BindingFailed(self, idx)
+    case Event(e@ReplState(state), subscribers) =>
+      onClosedSubscribers foreach (_ ! DataStreamClosed(self, e))
       stay()
 
-    case Event(SubscribeReplState(ref), _) =>
-      replStateSubscribers = ref +: replStateSubscribers
-      stay()
-
-    case Event(UnsubscribeReplState(ref), _) =>
-      replStateSubscribers = replStateSubscribers filterNot (_ == ref)
-      stay()
+    case Event(err@UnsupportedMessage(msg), _) =>
+      throw new UnsupportedMessageException("Unsupported message = " + msg)
   }
 
   private def handleStreamEvents: StateFunction = {
     case Event(e@(TnBegin | TnCommit), subscribers) =>
-      subscribers.values.foreach(_.foreach(_ ! e))
+      subscribers(e)
       stay()
 
     case Event(e@StreamData(idx, _), subscribers) =>
-      subscribers.get(idx).foreach(_.foreach(_ ! e))
+      subscribers(e)
       stay()
 
     case Event(e@ClearDeleted(idx, _), subscribers) =>
-      subscribers.get(idx).foreach(_.foreach(_ ! e))
+      subscribers(e)
       stay()
 
-    case Event(e@ReplState(state), _) =>
-      replStateSubscribers.foreach(_ ! DataStreamReplState(self, state))
+    case Event(e@LifeNumChanged(_), subscribers) =>
+      subscribers(e)
       stay()
-
   }
 
   initialize

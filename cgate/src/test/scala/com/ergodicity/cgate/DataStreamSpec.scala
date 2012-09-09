@@ -122,7 +122,7 @@ class DataStreamSpec extends TestKit(ActorSystem("DataStreamSpec", AkkaConfigura
 
       dataStream ! ReplState("ebaka")
 
-      expectMsg(DataStreamReplState(dataStream, "ebaka"))
+      expectMsg(DataStreamClosed(dataStream, "ebaka"))
     }
   }
 }

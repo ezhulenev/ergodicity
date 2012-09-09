@@ -6,7 +6,7 @@ import com.ergodicity.engine.ReplicationScheme.{OptInfoReplication, FutInfoRepli
 import akka.actor.{ActorLogging, Actor, Props}
 import akka.util.duration._
 import com.ergodicity.cgate.{Listener, DataStreamSubscriber, DataStream, WhenUnhandled}
-import com.ergodicity.core.{SessionsTrackingState, SessionsTracking}
+import com.ergodicity.core.SessionsTracking
 import ru.micexrts.cgate.{Connection => CGConnection}
 import com.ergodicity.cgate.config.Replication
 import com.ergodicity.engine.service.Service.{Stop, Start}
@@ -68,11 +68,11 @@ protected[service] class InstrumentDataService(listener: ListenerFactory, underl
   }
 
   private def handleSessionsGoesOnline: Receive = {
-    case CurrentState(Sessions, SessionsTrackingState.Online) =>
+    case CurrentState(Sessions, _/*SessionsTrackingState.Online*/) =>
       Sessions ! UnsubscribeTransitionCallBack(self)
       serviceStarted
 
-    case Transition(Sessions, _, SessionsTrackingState.Online) =>
+    case Transition(Sessions, _, _/*SessionsTrackingState.Online*/) =>
       Sessions ! UnsubscribeTransitionCallBack(self)
       serviceStarted
   }

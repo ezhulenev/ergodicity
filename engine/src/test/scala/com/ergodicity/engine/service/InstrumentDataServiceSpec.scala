@@ -9,7 +9,6 @@ import com.ergodicity.cgate.config.Replication
 import com.ergodicity.engine.underlying.ListenerFactory
 import com.ergodicity.engine.service.Service.Start
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
-import com.ergodicity.core.SessionsTrackingState
 import ru.micexrts.cgate
 import cgate.{Connection => CGConnection, ISubscriber, Listener => CGListener}
 import com.ergodicity.engine.Services
@@ -48,7 +47,7 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
       sessions.expectMsg(SubscribeTransitionCallBack(service))
 
       when("Sessions goes online")
-      service ! Transition(sessions.ref, SessionsTrackingState.Binded, SessionsTrackingState.Online)
+      //service ! Transition(sessions.ref, SessionsTrackingState.Binded, SessionsTrackingState.Online)
 
       then("Service Manager should be notified")
       verify(services).serviceStarted(InstrumentData.InstrumentData)

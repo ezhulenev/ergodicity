@@ -4,22 +4,19 @@ import akka.actor.{ActorLogging, Props, ActorRef, Actor}
 import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack, Transition}
 import akka.pattern.ask
 import akka.util.duration._
-import com.ergodicity.cgate.repository.Repository.Snapshot
 import com.ergodicity.cgate.WhenUnhandled
 import collection.mutable
 import com.ergodicity.core.session.SessionActor.{AssignedInstruments, GetAssignedInstruments, GetInstrumentActor, GetState}
 import akka.dispatch.Await
-import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
-import com.ergodicity.core.session.Instrument.Limits
 import akka.util.Timeout
-import Implicits._
+import com.ergodicity.core.SessionsTracking.{OptSessContents, FutSessContents}
 
 trait ContentsManager[T] {
   contents: SessionContents[T] =>
 
   protected def handleSessionState(state: SessionState)
 
-  protected def handleSessionContentsRecord(records: Iterable[T])
+  protected def handleSessionContents(contents: T)
 }
 
 class SessionContents[T](Session: ActorRef)(implicit val toSecurity: ToSecurity[T]) extends Actor with ActorLogging with WhenUnhandled {
@@ -36,7 +33,7 @@ class SessionContents[T](Session: ActorRef)(implicit val toSecurity: ToSecurity[
     Session ! SubscribeTransitionCallBack(self)
   }
 
-  protected def receive = receiveSessionState orElse getInstruments orElse receiveSnapshot orElse whenUnhandled
+  protected def receive = receiveSessionState orElse getInstruments orElse receiveContents orElse whenUnhandled
 
   private def receiveSessionState: Receive = {
     case CurrentState(Session, state: SessionState) =>
@@ -57,37 +54,31 @@ class SessionContents[T](Session: ActorRef)(implicit val toSecurity: ToSecurity[
       sender ! AssignedInstruments(instruments.keys.toSet)
   }
 
-  private def receiveSnapshot: Receive = {
-    case Snapshot(_, data) =>
-      handleSessionContentsRecord(data.asInstanceOf[Iterable[T]])
+  private def receiveContents: Receive = {
+    case contents: T => handleSessionContents(contents)
   }
 }
 
-trait FuturesContentsManager extends ContentsManager[FutInfo.fut_sess_contents] {
-  contents: SessionContents[FutInfo.fut_sess_contents] =>
+trait FuturesContentsManager extends ContentsManager[FutSessContents] {
+  contents: SessionContents[FutSessContents] =>
 
   private val originalInstrumentState = mutable.Map[Instrument, InstrumentState]()
 
   protected def handleSessionState(state: SessionState) {
     instruments.foreach {
-      case (instrument, ref) => ref ! mergeStates(state, originalInstrumentState(instrument))
+      case (instrument, ref) => ref ! merge(state, originalInstrumentState(instrument))
     }
   }
 
-  def handleSessionContentsRecord(records: Iterable[FutInfo.fut_sess_contents]) {
-    records.foreach {
-      record =>
-        val instrument = Instrument(toSecurity.convert(record), Limits(record.get_limit_down(), record.get_limit_up()))
-        originalInstrumentState(instrument)  = InstrumentState(record.get_state())
 
-        val mergedState = mergeStates(sessionState, InstrumentState(record.get_state()))
-        val instrumentActor = instruments.getOrElseUpdate(instrument,context.actorOf(Props(new InstrumentActor(instrument)), record.isin.toActorName))
-        instrumentActor ! mergedState
-
-    }
+  def handleSessionContents(contents: FutSessContents) {
+    originalInstrumentState(contents.instrument) = contents.state
+    val isin = contents.instrument.security.isin
+    val instrumentActor = instruments.getOrElseUpdate(contents.instrument, context.actorOf(Props(new InstrumentActor(contents.instrument)), isin.toActorName))
+    instrumentActor ! merge(sessionState, contents.state)
   }
 
-  def mergeStates(sessionState: SessionState, instrumentState: InstrumentState) = sessionState match {
+  def merge(sessionState: SessionState, instrumentState: InstrumentState) = sessionState match {
 
     case SessionState.Assigned => instrumentState match {
       case InstrumentState.Online => InstrumentState.Assigned
@@ -108,8 +99,8 @@ trait FuturesContentsManager extends ContentsManager[FutInfo.fut_sess_contents] 
   }
 }
 
-trait OptionsContentsManager extends ContentsManager[OptInfo.opt_sess_contents] {
-  contents: SessionContents[OptInfo.opt_sess_contents] =>
+trait OptionsContentsManager extends ContentsManager[OptSessContents] {
+  contents: SessionContents[OptSessContents] =>
 
   protected def handleSessionState(state: SessionState) {
     instruments.foreach {
@@ -117,13 +108,10 @@ trait OptionsContentsManager extends ContentsManager[OptInfo.opt_sess_contents] 
     }
   }
 
-  protected def handleSessionContentsRecord(records: Iterable[OptInfo.opt_sess_contents]) {
-    records.foreach {
-      record =>
-        val state = InstrumentState(sessionState)
-        val instrument = Instrument(toSecurity.convert(record), Limits(record.get_limit_down(), record.get_limit_up()))
-        val instrumentActor = instruments.getOrElseUpdate(instrument, context.actorOf(Props(new InstrumentActor(instrument)), record.isin.toActorName))
-        instrumentActor ! state
-    }
+  protected def handleSessionContents(contents: OptSessContents) {
+    val isin = contents.instrument.security.isin
+    val instrumentActor = instruments.getOrElseUpdate(contents.instrument, context.actorOf(Props(new InstrumentActor(contents.instrument)), isin.toActorName))
+    instrumentActor ! InstrumentState(sessionState)
   }
 }
+

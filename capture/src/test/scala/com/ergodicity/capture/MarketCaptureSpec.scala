@@ -13,7 +13,7 @@ import com.twitter.finagle.kestrel.Client
 import org.slf4j.{Logger, LoggerFactory}
 import com.mongodb.casbah.TypeImports._
 import com.ergodicity.capture.MarketCapture.Capture
-import com.ergodicity.cgate.DataStream.DataStreamReplState
+import com.ergodicity.cgate.DataStream.DataStreamClosed
 import com.ergodicity.cgate.config.CGateConfig
 import com.ergodicity.capture.CaptureData.Contents
 import akka.actor.Terminated
@@ -168,9 +168,9 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       marketCapture.setState(CaptureState.ShuttingDown, CaptureData.StreamStates())
       log.info("State = " + marketCapture.stateName + "; data = " + marketCapture.stateData)
 
-      marketCapture ! DataStreamReplState(underlying.FutTradeStream, "FutTradeState")
-      marketCapture ! DataStreamReplState(underlying.OptTradeStream, "OptTradeState")
-      marketCapture ! DataStreamReplState(underlying.OrdLogStream, "OrdLogState")
+      marketCapture ! DataStreamClosed(underlying.FutTradeStream, "FutTradeState")
+      marketCapture ! DataStreamClosed(underlying.OptTradeStream, "OptTradeState")
+      marketCapture ! DataStreamClosed(underlying.OrdLogStream, "OrdLogState")
       
       verify(repository).setReplicationState("FORTS_FUTTRADE_REPL", "FutTradeState")
       verify(repository).setReplicationState("FORTS_OPTTRADE_REPL", "OptTradeState")

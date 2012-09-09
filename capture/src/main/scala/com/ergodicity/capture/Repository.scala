@@ -1,9 +1,10 @@
-package com.ergodicity.cgate.repository
+package com.ergodicity.capture
 
 import akka.actor.{FSM, ActorRef, Actor}
-import com.ergodicity.cgate.repository.Repository.{GetSnapshot, IllegalLifeCycleEvent, SubscribeSnapshots, Snapshot}
+
 import com.ergodicity.cgate.Reads
 import collection.mutable
+import com.ergodicity.capture.Repository.{IllegalLifeCycleEvent, SubscribeSnapshots, GetSnapshot, Snapshot}
 
 sealed trait RepositoryState
 
