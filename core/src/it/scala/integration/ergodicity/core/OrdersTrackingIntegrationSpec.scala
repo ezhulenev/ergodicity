@@ -4,7 +4,7 @@ import java.io.File
 import akka.actor.{Actor, Props, ActorSystem}
 import AkkaIntegrationConfigurations._
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
-import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
+import akka.testkit.{TestActorRef, ImplicitSender, TestFSMRef, TestKit}
 import akka.util.duration._
 import java.util.concurrent.TimeUnit
 import com.ergodicity.core.order.OrdersTracking
@@ -55,7 +55,7 @@ class OrdersTrackingIntegrationSpec extends TestKit(ActorSystem("OrdersTrackingI
       val optListener = TestFSMRef(new Listener(underlyingOptListener), "OptTradeListener")
 
       // Construct OrdersTracking
-      TestFSMRef(new OrdersTracking(futTrade, optTrade), "OrdersTracking")
+      TestActorRef(new OrdersTracking(futTrade, optTrade), "OrdersTracking")
 
       Thread.sleep(1000)
 

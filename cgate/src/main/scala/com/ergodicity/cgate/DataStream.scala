@@ -96,7 +96,7 @@ object DataStream {
 
   case class SubscribeStreamEvents(ref: ActorRef)
 
-  case class StreamEventSubscribers(set: Set[ActorRef] = Seq[ActorRef]()) {
+  case class StreamEventSubscribers(set: Set[ActorRef] = Set()) {
     def apply(msg: Any) {
       set foreach (_ ! msg)
     }

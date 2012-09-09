@@ -17,7 +17,7 @@ import scala.Some
 import com.ergodicity.cgate.StreamEvent.ReplState
 import akka.actor.AllForOneStrategy
 import com.ergodicity.marketdb.model.Market
-import com.ergodicity.cgate.DataStream.{DataStreamClosed, SubscribeReplState}
+import com.ergodicity.cgate.DataStream.{SubscribeCloseEvent, DataStreamClosed}
 import com.ergodicity.core.{Isin, Security}
 import com.ergodicity.marketdb.model.TradePayload
 import akka.actor.Terminated
@@ -158,7 +158,7 @@ class MarketCapture(val replication: ReplicationScheme,
 
   // Subscribe for ReplState
   val streams = FutInfoStream :: OptInfoStream :: FutTradeStream :: OptTradeStream :: OrdLogStream :: Nil
-  streams.foreach(_ ! SubscribeReplState(self))
+  streams.foreach(_ ! SubscribeCloseEvent(self))
 
   // Create captures
   implicit val ConvertOrder = new ConvertToMarketDb[OrdLog.orders_log, OrderPayload] {
@@ -177,7 +177,6 @@ class MarketCapture(val replication: ReplicationScheme,
   lazy val futureDealsBuncher = new TradesBuncher(client, kestrel.tradesQueue)
   lazy val optionDealsBuncher = new TradesBuncher(client, kestrel.tradesQueue)
 
-  import com.ergodicity.cgate.Protocol._
 
   val orderCapture = context.actorOf(Props(new MarketDbCapture[OrdLog.orders_log, OrderPayload](OrdLog.orders_log.TABLE_INDEX, OrdLogStream)(ordersBuncher)), "OrdersCapture")
   val futuresCapture = context.actorOf(Props(new MarketDbCapture[FutTrade.deal, TradePayload](FutTrade.deal.TABLE_INDEX, FutTradeStream)(futureDealsBuncher)), "FuturesCapture")
@@ -228,16 +227,16 @@ class MarketCapture(val replication: ReplicationScheme,
 
   when(CaptureState.ShuttingDown, stateTimeout = 30.seconds) {
     case Event(DataStreamClosed(FutTradeStream, state), s: StreamStates) =>
-      repository.setReplicationState(replication.futTrade.stream, state)
-      handleStreamState(s.copy(futTrade = Some(ReplState(state))))
+      repository.setReplicationState(replication.futTrade.stream, state.state)
+      handleStreamState(s.copy(futTrade = Some(state)))
 
     case Event(DataStreamClosed(OptTradeStream, state), s: StreamStates) =>
-      repository.setReplicationState(replication.optTrade.stream, state)
-      handleStreamState(s.copy(optTrade = Some(ReplState(state))))
+      repository.setReplicationState(replication.optTrade.stream, state.state)
+      handleStreamState(s.copy(optTrade = Some(state)))
 
     case Event(DataStreamClosed(OrdLogStream, state), s: StreamStates) =>
-      repository.setReplicationState(replication.ordLog.stream, state)
-      handleStreamState(s.copy(ordLog = Some(ReplState(state))))
+      repository.setReplicationState(replication.ordLog.stream, state.state)
+      handleStreamState(s.copy(ordLog = Some(state)))
 
     case Event(Terminated(ref), _) if (ref == connection) =>
       log.error("Connection terminated in ShuttingDown state")

@@ -8,7 +8,6 @@ import com.ergodicity.core.Mocking._
 import com.ergodicity.cgate.scheme.OptInfo
 import akka.testkit._
 import akka.actor.FSM.Transition
-import com.ergodicity.cgate.repository.Repository.Snapshot
 import akka.actor.FSM.CurrentState
 import akka.actor.FSM.SubscribeTransitionCallBack
 import akka.testkit.TestActor.AutoPilot
@@ -26,6 +25,7 @@ class OptionsContentsManagerSpec extends TestKit(ActorSystem("OptionsContentsMan
 
   val rtsOption = mockOption(3550, 160734, "RTS-6.12M150612PA 175000", "RI175000BR2", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
 
+/*
   "StatelessSessionContents" must {
 
     "should track session state updates and propagate to instrument state" in {
@@ -50,6 +50,7 @@ class OptionsContentsManagerSpec extends TestKit(ActorSystem("OptionsContentsMan
       expectMsg(Transition(instrument, InstrumentState.Assigned, InstrumentState.Canceled))
     }
   }
+*/
 
   def onlineSession = {
     val session = TestProbe()

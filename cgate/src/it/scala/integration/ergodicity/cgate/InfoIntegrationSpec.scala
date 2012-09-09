@@ -10,19 +10,12 @@ import akka.util.duration._
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate._
 import config.{Replication, CGateConfig}
-import repository.Repository
-import repository.Repository.{Snapshot, SubscribeSnapshots}
 import scheme.FutInfo
 import com.ergodicity.cgate.config.Replication._
 import akka.testkit.{ImplicitSender, TestKit}
 import akka.event.Logging
 import java.util.concurrent.TimeUnit
-import com.ergodicity.cgate.Protocol._
-import com.ergodicity.cgate.repository.ReplicaExtractor._
-import com.ergodicity.cgate.DataStream.BindTable
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
-import sysevents.SysEventDispatcher
-import sysevents.SysEventDispatcher.SubscribeSysEvents
 import java.util.Date
 
 
@@ -102,6 +95,7 @@ class InfoIntegrationSpec extends TestKit(ActorSystem("InfoIntegrationSpec", Con
   }
 
 
+/*
   "FutInfo DataStream" must {
     "load contents to Reportitory" in {
       val underlyingConnection = new CGConnection(RouterConnection())
@@ -190,6 +184,7 @@ class InfoIntegrationSpec extends TestKit(ActorSystem("InfoIntegrationSpec", Con
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
   }
+*/
 
 
 }

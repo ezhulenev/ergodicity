@@ -10,16 +10,11 @@ import akka.util.duration._
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate._
 import config.{Replication, CGateConfig}
-import repository.Repository
-import repository.Repository.{Snapshot, SubscribeSnapshots}
 import scheme.OptInfo
 import com.ergodicity.cgate.config.Replication._
 import akka.testkit.{TestActorRef, TestFSMRef, ImplicitSender, TestKit}
 import akka.event.Logging
 import java.util.concurrent.TimeUnit
-import com.ergodicity.cgate.Protocol._
-import com.ergodicity.cgate.repository.ReplicaExtractor._
-import com.ergodicity.cgate.DataStream.BindTable
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
 
 
@@ -42,6 +37,7 @@ class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec
     CGate.close()
   }
 
+/*
   "OptInfo DataStream" must {
     "load contents to Reportitory" in {
       val underlyingConnection = new CGConnection(RouterConnection())
@@ -88,6 +84,7 @@ class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
   }
+*/
 
 
 }

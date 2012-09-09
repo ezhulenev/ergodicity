@@ -4,12 +4,11 @@ import akka.actor.{Props, FSM, Actor, ActorRef}
 import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack, Transition}
 import com.ergodicity.core.Security
 import com.ergodicity.cgate.scheme._
-import com.ergodicity.cgate.repository.Repository
-import com.ergodicity.cgate.DataStream.BindTable
+import com.ergodicity.capture.Repository
 import com.ergodicity.cgate.DataStreamState
 import com.ergodicity.cgate.Protocol._
-import com.ergodicity.cgate.repository.ReplicaExtractor._
-import com.ergodicity.cgate.repository.Repository.{Snapshot, SubscribeSnapshots}
+import com.ergodicity.capture.ReplicaExtractor._
+import com.ergodicity.capture.Repository.{Snapshot, SubscribeSnapshots}
 import scalaz._
 import Scalaz._
 

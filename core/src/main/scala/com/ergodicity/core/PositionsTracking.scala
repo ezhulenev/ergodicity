@@ -16,6 +16,7 @@ import session.SessionActor.AssignedInstruments
 import scala.Some
 import com.ergodicity.cgate.StreamEvent.{StreamData, ClearDeleted, TnCommit, TnBegin}
 import com.ergodicity.core.PositionsTracking.{PositionDiscarded, PositionUpdated}
+import com.ergodicity.cgate.Protocol._
 
 object PositionsTracking {
   def apply(PosStream: ActorRef) = new PositionsTracking(PosStream)

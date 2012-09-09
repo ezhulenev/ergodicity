@@ -75,7 +75,13 @@ object SessionsTracking {
     }
   }
 
-  case class SynchronizeOnEvent(fut: FutSysEvent, opt: OptSysEvent)
+  case class SynchronizeOnEvent(fut: SysEvent, opt: SysEvent) {
+    if (fut.eventId != opt.eventId) {
+      throw new IllegalArgumentException("Event id should be the same")
+    }
+
+    def eventId = fut.eventId
+  }
 
 }
 
@@ -115,7 +121,7 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
   }
 
   when(Synchronizing) {
-    case Event(SynchronizeOnEvent(SessionDataReady(eventId, futSessionId), SessionDataReady(_, optSessionId)), (sysEvents, pending)) =>
+    case Event(sync@SynchronizeOnEvent(SessionDataReady(_, futSessionId), SessionDataReady(_, optSessionId)), (sysEvents, pending)) =>
       val sessionId = SessionId(futSessionId, optSessionId)
       val (sessionEvents, futContents, optContents) = pending.consume(SessionId(futSessionId, optSessionId))
 
@@ -135,7 +141,7 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
 
       changeOngoingSession(sessionId)
 
-      goto(TrackingSessions) using(sysEvents.remove(eventId), pending.remove(sessionId))
+      goto(TrackingSessions) using(sysEvents.remove(sync.eventId), pending.remove(sessionId))
   }
 
   whenUnhandled {
@@ -185,7 +191,7 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
 
   private def synchronize(sysEvents: SystemEvents, pending: PendingEvents): State = sysEvents.synchronized.map {
     case (futEvent, optEvent) =>
-      self ! SynchronizeOnEvent(futEvent, optEvent)
+      self ! SynchronizeOnEvent(futEvent.event, optEvent.event)
       goto(Synchronizing) using(sysEvents, pending)
   } getOrElse (stay() using(sysEvents, pending))
 

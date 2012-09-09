@@ -20,6 +20,7 @@ import akka.actor.Terminated
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import akka.actor.SupervisorStrategy.Stop
 import com.ergodicity.cgate.WhenUnhandled
+import com.ergodicity.cgate.StreamEvent.ReplState
 
 class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketCaptureSpec])
@@ -168,9 +169,9 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       marketCapture.setState(CaptureState.ShuttingDown, CaptureData.StreamStates())
       log.info("State = " + marketCapture.stateName + "; data = " + marketCapture.stateData)
 
-      marketCapture ! DataStreamClosed(underlying.FutTradeStream, "FutTradeState")
-      marketCapture ! DataStreamClosed(underlying.OptTradeStream, "OptTradeState")
-      marketCapture ! DataStreamClosed(underlying.OrdLogStream, "OrdLogState")
+      marketCapture ! DataStreamClosed(underlying.FutTradeStream, ReplState("FutTradeState"))
+      marketCapture ! DataStreamClosed(underlying.OptTradeStream, ReplState("OptTradeState"))
+      marketCapture ! DataStreamClosed(underlying.OrdLogStream, ReplState("OrdLogState"))
       
       verify(repository).setReplicationState("FORTS_FUTTRADE_REPL", "FutTradeState")
       verify(repository).setReplicationState("FORTS_OPTTRADE_REPL", "OptTradeState")

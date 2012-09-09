@@ -1,26 +1,12 @@
 package com.ergodicity.core
 
 import akka.event.Logging
-import akka.util.duration._
 import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
-import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
+import akka.testkit.{ImplicitSender, TestKit}
 import com.ergodicity.cgate.scheme.FutInfo
 import java.nio.ByteBuffer
-import com.ergodicity.cgate.{DataStream, DataStreamState}
-import akka.actor.{Terminated, Kill, ActorSystem}
+import akka.actor.ActorSystem
 import com.ergodicity.core.session.SessionState
-import com.ergodicity.core.Mocking.{mockOption, mockFuture}
-import com.ergodicity.core.SessionsTracking._
-import session.SessionActor.{OptInfoSessionContents, FutInfoSessionContents}
-import akka.actor.FSM.Transition
-import akka.actor.FSM.CurrentState
-import com.ergodicity.core.SessionsTracking.OngoingSession
-import com.ergodicity.core.SessionsTracking.UpdateOngoingSessions
-import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
-import com.ergodicity.cgate.StreamEvent.StreamData
-import akka.actor.FSM.SubscribeTransitionCallBack
-import scala.Some
-import com.ergodicity.cgate.repository.Repository.Snapshot
 
 class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)

@@ -9,7 +9,6 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.dispatch.Await
 import akka.util.Timeout
 import com.ergodicity.cgate.scheme.FutInfo
-import com.ergodicity.cgate.repository.Repository.Snapshot
 import com.ergodicity.core.Mocking._
 import akka.testkit._
 import akka.testkit.TestActor.AutoPilot
@@ -28,6 +27,7 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
 
   val gmkFuture = mockFuture(4023, 166911, "GMKR-6.12", "GMM2", "Фьючерсный контракт GMKR-06.12", 115, 2)
 
+/*
   "SessionContentes with FuturesManager" must {
     import com.ergodicity.core.session._
     import Implicits.FutInfoToFuture
@@ -50,6 +50,7 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
       assert(Await.result(future, 1.second) == Some(gmk))
     }
   }
+*/
 
   def onlineSession = {
     val session = TestProbe()

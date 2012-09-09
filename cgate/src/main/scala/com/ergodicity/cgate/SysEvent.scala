@@ -3,7 +3,7 @@ package com.ergodicity.cgate
 sealed trait SysEvent {
   def eventId: Long
 
-  def sessionId: Long
+  def sessionId: Int
 }
 
 object SysEvent {

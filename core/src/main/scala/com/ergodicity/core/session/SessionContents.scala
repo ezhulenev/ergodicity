@@ -19,7 +19,7 @@ trait ContentsManager[T] {
   protected def handleSessionContents(contents: T)
 }
 
-class SessionContents[T](Session: ActorRef)(implicit val toSecurity: ToSecurity[T]) extends Actor with ActorLogging with WhenUnhandled {
+class SessionContents[T](Session: ActorRef) extends Actor with ActorLogging with WhenUnhandled {
   manager: SessionContents[T] with ContentsManager[T] =>
 
   implicit val timeout = Timeout(100.millis)

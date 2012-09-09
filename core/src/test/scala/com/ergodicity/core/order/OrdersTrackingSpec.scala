@@ -4,15 +4,8 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import com.ergodicity.core.AkkaConfigurations
 import AkkaConfigurations._
-import akka.actor.{ActorRef, ActorSystem}
-import com.ergodicity.cgate.scheme.FutTrade
-import java.nio.ByteBuffer
-import com.ergodicity.cgate.StreamEvent.StreamData
-import com.ergodicity.cgate.{DataStreamState, DataStream}
-import akka.testkit.{TestProbe, TestFSMRef, ImplicitSender, TestKit}
-import com.ergodicity.cgate.DataStream.{BindingSucceed, BindTable}
-import com.ergodicity.core.order.OrdersTracking.{DropSession, GetOrdersTracking}
-import akka.actor.FSM.CurrentState
+import akka.actor.ActorSystem
+import akka.testkit.{ImplicitSender, TestKit}
 
 class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -22,6 +15,7 @@ class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", Confi
   }
 
 
+/*
   "Future Orders" must {
 
     "bind data stream" in {
@@ -91,4 +85,5 @@ class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", Confi
       assert(underlying.sessions.size == 10)
     }
   }
+*/
 }

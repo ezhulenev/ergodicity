@@ -1,18 +1,19 @@
-package com.ergodicity.cgate
+package com.ergodicity.capture
 
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.actor.ActorSystem
-import repository.Repository.{GetSnapshot, Snapshot, SubscribeSnapshots}
-import repository.RepositoryState.Consistent
-import repository.{RepositoryState, Repository}
-import scheme.FutInfo
 import com.ergodicity.cgate.Protocol._
-import com.ergodicity.cgate.repository.ReplicaExtractor._
 import java.nio.ByteBuffer
 import akka.util.duration._
 import com.ergodicity.cgate.StreamEvent._
+import com.ergodicity.cgate.AkkaConfigurations
+import com.ergodicity.cgate.scheme.FutInfo
+import com.ergodicity.cgate.StreamEvent.StreamData
+import com.ergodicity.cgate.StreamEvent.LifeNumChanged
+import com.ergodicity.capture.RepositoryState.Consistent
+import com.ergodicity.capture.Repository.{GetSnapshot, Snapshot, SubscribeSnapshots}
 
 class RepositorySpec extends TestKit(ActorSystem("RepositorySpec", AkkaConfigurations.ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = Logging(system, self)
