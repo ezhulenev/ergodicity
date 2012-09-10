@@ -9,8 +9,6 @@ import akka.util.duration._
 import com.ergodicity.cgate._
 import config.Replication.ReplicationMode.Combined
 import config.Replication.ReplicationParams
-import scalaz._
-import Scalaz._
 import com.ergodicity.capture.MarketDbCapture.ConvertToMarketDb
 import scheme.OrdLog.orders_log
 import scala.Some
@@ -26,6 +24,8 @@ import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate.scheme._
 import ru.micexrts.cgate.{CGateException, Listener => CGListener, Connection => CGConnection}
 import java.util.concurrent.TimeUnit
+import scalaz._
+import Scalaz._
 
 case class MarketCaptureException(msg: String) extends RuntimeException(msg)
 
@@ -230,17 +230,17 @@ class MarketCapture(val replication: ReplicationScheme,
   }
 
   when(CaptureState.ShuttingDown, stateTimeout = 30.seconds) {
-    case Event(DataStreamClosed(FutTradeStream, state), s: StreamStates) =>
-      repository.setReplicationState(replication.futTrade.stream, state.state)
-      handleStreamState(s.copy(futTrade = Some(state)))
+    case Event(DataStreamClosed(FutTradeStream, rs@ReplState(state)), s: StreamStates) =>
+      repository.setReplicationState(replication.futTrade.stream, state)
+      handleStreamState(s.copy(futTrade = Some(rs)))
 
-    case Event(DataStreamClosed(OptTradeStream, state), s: StreamStates) =>
-      repository.setReplicationState(replication.optTrade.stream, state.state)
-      handleStreamState(s.copy(optTrade = Some(state)))
+    case Event(DataStreamClosed(OptTradeStream, rs@ReplState(state)), s: StreamStates) =>
+      repository.setReplicationState(replication.optTrade.stream, state)
+      handleStreamState(s.copy(optTrade = Some(rs)))
 
-    case Event(DataStreamClosed(OrdLogStream, state), s: StreamStates) =>
-      repository.setReplicationState(replication.ordLog.stream, state.state)
-      handleStreamState(s.copy(ordLog = Some(state)))
+    case Event(DataStreamClosed(OrdLogStream, rs@ReplState(state)), s: StreamStates) =>
+      repository.setReplicationState(replication.ordLog.stream, state)
+      handleStreamState(s.copy(ordLog = Some(rs)))
 
     case Event(Terminated(ref), _) if (ref == connection) =>
       log.error("Connection terminated in ShuttingDown state")

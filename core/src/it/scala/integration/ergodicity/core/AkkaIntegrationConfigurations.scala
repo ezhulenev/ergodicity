@@ -5,9 +5,9 @@ import com.typesafe.config.ConfigFactory
 object AkkaIntegrationConfigurations {
   val ConfigWithDetailedLogging = ConfigFactory.parseString("""
     akka.actor.debug {
-      receive = on
+      receive = off
       lifecycle = on
-      fsm = on
+      fsm = off
     }
 
     akka {

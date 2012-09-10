@@ -1,6 +1,6 @@
 package com.ergodicity.cgate
 
-import akka.actor.{ActorRef, Actor, FSM}
+import akka.actor.{LoggingFSM, ActorRef, Actor, FSM}
 import ru.micexrts.cgate.{ErrorCode, MessageType}
 import ru.micexrts.cgate.messages._
 import java.nio.ByteBuffer
@@ -106,7 +106,7 @@ object DataStream {
 
 }
 
-class DataStream extends Actor with FSM[DataStreamState, StreamEventSubscribers] {
+class DataStream extends Actor with LoggingFSM[DataStreamState, StreamEventSubscribers] {
 
   import DataStream._
   import StreamEvent._

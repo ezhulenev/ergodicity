@@ -144,6 +144,9 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
       changeOngoingSession(sessionId)
 
       goto(TrackingSessions) using(sysEvents.remove(sync.eventId), pending.remove(sessionId))
+
+    case Event(sync@SynchronizeOnEvent(_, _), (sysEvents, pending)) =>
+      goto(TrackingSessions) using(sysEvents.remove(sync.eventId), pending)
   }
 
   whenUnhandled {
