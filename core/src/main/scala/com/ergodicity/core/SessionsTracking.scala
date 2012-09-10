@@ -22,7 +22,7 @@ import com.ergodicity.core.SessionsTrackingState.{TrackingSessions, Synchronizin
 import com.ergodicity.cgate.SysEvent.SessionDataReady
 import com.ergodicity.core.session.Implicits._
 
-case class SessionId(id: Int, optionSessionId: Int)
+case class SessionId(fut: Int, opt: Int)
 
 object SessionsTracking {
   def apply(FutInfoStream: ActorRef, OptInfoStream: ActorRef) = new SessionsTracking(FutInfoStream, OptInfoStream)
@@ -54,10 +54,10 @@ object SessionsTracking {
     def append(e: OptSessContents) = copy(opt = opt :+ e)
 
     def remove(id: SessionId): PendingEvents =
-      copy(sess.filterNot(_.id == id), fut.filterNot(_.sessionId == id.id), opt.filterNot(_.sessionId == id.optionSessionId))
+      copy(sess.filterNot(_.id == id), fut.filterNot(_.sessionId == id.fut), opt.filterNot(_.sessionId == id.opt))
 
     def consume(id: SessionId): (Seq[SessionEvent], Seq[FutSessContents], Seq[OptSessContents]) =
-      (sess.filter(_.id == id), fut.filter(_.sessionId == id.id), opt.filter(_.sessionId == id.optionSessionId))
+      (sess.filter(_.id == id), fut.filter(_.sessionId == id.fut), opt.filter(_.sessionId == id.opt))
   }
 
   case class SystemEvents(fut: Seq[FutSysEvent] = Seq(), opt: Seq[OptSysEvent] = Seq()) {
@@ -128,7 +128,7 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
       val (sessionEvents, futContents, optContents) = pending.consume(SessionId(futSessionId, optSessionId))
 
       for (sessionEvent <- sessionEvents) {
-        val sessionActor = sessions.getOrElseUpdate(sessionId, context.actorOf(Props(new SessionActor(sessionEvent.session)), sessionId.id.toString))
+        val sessionActor = sessions.getOrElseUpdate(sessionId, context.actorOf(Props(new SessionActor(sessionEvent.session)), sessionId.fut.toString))
         sessionActor ! sessionEvent.state
         sessionActor ! sessionEvent.intradayClearingState
       }
@@ -162,19 +162,19 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
       stay()
 
     // Dispatch Futures contents
-    case Event(e@FutSessContents(id, _, _), (sysEvents, pending: PendingEvents)) if (!sessions.exists(_._1.id == id)) =>
+    case Event(e@FutSessContents(id, _, _), (sysEvents, pending: PendingEvents)) if (!sessions.exists(_._1.fut == id)) =>
       stay() using(sysEvents, pending append e)
 
-    case Event(e@FutSessContents(id, _, state), _) if (sessions.exists(_._1.id == id)) =>
-      sessions.find(_._1.id == id) foreach (_._2 ! e)
+    case Event(e@FutSessContents(id, _, state), _) if (sessions.exists(_._1.fut == id)) =>
+      sessions.find(_._1.fut == id) foreach (_._2 ! e)
       stay()
 
     // Dispatch Option contents
-    case Event(e@OptSessContents(id, _), (sysEvents, pending: PendingEvents)) if (!sessions.exists(_._1.optionSessionId == id)) =>
+    case Event(e@OptSessContents(id, _), (sysEvents, pending: PendingEvents)) if (!sessions.exists(_._1.opt == id)) =>
       stay() using(sysEvents, pending append e)
 
-    case Event(e@OptSessContents(id, _), _) if (sessions.exists(_._1.optionSessionId == id)) =>
-      sessions.find(_._1.optionSessionId == id) foreach (_._2 ! e)
+    case Event(e@OptSessContents(id, _), _) if (sessions.exists(_._1.opt == id)) =>
+      sessions.find(_._1.opt == id) foreach (_._2 ! e)
       stay()
 
     // Dispatch sys events

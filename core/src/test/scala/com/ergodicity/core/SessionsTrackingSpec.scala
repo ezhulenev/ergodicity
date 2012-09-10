@@ -115,8 +115,8 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
       // Session #1 lifecycle
 
       when("receive contents for nonexistent session")
-      sessions ! FutSessContents(id1.id, futureInstrument, InstrumentState.Assigned)
-      sessions ! OptSessContents(id1.optionSessionId, optionInstrument)
+      sessions ! FutSessContents(id1.fut, futureInstrument, InstrumentState.Assigned)
+      sessions ! OptSessContents(id1.opt, optionInstrument)
 
       then("should postpone them")
 
@@ -127,8 +127,8 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
 
       when("receive SysEvents for both Futures and Options")
       sessions ! FutSysEvent(SessionDataReady(0, 99)) // junk event
-      sessions ! FutSysEvent(SessionDataReady(1, id1.id))
-      sessions ! OptSysEvent(SessionDataReady(1, id1.optionSessionId))
+      sessions ! FutSysEvent(SessionDataReady(1, id1.fut))
+      sessions ! OptSysEvent(SessionDataReady(1, id1.opt))
 
       then("should consume previously postponed events")
 
@@ -156,14 +156,14 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
 
       when("receive session events for nex session")
       sessions ! SessionEvent(id2, session(id2), SessionState.Assigned, IntradayClearingState.Oncoming)
-      sessions ! FutSessContents(id2.id, futureInstrument, InstrumentState.Assigned)
-      sessions ! OptSessContents(id2.optionSessionId, optionInstrument)
+      sessions ! FutSessContents(id2.fut, futureInstrument, InstrumentState.Assigned)
+      sessions ! OptSessContents(id2.opt, optionInstrument)
 
       then("should postpone them all")
 
       when("new session is ready")
-      sessions ! FutSysEvent(SessionDataReady(2, id2.id))
-      sessions ! OptSysEvent(SessionDataReady(2, id2.optionSessionId))
+      sessions ! FutSysEvent(SessionDataReady(2, id2.fut))
+      sessions ! OptSysEvent(SessionDataReady(2, id2.opt))
 
       then("should create actor for new session")
       val sessionActor2 = underlying.sessions(id2)
