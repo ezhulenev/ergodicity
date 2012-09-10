@@ -1,26 +1,26 @@
 package com.ergodicity.core.session
 
-import org.joda.time.DateTime
-import org.scala_tools.time.Implicits._
 import SessionState._
-import akka.event.Logging
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
-import com.ergodicity.core.AkkaConfigurations._
-import com.ergodicity.core.session.SessionActor._
-import akka.testkit.{TestActorRef, ImplicitSender, TestFSMRef, TestKit}
+import akka.actor.FSM.CurrentState
+import akka.actor.FSM.SubscribeTransitionCallBack
+import akka.actor.FSM.Transition
 import akka.actor.{ActorRef, ActorSystem}
 import akka.dispatch.Await
+import akka.event.Logging
 import akka.pattern.ask
-import java.util.concurrent.TimeUnit
+import akka.testkit.{TestActorRef, ImplicitSender, TestFSMRef, TestKit}
 import akka.util.{Duration, Timeout}
-import com.ergodicity.core.Mocking._
-import com.ergodicity.core.Isin
-import akka.actor.FSM.Transition
-import akka.actor.FSM.CurrentState
-import com.ergodicity.core.session.SessionActor.GetInstrumentActor
-import akka.actor.FSM.SubscribeTransitionCallBack
+import com.ergodicity.core.AkkaConfigurations._
+import com.ergodicity.core.SessionsTracking.{OptSessContents, FutSessContents}
+import com.ergodicity.core._
+import com.ergodicity.core.session.Instrument.Limits
+import com.ergodicity.core.session.SessionActor._
+import java.util.concurrent.TimeUnit
+import org.joda.time.DateTime
+import org.scala_tools.time.Implicits._
+import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 
-class SessionActorSpec extends TestKit(ActorSystem("SessionActorSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class SessionActorSpec extends TestKit(ActorSystem("SessionActorSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   implicit val timeout = Timeout(1, TimeUnit.SECONDS)
@@ -79,43 +79,64 @@ class SessionActorSpec extends TestKit(ActorSystem("SessionActorSpec", ConfigWit
       expectMsg(Transition(intClearing, IntradayClearingState.Undefined, IntradayClearingState.Running))
     }
 
-    /*"handle FutSessContents" in {
+    "forward FutSessContents to contents manager" in {
+      val id = IsinId(166911)
+      val isin = Isin("GMKR-6.12")
+      val shortIsin = ShortIsin("GMM2")
+
+      val instrument = Instrument(FutureContract(id, isin, shortIsin, "Future Contract"), Limits(100, 100))
+
       val content = Session(100, 101, primaryInterval, None, None, positionTransferInterval)
       val session = TestActorRef(new SessionActor(content), "Session2")
 
-      val future = mockFuture(4023, 166911, "GMKR-6.12", "GMM2", "Фьючерсный контракт GMKR-06.12", 115, 2)
-      val repo = mockFuture(4023, 170971, "HYDR-16.04.12R3", "HYDRT0T3", "Репо инструмент на ОАО \"ГидроОГК\"", 4965, 2, 1)
-
-      session ! FutInfoSessionContents(Snapshot(self, repo :: future :: Nil))
-
+      when("session received new instrument")
+      session ! FutSessContents(100, instrument, InstrumentState.Suspended)
       Thread.sleep(300)
 
+      then("actor for it should be created in contents manager")
       val gmkFutures = system.actorFor("user/Session2/Futures/GMKR-6.12")
-
       gmkFutures ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(gmkFutures, InstrumentState.Suspended))
 
-      val instrument = (session ? GetInstrumentActor(Isin("GMKR-6.12"))).mapTo[ActorRef]
-      assert(Await.result(instrument, Duration(1, TimeUnit.SECONDS)) == gmkFutures)
+      val instrumentActor = (session ? GetInstrumentActor(Isin("GMKR-6.12"))).mapTo[ActorRef]
+      assert(Await.result(instrumentActor, Duration(1, TimeUnit.SECONDS)) == gmkFutures)
     }
 
-    "return assigned instruments" in {
+    "return all assigned instruments" in {
+      val future = Instrument(FutureContract(IsinId(166911), Isin("GMKR-6.12"), ShortIsin("GMM2"), "Future Contract"), Limits(100, 100))
+      val option = Instrument(OptionContract(IsinId(160734), Isin("RTS-6.12M150612PA 175000"), ShortIsin("RI175000BR2"), "Option Contract"), Limits(100, 100))
+
       val session = Session(100, 101, primaryInterval, None, None, positionTransferInterval)
-      val sessionActor = TestActorRef(new SessionActor(session, SessionState.Online, IntradayClearingState.Oncoming), "Session2")
+      val sessionActor = TestActorRef(new SessionActor(session), "Session2")
 
-      val future = mockFuture(4023, 166911, "GMKR-6.12", "GMM2", "Фьючерсный контракт GMKR-06.12", 115, 2)
-      val option = mockOption(4023, 111111, "RTS OPT", "OPT", "Some option contract", 4695)
+      given("session with assigned instruments")
+      sessionActor ! FutSessContents(100, future, InstrumentState.Assigned)
+      sessionActor ! OptSessContents(100, option)
+      Thread.sleep(100)
 
-      sessionActor ! FutInfoSessionContents(Snapshot(self, future :: Nil))
-      sessionActor ! OptInfoSessionContents(Snapshot(self, option :: Nil))
-
-      Thread.sleep(300)
-
+      when("asked for instruments assigned")
       val assignedFuture = (sessionActor ? GetAssignedInstruments).mapTo[AssignedInstruments]
       val assigned = Await.result(assignedFuture, Duration(1, TimeUnit.SECONDS))
 
-      log.info("Assigned instruments = "+assigned)
+      then("should return all assigned insturment")
+      log.info("Assigned instruments = " + assigned)
       assert(assigned.instruments.size == 2)
-    }*/
+    }
+
+    "fail if no instument found" in {
+      val future = Instrument(FutureContract(IsinId(166911), Isin("GMKR-6.12"), ShortIsin("GMM2"), "Future Contract"), Limits(100, 100))
+      val option = Instrument(OptionContract(IsinId(160734), Isin("RTS-6.12M150612PA 175000"), ShortIsin("RI175000BR2"), "Option Contract"), Limits(100, 100))
+
+      val session = Session(100, 101, primaryInterval, None, None, positionTransferInterval)
+      val sessionActor = TestActorRef(new SessionActor(session), "Session2")
+
+      sessionActor ! FutSessContents(100, future, InstrumentState.Assigned)
+      sessionActor ! OptSessContents(100, option)
+
+      val result = (sessionActor ? GetInstrumentActor(Isin("BadCode"))).mapTo[ActorRef]
+      intercept[InstrumentIsinNotAssigned] {
+        Await.result(result, Duration(1, TimeUnit.SECONDS))
+      }
+    }
   }
 }

@@ -1,21 +1,20 @@
 package com.ergodicity.core.session
 
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
-import akka.event.Logging
-import akka.actor.{ActorRef, ActorSystem}
-import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
-import com.ergodicity.core.Mocking._
-import com.ergodicity.cgate.scheme.OptInfo
-import akka.testkit._
-import akka.actor.FSM.Transition
 import akka.actor.FSM.CurrentState
 import akka.actor.FSM.SubscribeTransitionCallBack
+import akka.actor.FSM.Transition
+import akka.actor.{ActorRef, ActorSystem}
+import akka.event.Logging
 import akka.testkit.TestActor.AutoPilot
+import akka.testkit._
+import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
+import com.ergodicity.core.SessionsTracking.OptSessContents
+import com.ergodicity.core._
+import com.ergodicity.core.session.Instrument.Limits
 import com.ergodicity.core.session.SessionActor.GetState
-import Implicits._
-import com.ergodicity.core.Isin
+import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 
-class OptionsContentsManagerSpec extends TestKit(ActorSystem("OptionsContentsManagerSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class OptionsContentsManagerSpec extends TestKit(ActorSystem("OptionsContentsManagerSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
 
   val log = Logging(system, self)
 
@@ -23,34 +22,42 @@ class OptionsContentsManagerSpec extends TestKit(ActorSystem("OptionsContentsMan
     system.shutdown()
   }
 
-  val rtsOption = mockOption(3550, 160734, "RTS-6.12M150612PA 175000", "RI175000BR2", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
+  val id = IsinId(160734)
+  val isin = Isin("RTS-6.12M150612PA 175000")
+  val shortIsin = ShortIsin("RI175000BR2")
 
-/*
-  "StatelessSessionContents" must {
+  val instrument = Instrument(OptionContract(id, isin, shortIsin, "Option Contract"), Limits(100, 100))
 
-    "should track session state updates and propagate to instrument state" in {
+  "OptionsContentsManager" must {
+
+    "track session state updates and propagate to instrument state" in {
       val session: ActorRef = onlineSession
-      val contents = TestActorRef(new SessionContents[OptInfo.opt_sess_contents](session) with OptionsContentsManager, "Options")
-      contents ! Snapshot(self, rtsOption :: Nil)
+      val contents = TestActorRef(new SessionContents[OptSessContents](session) with OptionsContentsManager, "Options")
 
-      val instrument = system.actorFor("user/Options/" + Isin("RTS-6.12M150612PA 175000").toActorName)
-      instrument ! SubscribeTransitionCallBack(self)
-      expectMsg(CurrentState(instrument, InstrumentState.Online))
+      when("receive new instrument")
+      contents ! OptSessContents(100, instrument)
 
-      // Session suspended
+      then("should create actor for it")
+      val instrumentActor = system.actorFor("user/Options/" + Isin("RTS-6.12M150612PA 175000").toActorName)
+      instrumentActor ! SubscribeTransitionCallBack(self)
+      expectMsg(CurrentState(instrumentActor, InstrumentState.Online))
+
+      when("session suspended")
       contents ! Transition(session, SessionState.Online, SessionState.Suspended)
-      expectMsg(Transition(instrument, InstrumentState.Online, InstrumentState.Suspended))
+      then("instrument should be suspended too")
+      expectMsg(Transition(instrumentActor, InstrumentState.Online, InstrumentState.Suspended))
 
-      // Session Assigned
+      when("session assigned")
       contents ! Transition(session, SessionState.Suspended, SessionState.Assigned)
-      expectMsg(Transition(instrument, InstrumentState.Suspended, InstrumentState.Assigned))
+      then("instrument should be assigned too")
+      expectMsg(Transition(instrumentActor, InstrumentState.Suspended, InstrumentState.Assigned))
 
-      // Session Canceled
+      when("session cancelled")
       contents ! Transition(session, SessionState.Assigned, SessionState.Canceled)
-      expectMsg(Transition(instrument, InstrumentState.Assigned, InstrumentState.Canceled))
+      then("instrument should be cancelled too")
+      expectMsg(Transition(instrumentActor, InstrumentState.Assigned, InstrumentState.Canceled))
     }
   }
-*/
 
   def onlineSession = {
     val session = TestProbe()

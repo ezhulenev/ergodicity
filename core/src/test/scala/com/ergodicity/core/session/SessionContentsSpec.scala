@@ -1,19 +1,19 @@
 package com.ergodicity.core.session
 
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
-import akka.event.Logging
-import akka.pattern.ask
-import akka.util.duration._
-import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
 import akka.actor.{ActorRef, ActorSystem}
 import akka.dispatch.Await
-import akka.util.Timeout
-import com.ergodicity.cgate.scheme.FutInfo
-import com.ergodicity.core.Mocking._
-import akka.testkit._
+import akka.event.Logging
+import akka.pattern.ask
 import akka.testkit.TestActor.AutoPilot
-import com.ergodicity.core.session.SessionActor.{InstrumentIsinNotAssigned, GetInstrumentActor, GetState}
-import com.ergodicity.core.Isin
+import akka.testkit._
+import akka.util.Timeout
+import akka.util.duration._
+import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
+import com.ergodicity.core.SessionsTracking.FutSessContents
+import com.ergodicity.core.session.Instrument.Limits
+import com.ergodicity.core.session.SessionActor.{GetInstrumentActor, GetState}
+import com.ergodicity.core.{FutureContract, ShortIsin, IsinId, Isin}
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
 
 
 class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -25,32 +25,36 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
 
   implicit val timeout = Timeout(1.second)
 
-  val gmkFuture = mockFuture(4023, 166911, "GMKR-6.12", "GMM2", "Фьючерсный контракт GMKR-06.12", 115, 2)
+  val id = IsinId(166911)
+  val isin = Isin("GMKR-6.12")
+  val shortIsin = ShortIsin("GMM2")
 
-/*
+  val instrument = Instrument(FutureContract(id, isin, shortIsin, "Future Contract"), Limits(100, 100))
+
   "SessionContentes with FuturesManager" must {
     import com.ergodicity.core.session._
-    import Implicits.FutInfoToFuture
-    import Implicits.OptInfoToOption
 
-    "fail if no instument found" in {
-      val contents = TestActorRef(new SessionContents[FutInfo.fut_sess_contents](onlineSession) with FuturesContentsManager, "Futures")
-      val future = (contents ? GetInstrumentActor(Isin("BadCode"))).mapTo[Option[ActorRef]]
-      intercept[InstrumentIsinNotAssigned] {
-        Await.result(future, 1.second)
-      }
+    "return None if instrument not found" in {
+      val contents = TestActorRef(new SessionContents[FutSessContents](onlineSession) with FuturesContentsManager, "Futures")
+      contents ! FutSessContents(100, instrument, InstrumentState.Assigned)
+
+      val request = (contents ? GetInstrumentActor(Isin("BadCode"))).mapTo[Option[ActorRef]]
+      val result = Await.result(request, 1.second)
+      assert(result == None)
     }
 
     "return instument reference if found" in {
-      val contents = TestActorRef(new SessionContents[FutInfo.fut_sess_contents](onlineSession) with FuturesContentsManager, "Futures")
-      contents ! Snapshot(self, gmkFuture :: Nil)
+      val contents = TestActorRef(new SessionContents[FutSessContents](onlineSession) with FuturesContentsManager, "Futures")
+      contents ! FutSessContents(100, instrument, InstrumentState.Assigned)
 
-      val gmk = system.actorFor("user/Futures/GMKR-6.12")
-      val future = (contents ? GetInstrumentActor(Isin("GMKR-6.12"))).mapTo[Option[ActorRef]]
-      assert(Await.result(future, 1.second) == Some(gmk))
+      val request = (contents ? GetInstrumentActor(isin)).mapTo[Option[ActorRef]]
+      val result = Await.result(request, 1.second)
+      assert(result match {
+        case Some(ref) => log.info("Ref = " + ref); true
+        case _ => false
+      })
     }
   }
-*/
 
   def onlineSession = {
     val session = TestProbe()

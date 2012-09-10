@@ -14,9 +14,9 @@ import com.ergodicity.core.SessionsTracking.{OptSessContents, FutSessContents}
 trait ContentsManager[T] {
   contents: SessionContents[T] =>
 
-  protected def handleSessionState(state: SessionState)
+  protected def applySessionState(state: SessionState)
 
-  protected def handleSessionContents(contents: T)
+  protected def receiveContents: Receive
 }
 
 class SessionContents[T](Session: ActorRef) extends Actor with ActorLogging with WhenUnhandled {
@@ -41,7 +41,7 @@ class SessionContents[T](Session: ActorRef) extends Actor with ActorLogging with
 
     case Transition(Session, _, to: SessionState) =>
       sessionState = to
-      handleSessionState(to)
+      applySessionState(to)
   }
 
   private def getInstruments: Receive = {
@@ -54,9 +54,6 @@ class SessionContents[T](Session: ActorRef) extends Actor with ActorLogging with
       sender ! AssignedInstruments(instruments.keys.toSet)
   }
 
-  private def receiveContents: Receive = {
-    case contents: T => handleSessionContents(contents)
-  }
 }
 
 trait FuturesContentsManager extends ContentsManager[FutSessContents] {
@@ -64,12 +61,15 @@ trait FuturesContentsManager extends ContentsManager[FutSessContents] {
 
   private val originalInstrumentState = mutable.Map[Instrument, InstrumentState]()
 
-  protected def handleSessionState(state: SessionState) {
+  protected def applySessionState(state: SessionState) {
     instruments.foreach {
       case (instrument, ref) => ref ! merge(state, originalInstrumentState(instrument))
     }
   }
 
+  protected def receiveContents: Receive = {
+    case contents: FutSessContents => handleSessionContents(contents)
+  }
 
   def handleSessionContents(contents: FutSessContents) {
     originalInstrumentState(contents.instrument) = contents.state
@@ -102,10 +102,14 @@ trait FuturesContentsManager extends ContentsManager[FutSessContents] {
 trait OptionsContentsManager extends ContentsManager[OptSessContents] {
   contents: SessionContents[OptSessContents] =>
 
-  protected def handleSessionState(state: SessionState) {
+  protected def applySessionState(state: SessionState) {
     instruments.foreach {
       case (isin, ref) => ref ! InstrumentState(state)
     }
+  }
+
+  protected def receiveContents: Receive = {
+    case contents: OptSessContents => handleSessionContents(contents)
   }
 
   protected def handleSessionContents(contents: OptSessContents) {

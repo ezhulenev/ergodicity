@@ -116,6 +116,8 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
 
   }
 
+  startWith(TrackingSessions, (SystemEvents(), PendingEvents()))
+
   when(TrackingSessions) {
     case Event("NoSuchEventEver", _) => stay()
   }
@@ -268,7 +270,7 @@ class OptInfoDispatcher(sessionsTracking: ActorRef, stream: ActorRef) extends Ac
     case StreamData(OptInfo.sys_events.TABLE_INDEX, data) =>
       val record = implicitly[Reads[OptInfo.sys_events]] apply data
       if (record.get_replAct() == 0) {
-        sessionsTracking ! FutSysEvent(SysEvent(record))
+        sessionsTracking ! OptSysEvent(SysEvent(record))
       }
   }
 }

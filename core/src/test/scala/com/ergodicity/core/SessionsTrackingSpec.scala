@@ -1,12 +1,16 @@
 package com.ergodicity.core
 
-import akka.event.Logging
-import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
-import akka.testkit.{ImplicitSender, TestKit}
-import com.ergodicity.cgate.scheme.FutInfo
-import java.nio.ByteBuffer
 import akka.actor.ActorSystem
-import com.ergodicity.core.session.SessionState
+import akka.event.Logging
+import akka.testkit.{TestActorRef, TestProbe, ImplicitSender, TestKit}
+import com.ergodicity.cgate.scheme.FutInfo
+import com.ergodicity.core.SessionsTracking.FutSessContents
+import com.ergodicity.core.SessionsTracking.OptSessContents
+import com.ergodicity.core.SessionsTracking.SessionEvent
+import com.ergodicity.core.session._
+import java.nio.ByteBuffer
+import org.mockito.Mockito._
+import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
 
 class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -145,39 +149,47 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
       expectNoMsg(300.millis)
     }*/
 
-/*    "should forward FutInfo.SessContentsRecord snapshot to child sessions" in {
-      val FutInfoDS = TestFSMRef(new DataStream())
-      val OptInfoDS = TestFSMRef(new DataStream())
-      val sessions = TestFSMRef(new SessionsTracking(FutInfoDS, OptInfoDS), "SessionsTracking")
+    "forward session state to session actor" in {
+      val futInfo = TestProbe()
+      val optInfo = TestProbe()
+      val sessions = TestActorRef(new SessionsTracking(futInfo.ref, optInfo.ref), "SessionsTracking")
+      val underlying = sessions.underlyingActor
 
-      val underlying = underlyingSessions(sessions)
+      underlying.sessions(SessionId(100, 0)) = self
 
-      sessions.setState(SessionsTrackingState.Online)
-      underlying.trackingSessions(SessionId(100, 0)) = self
+      sessions ! SessionEvent(SessionId(100, 0), mock(classOf[Session]), SessionState.Online, IntradayClearingState.Oncoming)
 
-      val future1 = mockFuture(100, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
-      val future2 = mockFuture(102, 166911, "GMM2", "GMKR-6.12", "Фьючерсный контракт GMKR-06.12", 115, 2, 0)
-
-      sessions ! Snapshot(underlying.FutSessContentsRepository, future1 :: future2 :: Nil)
-      expectMsg(FutInfoSessionContents(Snapshot(underlying.FutSessContentsRepository, future1 :: Nil)))
+      expectMsg(SessionState.Online)
+      expectMsg(IntradayClearingState.Oncoming)
     }
 
-    "should forward OptInfo.SessContentsRecord snapshot to child sessions" in {
-      val FutInfoDS = TestFSMRef(new DataStream)
-      val OptInfoDS = TestFSMRef(new DataStream)
-      val sessions = TestFSMRef(new SessionsTracking(FutInfoDS, OptInfoDS), "SessionsTracking")
+    "forward FutSessContents to session actor" in {
+      val futInfo = TestProbe()
+      val optInfo = TestProbe()
+      val sessions = TestActorRef(new SessionsTracking(futInfo.ref, optInfo.ref), "SessionsTracking")
+      val underlying = sessions.underlyingActor
 
-      val underlying = underlyingSessions(sessions)
+      underlying.sessions(SessionId(100, 0)) = self
 
-      sessions.setState(SessionsTrackingState.Online)
-      underlying.trackingSessions(SessionId(0, 100)) = self
+      val contents = FutSessContents(100, mock(classOf[Instrument]), InstrumentState.Assigned)
+      sessions ! contents
 
-      val option1 = mockOption(100, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
-      val option2 = mockOption(101, 160734, "RI175000BR2", "RTS-6.12M150612PA 175000", "Июньский Марж.Амер.Put.175000 Фьюч.контр RTS-6.12", 115)
+      expectMsg(contents)
+    }
 
-      sessions ! Snapshot(underlying.OptSessContentsRepository, option1 :: option2 :: Nil)
-      expectMsg(OptInfoSessionContents(Snapshot(underlying.OptSessContentsRepository, option1 :: Nil)))
-    }*/
+    "forward OptSessContents to session actor" in {
+      val futInfo = TestProbe()
+      val optInfo = TestProbe()
+      val sessions = TestActorRef(new SessionsTracking(futInfo.ref, optInfo.ref), "SessionsTracking")
+      val underlying = sessions.underlyingActor
+
+      underlying.sessions(SessionId(0, 100)) = self
+
+      val contents = OptSessContents(100, mock(classOf[Instrument]))
+      sessions ! contents
+
+      expectMsg(contents)
+    }
   }
 
   def sessionRecord(replID: Long, revId: Long, sessionId: Int, sessionState: SessionState) = {

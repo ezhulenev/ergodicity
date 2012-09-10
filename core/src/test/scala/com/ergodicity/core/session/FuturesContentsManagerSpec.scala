@@ -1,61 +1,66 @@
 package com.ergodicity.core.session
 
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
-import akka.event.Logging
-import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
-import akka.actor.{ActorRef, ActorSystem}
-import com.ergodicity.core.Mocking._
-import com.ergodicity.cgate.scheme.FutInfo
-import akka.testkit._
-import akka.actor.FSM.Transition
 import akka.actor.FSM.CurrentState
 import akka.actor.FSM.SubscribeTransitionCallBack
+import akka.actor.FSM.Transition
+import akka.actor.{ActorRef, ActorSystem}
+import akka.event.Logging
 import akka.testkit.TestActor.AutoPilot
+import akka.testkit._
+import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
+import com.ergodicity.core.SessionsTracking.FutSessContents
+import com.ergodicity.core.session.Instrument.Limits
 import com.ergodicity.core.session.SessionActor.GetState
-import Implicits._
+import com.ergodicity.core.{ShortIsin, IsinId, Isin, FutureContract}
+import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 
-class FuturesContentsManagerSpec extends TestKit(ActorSystem("FuturesContentsManagerSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class FuturesContentsManagerSpec extends TestKit(ActorSystem("FuturesContentsManagerSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   override def afterAll() {
     system.shutdown()
   }
 
-  val gmkFuture = (state: Int) => mockFuture(4023, 166911, "GMKR-6.12", "GMM2", "Фьючерсный контракт GMKR-06.12", 115, state)
+  val id = IsinId(166911)
+  val isin = Isin("GMKR-6.12")
+  val shortIsin = ShortIsin("GMM2")
 
-  val SUSPENDED = 2
-  val ONLINE = 1
-  val ASSIGNED = 0
+  val instrument = Instrument(FutureContract(id, isin, shortIsin, "Future Contract"), Limits(100, 100))
 
-/*
-  "StatefulSessionContents" must {
+  "FuturesContentsManager" must {
 
     "should track record updates merging with session state" in {
 
       val session: ActorRef = onlineSession
-      val contents = TestActorRef(new SessionContents[FutInfo.fut_sess_contents](session) with FuturesContentsManager, "Futures")
-      contents ! Snapshot(self, gmkFuture(SUSPENDED) :: Nil)
+      val contents = TestActorRef(new SessionContents[FutSessContents](session) with FuturesContentsManager, "Futures")
+      when("receive new instrument in suspended state")
+      contents ! FutSessContents(100, instrument, InstrumentState.Suspended)
 
-      val instrument = system.actorFor("user/Futures/GMKR-6.12")
-      instrument ! SubscribeTransitionCallBack(self)
-      expectMsg(CurrentState(instrument, InstrumentState.Suspended))
+      then("should create actor for it")
+      val instrumentActor = system.actorFor("user/Futures/GMKR-6.12")
+      instrumentActor ! SubscribeTransitionCallBack(self)
+      expectMsg(CurrentState(instrumentActor, InstrumentState.Suspended))
 
-      // InstrumentActor goes Online
-      contents ! Snapshot(self, gmkFuture(ONLINE) :: Nil)
-      expectMsg(Transition(instrument, InstrumentState.Suspended, InstrumentState.Online))
+      when("Instrument goes online")
+      contents ! FutSessContents(100, instrument, InstrumentState.Online)
+      then("should receive transition event")
+      expectMsg(Transition(instrumentActor, InstrumentState.Suspended, InstrumentState.Online))
 
-      // Session suspended
+      when("session suspended")
       contents ! Transition(session, SessionState.Online, SessionState.Suspended)
-      expectMsg(Transition(instrument, InstrumentState.Online, InstrumentState.Suspended))
+      then("instrument should be suspended too")
+      expectMsg(Transition(instrumentActor, InstrumentState.Online, InstrumentState.Suspended))
 
-      // InstrumentActor goes Assigned and session Online
-      contents ! Snapshot(self, gmkFuture(ASSIGNED) :: Nil)
+      when("instrument goes to Assigned state")
+      contents ! FutSessContents(100, instrument, InstrumentState.Assigned)
+      and("session goes online")
       contents ! Transition(session, SessionState.Suspended, SessionState.Online)
-      expectMsg(Transition(instrument, InstrumentState.Suspended, InstrumentState.Assigned))
+      then("instrument goes to Assigned")
+      expectMsg(Transition(instrumentActor, InstrumentState.Suspended, InstrumentState.Assigned))
     }
 
     "merge session and instrument states" in {
-      val contents = TestActorRef(new SessionContents[FutInfo.fut_sess_contents](onlineSession) with FuturesContentsManager, "Futures")
+      val contents = TestActorRef(new SessionContents[FutSessContents](onlineSession) with FuturesContentsManager, "Futures")
       val underlying = contents.underlyingActor
 
       assert(underlying.merge(SessionState.Canceled, InstrumentState.Online) == InstrumentState.Canceled)
@@ -67,7 +72,6 @@ class FuturesContentsManagerSpec extends TestKit(ActorSystem("FuturesContentsMan
       assert(underlying.merge(SessionState.Online, InstrumentState.Assigned) == InstrumentState.Assigned)
     }
   }
-*/
 
   def onlineSession = {
     val session = TestProbe()
