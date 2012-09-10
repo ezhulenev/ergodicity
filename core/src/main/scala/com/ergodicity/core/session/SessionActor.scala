@@ -8,15 +8,14 @@ import akka.util.Timeout
 import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.scheme.FutInfo
 import scala.Some
-import com.ergodicity.core.{IsinId, Isin}
+import com.ergodicity.core.{SessionId, IsinId, Isin}
 import collection.immutable
 import com.ergodicity.core.SessionsTracking.{OptSessContents, FutSessContents}
 
 
 object Session {
   def from(rec: FutInfo.session) = Session(
-    rec.get_sess_id(),
-    rec.get_opt_sess_id(),
+    SessionId(rec.get_sess_id(), rec.get_opt_sess_id()),
     new Interval(rec.get_begin(), rec.get_end()),
     if (rec.get_eve_on() != 0) Some(new Interval(rec.get_eve_begin(), rec.get_eve_end())) else None,
     if (rec.get_mon_on() != 0) Some(new Interval(rec.get_mon_begin(), rec.get_mon_end())) else None,
@@ -24,7 +23,7 @@ object Session {
   )
 
 }
-case class Session(id: Int, optionsSessionId: Int, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval)
+case class Session(id: SessionId, primarySession: Interval, eveningSession: Option[Interval], morningSession: Option[Interval], positionTransfer: Interval)
 
 object SessionActor {
   implicit val timeout = Timeout(1, TimeUnit.SECONDS)

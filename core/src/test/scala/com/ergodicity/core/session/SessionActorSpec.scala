@@ -54,7 +54,7 @@ class SessionActorSpec extends TestKit(ActorSystem("SessionActorSpec", ConfigWit
 
   "Session" must {
     "be inititliazed in given state and terminate child clearing actor" in {
-      val content = Session(100, 101, primaryInterval, None, None, positionTransferInterval)
+      val content = Session(SessionId(100, 101), primaryInterval, None, None, positionTransferInterval)
       val session = TestFSMRef(SessionActor(content), "Session")
 
       val intClearing = session.underlyingActor.asInstanceOf[SessionActor].intradayClearing
@@ -64,7 +64,7 @@ class SessionActorSpec extends TestKit(ActorSystem("SessionActorSpec", ConfigWit
     }
 
     "apply state and int. clearing updates" in {
-      val content = Session(100, 101, primaryInterval, None, None, positionTransferInterval)
+      val content = Session(SessionId(100, 101), primaryInterval, None, None, positionTransferInterval)
       val session = TestFSMRef(SessionActor(content), "Session")
 
       // Subscribe for clearing transitions
@@ -86,7 +86,7 @@ class SessionActorSpec extends TestKit(ActorSystem("SessionActorSpec", ConfigWit
 
       val instrument = Instrument(FutureContract(id, isin, shortIsin, "Future Contract"), Limits(100, 100))
 
-      val content = Session(100, 101, primaryInterval, None, None, positionTransferInterval)
+      val content = Session(SessionId(100, 101), primaryInterval, None, None, positionTransferInterval)
       val session = TestActorRef(new SessionActor(content), "Session2")
 
       when("session received new instrument")
@@ -106,7 +106,7 @@ class SessionActorSpec extends TestKit(ActorSystem("SessionActorSpec", ConfigWit
       val future = Instrument(FutureContract(IsinId(166911), Isin("GMKR-6.12"), ShortIsin("GMM2"), "Future Contract"), Limits(100, 100))
       val option = Instrument(OptionContract(IsinId(160734), Isin("RTS-6.12M150612PA 175000"), ShortIsin("RI175000BR2"), "Option Contract"), Limits(100, 100))
 
-      val session = Session(100, 101, primaryInterval, None, None, positionTransferInterval)
+      val session = Session(SessionId(100, 101), primaryInterval, None, None, positionTransferInterval)
       val sessionActor = TestActorRef(new SessionActor(session), "Session2")
 
       given("session with assigned instruments")
@@ -127,7 +127,7 @@ class SessionActorSpec extends TestKit(ActorSystem("SessionActorSpec", ConfigWit
       val future = Instrument(FutureContract(IsinId(166911), Isin("GMKR-6.12"), ShortIsin("GMM2"), "Future Contract"), Limits(100, 100))
       val option = Instrument(OptionContract(IsinId(160734), Isin("RTS-6.12M150612PA 175000"), ShortIsin("RI175000BR2"), "Option Contract"), Limits(100, 100))
 
-      val session = Session(100, 101, primaryInterval, None, None, positionTransferInterval)
+      val session = Session(SessionId(100, 101), primaryInterval, None, None, positionTransferInterval)
       val sessionActor = TestActorRef(new SessionActor(session), "Session2")
 
       sessionActor ! FutSessContents(100, future, InstrumentState.Assigned)

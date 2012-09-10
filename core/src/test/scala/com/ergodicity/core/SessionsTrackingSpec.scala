@@ -1,153 +1,58 @@
 package com.ergodicity.core
 
-import akka.actor.ActorSystem
+import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack}
+import akka.actor.{Terminated, ActorSystem}
+import akka.dispatch.Await
 import akka.event.Logging
-import akka.testkit.{TestActorRef, TestProbe, ImplicitSender, TestKit}
-import com.ergodicity.cgate.scheme.FutInfo
-import com.ergodicity.core.SessionsTracking.FutSessContents
-import com.ergodicity.core.SessionsTracking.OptSessContents
-import com.ergodicity.core.SessionsTracking.SessionEvent
+import akka.pattern.ask
+import akka.testkit._
+import akka.util.Timeout
+import akka.util.duration._
+import com.ergodicity.cgate.SysEvent.SessionDataReady
+import com.ergodicity.core.SessionsTracking._
+import com.ergodicity.core.session.Instrument.Limits
+import com.ergodicity.core.session.SessionActor.{AssignedInstruments, GetAssignedInstruments}
 import com.ergodicity.core.session._
-import java.nio.ByteBuffer
+import org.joda.time.DateTime
 import org.mockito.Mockito._
 import org.scalatest.{BeforeAndAfterAll, GivenWhenThen, WordSpec}
+import scala.Some
 
 class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll {
   val log = Logging(system, self)
 
-  val OptionSessionId = 3547
+  implicit val timeout = Timeout(1.second)
 
   override def afterAll() {
     system.shutdown()
   }
 
-/*  private def underlyingSessions(ref: TestFSMRef[SessionsTrackingState, StreamStates, SessionsTracking]) = {
-    val underlying = ref.underlyingActor.asInstanceOf[SessionsTracking]
+  val futureInstrument = {
+    val id = IsinId(166911)
+    val isin = Isin("GMKR-6.12")
+    val shortIsin = ShortIsin("GMM2")
 
-    // Kill all repositories to prevent Snapshot's from Empty state
-    underlying.SessionRepository ! Kill
-    underlying.FutSessContentsRepository ! Kill
-    underlying.OptSessContentsRepository ! Kill
-
-    // Let them die
-    Thread.sleep(100)
-
-    underlying
+    Instrument(FutureContract(id, isin, shortIsin, "Future Contract"), Limits(100, 100))
   }
 
-  private def sessionDataReady(id: Int) = {
-    val buff = ByteBuffer.allocate(100)
-    val event = new FutInfo.sys_events(buff)
-    event.set_event_type(1)
-    event.set_sess_id(id)
-    StreamData(FutInfo.sys_events.TABLE_INDEX, event.getData)
-  }*/
+  val optionInstrument = {
+    val id = IsinId(160734)
+    val isin = Isin("RTS-6.12M150612PA 175000")
+    val shortIsin = ShortIsin("RI175000BR2")
+
+    Instrument(OptionContract(id, isin, shortIsin, "Option Contract"), Limits(100, 100))
+  }
+
+  def session(id: SessionId) = {
+    import org.scala_tools.time.Implicits._
+    val now = new DateTime()
+    Session(id, now to now, None, None, now to now)
+  }
+
+  val id1 = SessionId(100, 200)
+  val id2 = SessionId(101, 201)
 
   "SessionsTracking" must {
-
-/*    "track sessions state" in {
-      val FutInfoDS = TestFSMRef(new DataStream(), "FutInfoDS")
-      val OptInfoDS = TestFSMRef(new DataStream(), "OptInfoDS")
-
-      val sessions = TestFSMRef(new SessionsTracking(FutInfoDS, OptInfoDS), "SessionsTracking")
-      val underlying = underlyingSessions(sessions)
-
-      val sessionRepository = underlying.SessionRepository
-
-      then("should initialized in Binded state")
-      assert(sessions.stateName == SessionsTrackingState.Binded)
-
-      when("both data Streams goes online")
-      sessions ! Transition(FutInfoDS, DataStreamState.Opened, DataStreamState.Online)
-      sessions ! Transition(OptInfoDS, DataStreamState.Opened, DataStreamState.Online)
-
-      then("should go to Online state")
-      assert(sessions.stateName == SessionsTrackingState.Online)
-
-      when("subscribe for ongoing sessions")
-      sessions ! SubscribeOngoingSessions(self)
-
-      then("should be returned None")
-      expectMsg(OngoingSession(None))
-
-      when("receive SessionDataReady")
-      underlying.futInfoSysEventsDispatcher ! sessionDataReady(4021)
-      Thread.sleep(100)
-
-      then("should ask for Sessions snapshot")
-      // can't check it as SessionRepository unavailable for mocking
-
-      when("receive Sessions snapthot with Online session")
-      sessions ! UpdateOngoingSessions(Snapshot(sessionRepository, Seq(sessionRecord(46, 396, 4021, SessionState.Online))))
-
-      then("should create actor for it")
-      val session1 = underlying.trackingSessions(SessionId(4021, OptionSessionId))
-      assert(underlying.trackingSessions.size == 1)
-
-      and("should be notified about ongoing session update")
-      assert(underlying.ongoingSession == Some((SessionId(4021, OptionSessionId), session1)))
-      expectMsg(OngoingSessionTransition(None, Some((SessionId(4021, OptionSessionId), session1))))
-
-      and("it's state should be Online")
-      watch(session1)
-      session1 ! SubscribeTransitionCallBack(self)
-      expectMsg(CurrentState(session1, SessionState.Online))
-
-      when("session completed")
-      sessions ! Snapshot(sessionRepository, Seq(sessionRecord(46, 397, 4021, SessionState.Completed)))
-
-      then("session actor should transite from Online to Copmpleted state")
-      expectMsg(Transition(session1, SessionState.Online, SessionState.Completed))
-
-      when("revision changed for same record")
-      sessions ! Snapshot(sessionRepository, Seq(sessionRecord(46, 398, 4021, SessionState.Completed)))
-
-      then("should remain in the same state")
-      assert(underlying.ongoingSession == Some((SessionId(4021, OptionSessionId), session1)))
-
-      when("new session data is ready")
-      underlying.futInfoSysEventsDispatcher ! sessionDataReady(4022)
-      Thread.sleep(100)
-
-      then("should ask for Sessions snapshot")
-      // can't check it as SessionRepository unavailable for mocking
-
-      when("receive new sessions snapshot")
-      sessions ! UpdateOngoingSessions(Snapshot(sessionRepository, sessionRecord(46, 398, 4021, SessionState.Completed) :: sessionRecord(47, 399, 4022, SessionState.Assigned) :: Nil))
-
-      then("new actor should be created")
-      val session2 = underlying.trackingSessions(SessionId(4022, OptionSessionId))
-
-      and("notified about ongoing session transition")
-      assert(underlying.ongoingSession == Some((SessionId(4022, OptionSessionId), session2)))
-      expectMsg(OngoingSessionTransition(Some((SessionId(4021, OptionSessionId), session1)), Some((SessionId(4022, OptionSessionId), session2))))
-
-      and("new session should be in Assigned state")
-      watch(session2)
-      session2 ! SubscribeTransitionCallBack(self)
-      expectMsg(CurrentState(session2, SessionState.Assigned))
-
-      assert(underlying.trackingSessions.size == 2)
-
-      when("one more session data is ready")
-      underlying.futInfoSysEventsDispatcher ! sessionDataReady(4023)
-      Thread.sleep(100)
-
-      then("should ask for Sessions snapshot")
-      // can't check it as SessionRepository unavailable for mocking
-
-      when("first session removed from snapshot, and third one is Assigned")
-      sessions ! UpdateOngoingSessions(Snapshot(sessionRepository, Seq(sessionRecord(47, 400, 4022, SessionState.Online), sessionRecord(48, 400, 4023, SessionState.Assigned))))
-      sessions ! Snapshot(sessionRepository, Seq(sessionRecord(47, 400, 4022, SessionState.Online), sessionRecord(48, 400, 4023, SessionState.Assigned)))
-
-      then("first actor should be termindated, and new one for third session created")
-      expectMsgAllOf(Terminated(session1), Transition(session2, SessionState.Assigned, SessionState.Online))
-
-      assert(underlying.ongoingSession == Some((SessionId(4022, OptionSessionId), session2)))
-      assert(underlying.trackingSessions.size == 2)
-
-      expectNoMsg(300.millis)
-    }*/
 
     "forward session state to session actor" in {
       val futInfo = TestProbe()
@@ -190,22 +95,90 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
 
       expectMsg(contents)
     }
+
+    "track sessions" in {
+      val futInfo = TestProbe()
+      val optInfo = TestProbe()
+
+      val sessions = TestFSMRef(new SessionsTracking(futInfo.ref, optInfo.ref), "SessionsTracking")
+      val underlying = sessions.underlyingActor.asInstanceOf[SessionsTracking]
+
+      then("should initialized in Tracking state")
+      assert(sessions.stateName == SessionsTrackingState.TrackingSessions)
+
+      when("subscribe for ongoing sessions")
+      sessions ! SubscribeOngoingSessions(self)
+
+      then("should be returned None")
+      expectMsg(OngoingSession(None))
+
+      // Session #1 lifecycle
+
+      when("receive contents for nonexistent session")
+      sessions ! FutSessContents(id1.id, futureInstrument, InstrumentState.Assigned)
+      sessions ! OptSessContents(id1.optionSessionId, optionInstrument)
+
+      then("should postpone them")
+
+      when("receive session event for nonexisten session")
+      sessions ! SessionEvent(id1, session(id1), SessionState.Assigned, IntradayClearingState.Oncoming)
+
+      then("should postpone it too")
+
+      when("receive SysEvents for both Futures and Options")
+      sessions ! FutSysEvent(SessionDataReady(0, 99)) // junk event
+      sessions ! FutSysEvent(SessionDataReady(1, id1.id))
+      sessions ! OptSysEvent(SessionDataReady(1, id1.optionSessionId))
+
+      then("should consume previously postponed events")
+
+      Thread.sleep(100)
+
+      and("create actor for session")
+      val sessionActor1 = underlying.sessions(id1)
+      assert(underlying.sessions.size == 1)
+
+      and("should be notified about ongoing session update")
+      assert(underlying.ongoingSession == Some((id1, sessionActor1)))
+      expectMsg(OngoingSessionTransition(None, Some((id1, sessionActor1))))
+
+      and("session's state should be Assigned")
+      watch(sessionActor1)
+      sessionActor1 ! SubscribeTransitionCallBack(self)
+      expectMsg(CurrentState(sessionActor1, SessionState.Assigned))
+
+      and("it should contain AssignedInstruments")
+      val assigned = Await.result((sessionActor1 ? GetAssignedInstruments).mapTo[AssignedInstruments], 1.second)
+      log.info("Assigned instruments = " + assigned)
+      assert(assigned.instruments.size == 2)
+
+      // Session #2 lifecycle
+
+      when("receive session events for nex session")
+      sessions ! SessionEvent(id2, session(id2), SessionState.Assigned, IntradayClearingState.Oncoming)
+      sessions ! FutSessContents(id2.id, futureInstrument, InstrumentState.Assigned)
+      sessions ! OptSessContents(id2.optionSessionId, optionInstrument)
+
+      then("should postpone them all")
+
+      when("new session is ready")
+      sessions ! FutSysEvent(SessionDataReady(2, id2.id))
+      sessions ! OptSysEvent(SessionDataReady(2, id2.optionSessionId))
+
+      then("should create actor for new session")
+      val sessionActor2 = underlying.sessions(id2)
+      assert(underlying.sessions.size == 2)
+
+      and("should change ongoing session to new one")
+      assert(underlying.ongoingSession == Some((id2, sessionActor2)))
+      expectMsg(OngoingSessionTransition(Some((id1, sessionActor1)), Some((id2, sessionActor2))))
+
+      when("asked to drop session")
+      sessions ! DropSession(id1)
+
+      then("session actor should be terminated")
+      expectMsg(Terminated(sessionActor1))
+    }
   }
 
-  def sessionRecord(replID: Long, revId: Long, sessionId: Int, sessionState: SessionState) = {
-    val buffer = ByteBuffer.allocate(1000)
-
-    val stateValue = SessionState.decode(sessionState)
-
-    val session = new FutInfo.session(buffer)
-    session.set_replID(replID)
-    session.set_replRev(revId)
-    session.set_replAct(0)
-    session.set_sess_id(sessionId)
-    session.set_begin(0l)
-    session.set_end(0l)
-    session.set_opt_sess_id(OptionSessionId)
-    session.set_state(stateValue)
-    session
-  }
 }

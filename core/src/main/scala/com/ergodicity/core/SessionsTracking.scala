@@ -95,7 +95,7 @@ object SessionsTrackingState {
 
 }
 
-class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor with FSM[SessionsTrackingState, (SystemEvents, PendingEvents)] {
+class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor with LoggingFSM[SessionsTrackingState, (SystemEvents, PendingEvents)] {
 
   import SessionsTracking._
 
@@ -128,7 +128,7 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
       val (sessionEvents, futContents, optContents) = pending.consume(SessionId(futSessionId, optSessionId))
 
       for (sessionEvent <- sessionEvents) {
-        val sessionActor = sessions.getOrElseUpdate(sessionId, context.actorOf(Props(new SessionActor(sessionEvent.session)), sessionId.toString))
+        val sessionActor = sessions.getOrElseUpdate(sessionId, context.actorOf(Props(new SessionActor(sessionEvent.session)), sessionId.id.toString))
         sessionActor ! sessionEvent.state
         sessionActor ! sessionEvent.intradayClearingState
       }
