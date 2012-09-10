@@ -9,7 +9,6 @@ import akka.pattern.ask
 import akka.util.duration._
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.StreamEvent.{ReplState, ClearDeleted, LifeNumChanged, StreamData}
-import akka.dispatch.Await
 import akka.util.Timeout
 import com.ergodicity.cgate.DataStream._
 
@@ -22,39 +21,17 @@ class DataStreamSpec extends TestKit(ActorSystem("DataStreamSpec", AkkaConfigura
     system.shutdown()
   }
 
-/*
   "DataStream" must {
     "initialized in Closed state" in {
       val dataStream = TestFSMRef(new DataStream, "DataStream")
       assert(dataStream.stateName == DataStreamState.Closed)
     }
 
-    "bind tables" in {
+    "subscribe events" in {
       val dataStream = TestFSMRef(new DataStream, "DataStream")
-      dataStream ? BindTable(0, self)
-      dataStream ? BindTable(1, self)
-      dataStream ? BindTable(1, self)
+      dataStream ! SubscribeStreamEvents(self)
 
-      assert(dataStream.stateData.size == 2)
-      assert(dataStream.stateData(0).size == 1)
-      assert(dataStream.stateData(1).size == 2)
-    }
-
-    "binding succeed in Closed state" in {
-      val dataStream = TestFSMRef(new DataStream, "DataStream")
-      val resp = (dataStream ? BindTable(0, self)).mapTo[BindingResult]
-      val res = Await.result(resp, 1.second)
-
-      assert(res == BindingSucceed(dataStream, 0))
-    }
-
-    "binding failed in Closed state" in {
-      val dataStream = TestFSMRef(new DataStream, "DataStream")
-      dataStream.setState(DataStreamState.Opened)
-      val resp = (dataStream ? BindTable(0, self)).mapTo[BindingResult]
-      val res = Await.result(resp, 1.second)
-
-      assert(res == BindingFailed(dataStream, 0))
+      assert(dataStream.stateData.set.size == 1)
     }
 
     "follow Closed -> Opened -> Online -> Closed states" in {
@@ -73,7 +50,7 @@ class DataStreamSpec extends TestKit(ActorSystem("DataStreamSpec", AkkaConfigura
 
     "forward stream events" in {
       val dataStream = TestFSMRef(new DataStream, "DataStream")
-      dataStream ? BindTable(0, self)
+      dataStream ? SubscribeStreamEvents(self)
 
       dataStream ! StreamEvent.Open
 
@@ -98,7 +75,7 @@ class DataStreamSpec extends TestKit(ActorSystem("DataStreamSpec", AkkaConfigura
     
     "forward stream data" in {
       val dataStream = TestFSMRef(new DataStream, "DataStream")
-      dataStream ? BindTable(0, self)
+      dataStream ? SubscribeStreamEvents(self)
 
       dataStream ! StreamEvent.Open
       
@@ -108,23 +85,24 @@ class DataStreamSpec extends TestKit(ActorSystem("DataStreamSpec", AkkaConfigura
       dataStream ! StreamData(1, buffer2)
 
       expectMsg(StreamData(0, buffer1))
+      expectMsg(StreamData(1, buffer2))
 
       dataStream ! ClearDeleted(0, 100)
       dataStream ! ClearDeleted(1, 101)
 
       expectMsg(ClearDeleted(0, 100))
+      expectMsg(ClearDeleted(1, 101))
     }
 
     "subscribe repl states" in {
       val dataStream = TestFSMRef(new DataStream, "DataStream")
-      dataStream ! SubscribeReplState(self)
+      dataStream ! SubscribeCloseEvent(self)
 
       dataStream ! StreamEvent.Open
 
       dataStream ! ReplState("ebaka")
 
-      expectMsg(DataStreamClosed(dataStream, "ebaka"))
+      expectMsg(DataStreamClosed(dataStream, ReplState("ebaka")))
     }
   }
-*/
 }

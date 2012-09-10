@@ -18,8 +18,7 @@ import java.nio.ByteBuffer
 import com.ergodicity.capture.MarketDbCapture.ConvertToMarketDb
 import com.ergodicity.cgate.scheme.OrdLog.orders_log
 import com.ergodicity.cgate.Reads
-import akka.testkit.{TestProbe, TestFSMRef, ImplicitSender, TestKit}
-import com.ergodicity.cgate.DataStream.BindTable
+import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 
 class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketDbCaptureSpec])
@@ -52,13 +51,7 @@ class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) wi
         .thenReturn(new Promise[Throwable]())
 
       lazy val ordersBuncher = new OrdersBuncher(client, "Orders")
-      val tableIndex = 0
-      val dataStream = TestProbe()
-      val capture = TestFSMRef(new MarketDbCapture[OrdLog.orders_log, OrderPayload](tableIndex, dataStream.ref)(ordersBuncher), "MarketDbCapture")
-
-      // Expect binding to data stream
-      Thread.sleep(100)
-      dataStream.expectMsg(BindTable(0, capture))
+      val capture = TestFSMRef(new MarketDbCapture[OrdLog.orders_log, OrderPayload](ordersBuncher), "MarketDbCapture")
 
       val record = orderRecord(100)
 

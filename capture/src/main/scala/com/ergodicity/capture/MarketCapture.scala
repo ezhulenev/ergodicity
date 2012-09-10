@@ -27,7 +27,6 @@ import com.ergodicity.cgate.scheme._
 import ru.micexrts.cgate.{CGateException, Listener => CGListener, Connection => CGConnection}
 import java.util.concurrent.TimeUnit
 
-
 case class MarketCaptureException(msg: String) extends RuntimeException(msg)
 
 object MarketCapture {
@@ -177,10 +176,15 @@ class MarketCapture(val replication: ReplicationScheme,
   lazy val futureDealsBuncher = new TradesBuncher(client, kestrel.tradesQueue)
   lazy val optionDealsBuncher = new TradesBuncher(client, kestrel.tradesQueue)
 
+  import com.ergodicity.cgate.Protocol._
+  val orderCapture = context.actorOf(Props(new MarketDbCapture[OrdLog.orders_log, OrderPayload](ordersBuncher)), "OrdersCapture")
+  val futuresCapture = context.actorOf(Props(new MarketDbCapture[FutTrade.deal, TradePayload](futureDealsBuncher)), "FuturesCapture")
+  val optionsCapture = context.actorOf(Props(new MarketDbCapture[OptTrade.deal, TradePayload](optionDealsBuncher)), "OptionsCapture")
 
-  val orderCapture = context.actorOf(Props(new MarketDbCapture[OrdLog.orders_log, OrderPayload](OrdLog.orders_log.TABLE_INDEX, OrdLogStream)(ordersBuncher)), "OrdersCapture")
-  val futuresCapture = context.actorOf(Props(new MarketDbCapture[FutTrade.deal, TradePayload](FutTrade.deal.TABLE_INDEX, FutTradeStream)(futureDealsBuncher)), "FuturesCapture")
-  val optionsCapture = context.actorOf(Props(new MarketDbCapture[OptTrade.deal, TradePayload](OptTrade.deal.TABLE_INDEX, OptTradeStream)(optionDealsBuncher)), "OptionsCapture")
+  // Route streams to capture actors
+  val orderRouter = context.actorOf(Props(new Router(OrdLogStream, Route(orderCapture).table(OrdLog.orders_log.TABLE_INDEX) :: Nil)), "OrdersRouter")
+  val futuresRouter = context.actorOf(Props(new Router(FutTradeStream, Route(futuresCapture).table(FutTrade.deal.TABLE_INDEX) :: Nil)), "FuturesRouter")
+  val optionsRouter = context.actorOf(Props(new Router(OptTradeStream, Route(optionsCapture).table(OptTrade.deal.TABLE_INDEX) :: Nil)), "OptionsRouter")
 
   // Market Contents capture
   val marketContentsCapture = context.actorOf(Props(new MarketContentsCapture(FutInfoStream, OptInfoStream, repository)), "MarketContentsCapture")

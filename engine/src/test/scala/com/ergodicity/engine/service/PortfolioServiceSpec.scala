@@ -26,6 +26,7 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
     def apply(connection: CGConnection, config: String, subscriber: ISubscriber) = mock(classOf[CGListener])
   }
 
+/*
   "Portfolio Service" must {
     "start service" in {
       val underlyingConnection = mock(classOf[CGConnection])
@@ -74,4 +75,5 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
       verify(services).serviceStopped
     }
   }
+*/
 }

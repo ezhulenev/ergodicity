@@ -4,7 +4,6 @@ import akka.actor.{Props, FSM, Actor, ActorRef}
 import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack, Transition}
 import com.ergodicity.core.Security
 import com.ergodicity.cgate.scheme._
-import com.ergodicity.capture.Repository
 import com.ergodicity.cgate.DataStreamState
 import com.ergodicity.cgate.Protocol._
 import com.ergodicity.capture.ReplicaExtractor._
@@ -57,6 +56,14 @@ class MarketContentsCapture(FutInfoStream: ActorRef, OptInfoStream: ActorRef,
 
   val OptSessContentsRepository = context.actorOf(Props(Repository[OptInfo.opt_sess_contents]), "OptSessContentsRepository")
   OptSessContentsRepository ! SubscribeSnapshots(self)
+
+  // Route stream events to repositories
+  val futuresRouter = context.actorOf(Props(new Router(FutInfoStream, Route(FutSessContentsRepository).table(FutInfo.fut_sess_contents.TABLE_INDEX) :: Nil)))
+  val optionsRouter = context.actorOf(Props(new Router(OptInfoStream, Route(OptSessContentsRepository).table(OptInfo.opt_sess_contents.TABLE_INDEX) :: Nil)))
+
+  // Track their states
+  FutInfoStream ! SubscribeTransitionCallBack(self)
+  OptInfoStream ! SubscribeTransitionCallBack(self)
 
   // Initialize
   startWith(Initializing, StreamStates(None, None))
@@ -114,14 +121,6 @@ class MarketContentsCapture(FutInfoStream: ActorRef, OptInfoStream: ActorRef,
   }
 
   initialize
-
-  // Bind to DataStreams
-  FutInfoStream ! BindTable(FutInfo.fut_sess_contents.TABLE_INDEX, FutSessContentsRepository)
-  OptInfoStream ! BindTable(OptInfo.opt_sess_contents.TABLE_INDEX, OptSessContentsRepository)
-
-  // Track their states
-  FutInfoStream ! SubscribeTransitionCallBack(self)
-  OptInfoStream ! SubscribeTransitionCallBack(self)
 
   protected def handleStreamState(state: StreamStates): State = {
     (state.futures <**> state.options) {

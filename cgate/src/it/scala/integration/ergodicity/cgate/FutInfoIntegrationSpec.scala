@@ -4,7 +4,7 @@ import java.io.File
 import integration._
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import akka.actor.{ActorLogging, Actor, Props, ActorSystem}
+import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.util.duration._
 import com.ergodicity.cgate.Connection.StartMessageProcessing
@@ -12,14 +12,16 @@ import com.ergodicity.cgate._
 import config.{Replication, CGateConfig}
 import scheme.FutInfo
 import com.ergodicity.cgate.config.Replication._
-import akka.testkit.{ImplicitSender, TestKit}
+import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import akka.event.Logging
 import java.util.concurrent.TimeUnit
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
 import java.util.Date
+import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
+import com.ergodicity.cgate.StreamEvent.StreamData
 
 
-class InfoIntegrationSpec extends TestKit(ActorSystem("InfoIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class FutInfoIntegrationSpec extends TestKit(ActorSystem("FutInfoIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   val Host = "localhost"
@@ -95,9 +97,8 @@ class InfoIntegrationSpec extends TestKit(ActorSystem("InfoIntegrationSpec", Con
   }
 
 
-/*
   "FutInfo DataStream" must {
-    "load contents to Reportitory" in {
+    "load events" in {
       val underlyingConnection = new CGConnection(RouterConnection())
 
       val connection = system.actorOf(Props(new Connection(underlyingConnection)), "Connection")
@@ -109,62 +110,35 @@ class InfoIntegrationSpec extends TestKit(ActorSystem("InfoIntegrationSpec", Con
       val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(FutInfoDataStream))
       val listener = system.actorOf(Props(new Listener(underlyingListener)), "Listener")
 
-      // Repository
-      val sessionsRepository = system.actorOf(Props(Repository[FutInfo.session]), "SessionsRepository")
-      FutInfoDataStream ! BindTable(FutInfo.session.TABLE_INDEX, sessionsRepository)
+      FutInfoDataStream ! SubscribeStreamEvents(TestActorRef(new StreamDataThrottler(10) {
+        override def handleData(data: StreamData) {
+          import com.ergodicity.cgate.Protocol._
+          data match {
+            case StreamData(FutInfo.session.TABLE_INDEX, bytes) =>
+              val rec = implicitly[Reads[FutInfo.session]] apply bytes
+              log.info("SessionRecord; Session id = " + rec.get_sess_id() +
+                ", option session id = " + rec.get_opt_sess_id() +
+                ", state = " + SessionState(rec.get_state()) +
+                ", begin = " + new Date(rec.get_begin()) +
+                ", end = " + new Date(rec.get_end()))
 
-      val futuresRepository = system.actorOf(Props(Repository[FutInfo.fut_sess_contents]), "FuturesRepository")
-      FutInfoDataStream ! BindTable(FutInfo.fut_sess_contents.TABLE_INDEX, futuresRepository)
+            case StreamData(FutInfo.fut_sess_contents.TABLE_INDEX, bytes) =>
+              val rec = implicitly[Reads[FutInfo.fut_sess_contents]] apply bytes
+              log.info("ContentsRecord; Future isin = " + rec.get_isin() +
+                ", isin id = " + rec.get_isin_id() +
+                ", name = " + rec.get_name() +
+                ", session = " + rec.get_sess_id() +
+                ", state = " + InstrumentState(rec.get_state()))
 
-      val sysEventsRepository = system.actorOf(Props(Repository[FutInfo.sys_events]), "SysEventsRepository")
-      FutInfoDataStream ! BindTable(FutInfo.sys_events.TABLE_INDEX, sysEventsRepository)
-
-      val sysEventsDispatcher = system.actorOf(Props(new SysEventDispatcher[FutInfo.sys_events]), "SysEventsDispatcher")
-      FutInfoDataStream ! BindTable(FutInfo.sys_events.TABLE_INDEX, sysEventsDispatcher)
-
-      // Handle repository data
-      sessionsRepository ! SubscribeSnapshots(system.actorOf(Props(new Actor {
-        protected def receive = {
-          case snapshot: Snapshot[FutInfo.session] =>
-            log.info("Got Sessions snapshot, size = " + snapshot.data.size)
-            snapshot.data foreach {
-              rec =>
-                log.info("SessionRecord; Session id = " + rec.get_sess_id() +
-                  ", option session id = " + rec.get_opt_sess_id() +
-                  ", state = " + SessionState(rec.get_state()) +
-                  ", begin = " + new Date(rec.get_begin()) +
-                  ", end = " + new Date(rec.get_end()))
-            }
+            case StreamData(FutInfo.sys_events.TABLE_INDEX, bytes) =>
+              val rec = implicitly[Reads[FutInfo.sys_events]] apply bytes
+              log.info("SysEvent; Event id = " + rec.get_event_id() +
+                ", type = " + rec.get_event_type() +
+                ", message = " + rec.get_message() +
+                ", session = " + rec.get_sess_id())
+          }
         }
-      })))
-
-      futuresRepository ! SubscribeSnapshots(system.actorOf(Props(new Actor {
-        protected def receive = {
-          case snapshot: Snapshot[FutInfo.fut_sess_contents] =>
-            log.info("Got Futures Contents snapshot, size = " + snapshot.data.size)
-            snapshot.data.take(10) foreach {
-              rec =>
-                log.info("ContentsRecord; Future isin = " + rec.get_isin() + ", isin id = " + rec.get_isin_id() + ", name = " + rec.get_name() + ", session = " + rec.get_sess_id() + ", state = " + InstrumentState(rec.get_state()))
-            }
-        }
-      })))
-
-      sysEventsRepository ! SubscribeSnapshots(system.actorOf(Props(new Actor {
-        protected def receive = {
-          case snapshot: Snapshot[FutInfo.sys_events] =>
-            log.info("Got SysEvents Contents snapshot, size = " + snapshot.data.size)
-            snapshot.data foreach {
-              rec =>
-                log.info("SysEvent; Event id = " + rec.get_event_id() + ", type = " + rec.get_event_type() + ", message = " + rec.get_message() + ", session = " + rec.get_sess_id())
-            }
-        }
-      })))
-
-      sysEventsDispatcher ! SubscribeSysEvents(system.actorOf(Props(new Actor with ActorLogging {
-        protected def receive = {
-          case e => log.info("SysEvent = " + e)
-        }
-      })))
+      }))
 
       // On connection Activated open listeners etc
       connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
@@ -184,7 +158,6 @@ class InfoIntegrationSpec extends TestKit(ActorSystem("InfoIntegrationSpec", Con
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
   }
-*/
 
 
 }

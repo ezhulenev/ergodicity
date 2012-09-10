@@ -14,7 +14,7 @@ import java.nio.ByteBuffer
 import com.ergodicity.cgate.scheme.FutInfo
 import com.ergodicity.capture.Mocking._
 import com.mongodb.casbah.Imports._
-import com.ergodicity.cgate.repository.Repository.Snapshot
+import com.ergodicity.capture.Repository.Snapshot
 
 class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketContentsCaptureSpec])

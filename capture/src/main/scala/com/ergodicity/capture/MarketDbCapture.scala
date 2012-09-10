@@ -11,7 +11,6 @@ import com.twitter.util.Future
 import com.twitter.concurrent.{Tx, Offer}
 import com.ergodicity.capture.MarketDbCapture.ConvertToMarketDb
 import akka.actor._
-import com.ergodicity.cgate.DataStream.BindTable
 import scalaz.Validation
 
 sealed trait MarketDbCaptureState
@@ -33,18 +32,15 @@ object MarketDbCapture {
 
 }
 
-class MarketDbCapture[T, M](tableIndex: Int, dataStream: ActorRef)(marketDbBuncher: => MarketDbBuncher[M])
+class MarketDbCapture[T, M](marketDbBuncher: => MarketDbBuncher[M])
                            (implicit read: com.ergodicity.cgate.Reads[T], converts: ConvertToMarketDb[T, M]) extends Actor with FSM[MarketDbCaptureState, Unit] {
 
   import com.ergodicity.cgate.StreamEvent._
 
   val marketBuncher = context.actorOf(Props(marketDbBuncher), "KestrelBuncher")
 
-  // Watch child bunchers
+  // Watch child buncher
   context.watch(marketBuncher)
-
-  // Bind Data Stream
-  dataStream ! BindTable(tableIndex, self)
 
   startWith(MarketDbCaptureState.Idle, ())
 

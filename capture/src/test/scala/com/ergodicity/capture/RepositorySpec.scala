@@ -8,7 +8,6 @@ import com.ergodicity.cgate.Protocol._
 import java.nio.ByteBuffer
 import akka.util.duration._
 import com.ergodicity.cgate.StreamEvent._
-import com.ergodicity.cgate.AkkaConfigurations
 import com.ergodicity.cgate.scheme.FutInfo
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.StreamEvent.LifeNumChanged
@@ -17,10 +16,6 @@ import com.ergodicity.capture.Repository.{GetSnapshot, Snapshot, SubscribeSnapsh
 
 class RepositorySpec extends TestKit(ActorSystem("RepositorySpec", AkkaConfigurations.ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = Logging(system, self)
-
-  val Host = "host"
-  val Port = 4001
-  val AppName = "ConnectionSpec"
 
   override def afterAll() {
     system.shutdown()

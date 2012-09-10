@@ -52,11 +52,11 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
   val underlyingPosListener = listener(underlyingConnection, posReplication(), new DataStreamSubscriber(PosStream))
   val posListener = context.actorOf(Props(new Listener(underlyingPosListener)), "PosListener")
 
-  protected def receive = start orElse stop orElse handlePositionsGoesOnline orElse handleSessions orElse whenUnhandled
+  protected def receive = start orElse stop /*orElse handlePositionsGoesOnline*/ orElse handleSessions orElse whenUnhandled
 
   private def handleSessions: Receive = {
     case OngoingSession(Some((_, ref))) =>
-     (ref ? GetAssignedInstruments).mapTo[AssignedInstruments] pipeTo Positions
+      (ref ? GetAssignedInstruments).mapTo[AssignedInstruments] pipeTo Positions
 
     case OngoingSessionTransition(_, Some((_, ref))) =>
       (ref ? GetAssignedInstruments).mapTo[AssignedInstruments] pipeTo Positions
@@ -69,6 +69,7 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
       Positions ! SubscribeTransitionCallBack(self)
   }
 
+/*
   private def handlePositionsGoesOnline: Receive = {
     case CurrentState(Positions, PositionsTrackingState.Online) =>
       Positions ! UnsubscribeTransitionCallBack(self)
@@ -78,6 +79,7 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
       Positions ! UnsubscribeTransitionCallBack(self)
       serviceStarted
   }
+*/
 
   private def stop: Receive = {
     case Stop =>

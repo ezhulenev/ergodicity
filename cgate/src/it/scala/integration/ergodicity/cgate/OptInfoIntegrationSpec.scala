@@ -16,6 +16,8 @@ import akka.testkit.{TestActorRef, TestFSMRef, ImplicitSender, TestKit}
 import akka.event.Logging
 import java.util.concurrent.TimeUnit
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
+import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
+import com.ergodicity.cgate.StreamEvent.StreamData
 
 
 class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -37,9 +39,8 @@ class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec
     CGate.close()
   }
 
-/*
   "OptInfo DataStream" must {
-    "load contents to Reportitory" in {
+    "load events" in {
       val underlyingConnection = new CGConnection(RouterConnection())
 
       val connection = TestFSMRef(new Connection(underlyingConnection), "Connection")
@@ -51,20 +52,27 @@ class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec
       val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(OptInfoDataStream))
       val listener = TestFSMRef(new Listener(underlyingListener), "Listener")
 
-      val optionsRepository = TestFSMRef(Repository[OptInfo.opt_sess_contents], "OptionsRepository")
-      OptInfoDataStream ! BindTable(OptInfo.opt_sess_contents.TABLE_INDEX, optionsRepository)
+      OptInfoDataStream ! SubscribeStreamEvents(TestActorRef(new StreamDataThrottler(10) {
+        override def handleData(data: StreamData) {
+          import com.ergodicity.cgate.Protocol._
+          data match {
+            case StreamData(OptInfo.opt_sess_contents.TABLE_INDEX, bytes) =>
+              val rec = implicitly[Reads[OptInfo.opt_sess_contents]] apply bytes
+              log.info("ContentsRecord; Option isin = " + rec.get_isin() +
+                ", isin id = " + rec.get_isin_id() +
+                ", name = " + rec.get_name() +
+                ", session = " + rec.get_sess_id())
 
-      // Handle repository data
-      optionsRepository ! SubscribeSnapshots(TestActorRef(new Actor {
-        protected def receive = {
-          case snapshot: Snapshot[OptInfo.opt_sess_contents] =>
-            log.info("Got Options Contents snapshot, size = " + snapshot.data.size)
-            snapshot.data foreach {
-              rec =>
-                log.info("ContentsRecord; Option isin = " + rec.get_isin() + ", isin id = " + rec.get_isin_id() + ", name = " + rec.get_name() + ", session = " + rec.get_sess_id())
-            }
+            case StreamData(OptInfo.sys_events.TABLE_INDEX, bytes) =>
+              val rec = implicitly[Reads[OptInfo.sys_events]] apply bytes
+              log.info("SysEvent; Event id = " + rec.get_event_id() +
+                ", type = " + rec.get_event_type() +
+                ", message = " + rec.get_message() +
+                ", session = " + rec.get_sess_id())
+          }
         }
       }))
+
 
       // On connection Activated open listeners etc
       connection ! SubscribeTransitionCallBack(system.actorOf(Props(new Actor {
@@ -84,7 +92,6 @@ class OptInfoIntegrationSpec extends TestKit(ActorSystem("OptInfoIntegrationSpec
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
   }
-*/
 
 
 }
