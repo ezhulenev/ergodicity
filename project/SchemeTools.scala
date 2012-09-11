@@ -12,8 +12,13 @@ object SchemeTools {
   private val Schemes = List(
     SchemeProps("FutInfo.ini", "FutInfo", "CustReplScheme"),
     SchemeProps("OptInfo.ini", "OptInfo", "CustReplScheme"),
-    SchemeProps("FutTrade.ini", "FutTrade", "CustReplScheme"),
-    SchemeProps("OptTrade.ini", "OptTrade", "CustReplScheme"),
+
+    SchemeProps("FutTrades.ini", "FutTrade", "CustReplScheme"),
+    SchemeProps("FutOrders.ini", "FutOrder", "CustReplScheme"),
+
+    SchemeProps("OptTrades.ini", "OptTrade", "CustReplScheme"),
+    SchemeProps("OptOrders.ini", "OptOrder", "CustReplScheme"),
+
     SchemeProps("Pos.ini", "Pos", "CustReplScheme"),
     SchemeProps("OrdLog.ini", "OrdLog", "CustReplScheme"),
     SchemeProps("FortsMessages.ini", "Message", "message"),

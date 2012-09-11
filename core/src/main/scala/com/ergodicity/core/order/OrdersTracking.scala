@@ -1,15 +1,15 @@
 package com.ergodicity.core.order
 
 import akka.actor._
-import akka.util.duration._
-import com.ergodicity.cgate.DataStream._
-import com.ergodicity.cgate.StreamEvent._
-import com.ergodicity.cgate.scheme.{OptTrade, FutTrade}
-import com.ergodicity.cgate.{Protocol, WhenUnhandled, Reads}
-import collection.mutable
 import akka.util
-import com.ergodicity.cgate.StreamEvent.StreamData
+import akka.util.duration._
+import collection.mutable
+import com.ergodicity.cgate.DataStream._
 import com.ergodicity.cgate.StreamEvent.ClearDeleted
+import com.ergodicity.cgate.StreamEvent.StreamData
+import com.ergodicity.cgate.StreamEvent._
+import com.ergodicity.cgate.scheme.{FutOrder, OptOrder}
+import com.ergodicity.cgate.{Protocol, WhenUnhandled, Reads}
 import com.ergodicity.core.order.OrdersTracking.{StickyAction, IllegalEvent}
 
 
@@ -34,8 +34,8 @@ class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends
   val sessions = mutable.Map[Int, ActorRef]()
 
   // Dispatch Futures and Options orders
-  val futuresDispatcher = context.actorOf(Props(new FutureOrdersDispatcher(self, FutTradeStream)(Protocol.ReadsFutTradeOrders)), "FutureOrdersDispatcher")
-  val optionsDispatcher = context.actorOf(Props(new OptionOrdersDispatcher(self, OptTradeStream)(Protocol.ReadsOptTradeOrders)), "OptionOrdersDispatcher")
+  val futuresDispatcher = context.actorOf(Props(new FutureOrdersDispatcher(self, FutTradeStream)(Protocol.ReadsFutOrders)), "FutureOrdersDispatcher")
+  val optionsDispatcher = context.actorOf(Props(new OptionOrdersDispatcher(self, OptTradeStream)(Protocol.ReadsOptOrders)), "OptionOrdersDispatcher")
 
   protected def receive = trackingHandler orElse whenUnhandled
 
@@ -74,9 +74,9 @@ abstract class OrdersDispatcher(ordersTracking: ActorRef, stream: ActorRef) exte
 
 }
 
-class FutureOrdersDispatcher(ordersTracking: ActorRef, stream: ActorRef)(implicit val read: Reads[FutTrade.orders_log]) extends OrdersDispatcher(ordersTracking, stream) {
+class FutureOrdersDispatcher(ordersTracking: ActorRef, stream: ActorRef)(implicit val read: Reads[FutOrder.orders_log]) extends OrdersDispatcher(ordersTracking, stream) {
   def dispatch = {
-    case e@StreamData(FutTrade.orders_log.TABLE_INDEX, data) =>
+    case e@StreamData(FutOrder.orders_log.TABLE_INDEX, data) =>
       val record = read(data)
       if (record.get_replAct() != 0) {
         throw new IllegalEvent(e)
@@ -85,9 +85,9 @@ class FutureOrdersDispatcher(ordersTracking: ActorRef, stream: ActorRef)(implici
   }
 }
 
-class OptionOrdersDispatcher(ordersTracking: ActorRef, stream: ActorRef)(implicit val read: Reads[OptTrade.orders_log]) extends OrdersDispatcher(ordersTracking, stream) {
+class OptionOrdersDispatcher(ordersTracking: ActorRef, stream: ActorRef)(implicit val read: Reads[OptOrder.orders_log]) extends OrdersDispatcher(ordersTracking, stream) {
   def dispatch = {
-    case e@StreamData(OptTrade.orders_log.TABLE_INDEX, data) =>
+    case e@StreamData(OptOrder.orders_log.TABLE_INDEX, data) =>
       val record = read(data)
       if (record.get_replAct() != 0) {
         throw new IllegalEvent(e)

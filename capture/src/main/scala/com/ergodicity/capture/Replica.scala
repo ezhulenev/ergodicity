@@ -49,16 +49,16 @@ object ReplicaExtractor {
     def repl(in: FutTrade.deal) = replica(in)
   }
 
-  implicit val FutTradeOrdersExtractor = new ReplicaExtractor[FutTrade.orders_log] {
-    def repl(in: FutTrade.orders_log) = replica(in)
+  implicit val FutTradeOrdersExtractor = new ReplicaExtractor[FutOrder.orders_log] {
+    def repl(in: FutOrder.orders_log) = replica(in)
   }
 
   implicit val OptTradeDealsExtractor = new ReplicaExtractor[OptTrade.deal] {
     def repl(in: OptTrade.deal) = replica(in)
   }
 
-  implicit val OptTradeOrdersExtractor = new ReplicaExtractor[OptTrade.orders_log] {
-    def repl(in: OptTrade.orders_log) = replica(in)
+  implicit val OptTradeOrdersExtractor = new ReplicaExtractor[OptOrder.orders_log] {
+    def repl(in: OptOrder.orders_log) = replica(in)
   }
 
   implicit val OrderBookOrdersExtractor = new ReplicaExtractor[OrderBook.orders] {

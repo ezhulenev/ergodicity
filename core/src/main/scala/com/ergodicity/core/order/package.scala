@@ -1,6 +1,6 @@
 package com.ergodicity.core
 
-import com.ergodicity.cgate.scheme.{OptTrade, FutTrade}
+import com.ergodicity.cgate.scheme.{OptOrder, FutOrder}
 
 package object order {
 
@@ -16,7 +16,7 @@ package object order {
     case _ => throw new IllegalArgumentException("Illegal order direction: " + direction)
   }
 
-  implicit def convertFutOrder(record: FutTrade.orders_log) = Order(record.get_id_ord(),
+  implicit def convertFutOrder(record: FutOrder.orders_log) = Order(record.get_id_ord(),
     record.get_sess_id(),
     IsinId(record.get_isin_id()),
     mapOrderType(record.get_status()),
@@ -25,7 +25,7 @@ package object order {
     record.get_amount()
   )
 
-  implicit def convertOptOrder(record: OptTrade.orders_log) = Order(record.get_id_ord(),
+  implicit def convertOptOrder(record: OptOrder.orders_log) = Order(record.get_id_ord(),
     record.get_sess_id(),
     IsinId(record.get_isin_id()),
     mapOrderType(record.get_status()),

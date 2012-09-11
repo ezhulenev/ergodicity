@@ -46,7 +46,7 @@ class DataStreamIntegrationSpec extends TestKit(ActorSystem("DataStreamIntegrati
       val DataStream = system.actorOf(Props(new DataStream), "DataStream")
 
       // Listener
-      val listenerConfig = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptTrade.ini"), "CustReplScheme")
+      val listenerConfig = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptTrades.ini"), "CustReplScheme")
       val underlyingListener = new CGListener(underlyingConnection, listenerConfig(), new DataStreamSubscriber(DataStream))
       val listener = system.actorOf(Props(new Listener(underlyingListener)), "Listener")
 

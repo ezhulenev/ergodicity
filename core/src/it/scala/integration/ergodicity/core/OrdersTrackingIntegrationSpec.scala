@@ -46,11 +46,11 @@ class OrdersTrackingIntegrationSpec extends TestKit(ActorSystem("OrdersTrackingI
       val optTrade = TestFSMRef(new DataStream, "OptTradeDataStream")
 
       // Listeners
-      val futListenerConfig = Replication("FORTS_FUTTRADE_REPL", new File("core/scheme/FutOrdersOnly.ini"), "CustReplScheme")
+      val futListenerConfig = Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/FutOrders.ini"), "CustReplScheme")
       val underlyingFutListener = new CGListener(underlyingConnection, futListenerConfig(), new DataStreamSubscriber(futTrade))
       val futListener = TestFSMRef(new Listener(underlyingFutListener), "FutTradeListener")
 
-      val optListenerConfig = Replication("FORTS_OPTTRADE_REPL", new File("core/scheme/OptOrdersOnly.ini"), "CustReplScheme")
+      val optListenerConfig = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptOrders.ini"), "CustReplScheme")
       val underlyingOptListener = new CGListener(underlyingConnection, optListenerConfig(), new DataStreamSubscriber(optTrade))
       val optListener = TestFSMRef(new Listener(underlyingOptListener), "OptTradeListener")
 

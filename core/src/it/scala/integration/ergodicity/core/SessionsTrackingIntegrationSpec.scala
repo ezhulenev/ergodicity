@@ -1,24 +1,29 @@
 package integration.ergodicity.core
 
-import java.io.File
-import java.util.concurrent.TimeUnit
+import akka.actor.FSM.SubscribeTransitionCallBack
+import akka.actor.FSM.Transition
 import akka.actor.{Actor, Props, ActorSystem}
-import akka.util.duration._
-import integration.ergodicity.core.AkkaIntegrationConfigurations._
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
-import akka.testkit.{ImplicitSender, TestKit}
+import akka.pattern.ask
+import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
+import akka.util.Timeout
+import akka.util.duration._
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate._
+import com.ergodicity.core.{FutureContract, SessionsTracking}
+import com.ergodicity.core.SessionsTracking.{OngoingSession, SubscribeOngoingSessions}
+import com.ergodicity.core.session.SessionActor.{AssignedInstruments, GetAssignedInstruments}
 import config.ConnectionConfig.Tcp
 import config.Replication.{ReplicationParams, ReplicationMode}
 import config.{Replication, CGateConfig}
+import integration.ergodicity.core.AkkaIntegrationConfigurations._
+import java.io.File
+import java.util.concurrent.TimeUnit
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
-import akka.actor.FSM.Transition
 import scala.Some
-import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
-import com.ergodicity.core.SessionsTracking
+import akka.dispatch.Await
+import com.ergodicity.core.session.Instrument
 
 
 class SessionsTrackingIntegrationSpec extends TestKit(ActorSystem("SessionsTrackingIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -39,6 +44,8 @@ class SessionsTrackingIntegrationSpec extends TestKit(ActorSystem("SessionsTrack
     system.shutdown()
     CGate.close()
   }
+
+  implicit val timeout = Timeout(1.second)
 
   "SessionsTracking" must {
     "should work" in {
@@ -83,6 +90,22 @@ class SessionsTrackingIntegrationSpec extends TestKit(ActorSystem("SessionsTrack
 
       // Open connections and track it's status
       connection ! Connection.Open
+
+      Thread.sleep(TimeUnit.SECONDS.toMillis(10))
+
+      sessions ! SubscribeOngoingSessions(TestActorRef(new Actor {
+        protected def receive = {
+          case OngoingSession(Some((id, ref))) =>
+            log.info("Ongoing session = " + id)
+            val assigned = Await.result((ref ? GetAssignedInstruments).mapTo[AssignedInstruments], 1.second)
+            log.info("Assigned instruments; Size = " + assigned.instruments.size)
+            assigned.instruments foreach {
+              case instrument@Instrument(_: FutureContract, _) =>
+                log.info("Future contract = " + instrument)
+              case _ =>
+            }
+        }
+      }))
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }

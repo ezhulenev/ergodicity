@@ -8,7 +8,7 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
 import java.nio.ByteBuffer
-import com.ergodicity.cgate.scheme.{OptTrade, FutTrade}
+import com.ergodicity.cgate.scheme.{OptOrder, FutOrder}
 import com.ergodicity.core.IsinId
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.core.order.OrdersTracking.StickyAction
@@ -38,7 +38,7 @@ class OrdersDispatchersSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
 
       val createOrder = {
         val buffer = ByteBuffer.allocate(1000)
-        val record = new FutTrade.orders_log(buffer)
+        val record = new FutOrder.orders_log(buffer)
         record.set_action(1)
         record.set_sess_id(100)
         record.set_status(4157)
@@ -46,7 +46,7 @@ class OrdersDispatchersSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
         record
       }
 
-      dispatcher ! StreamData(FutTrade.orders_log.TABLE_INDEX, createOrder.getData)
+      dispatcher ! StreamData(FutOrder.orders_log.TABLE_INDEX, createOrder.getData)
       val msg = receiveOne(100.millis)
       assert(msg match {
         case StickyAction(100, _: Create) =>
@@ -64,7 +64,7 @@ class OrdersDispatchersSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
 
       val createOrder = {
         val buffer = ByteBuffer.allocate(1000)
-        val record = new OptTrade.orders_log(buffer)
+        val record = new OptOrder.orders_log(buffer)
         record.set_action(1)
         record.set_sess_id(100)
         record.set_status(4157)
@@ -72,7 +72,7 @@ class OrdersDispatchersSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
         record
       }
 
-      dispatcher ! StreamData(OptTrade.orders_log.TABLE_INDEX, createOrder.getData)
+      dispatcher ! StreamData(OptOrder.orders_log.TABLE_INDEX, createOrder.getData)
       val msg = receiveOne(100.millis)
       assert(msg match {
         case StickyAction(100, _: Create) =>

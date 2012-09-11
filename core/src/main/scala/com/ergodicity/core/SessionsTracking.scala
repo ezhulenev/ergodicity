@@ -1,26 +1,25 @@
 package com.ergodicity.core
 
 import akka.actor._
-import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
-import com.ergodicity.cgate.{Reads, WhenUnhandled, SysEvent}
+import akka.util
 import akka.util.duration._
 import collection.mutable
+import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
+import com.ergodicity.cgate.StreamEvent.ClearDeleted
+import com.ergodicity.cgate.StreamEvent.StreamData
+import com.ergodicity.cgate.StreamEvent.{TnCommit, TnBegin}
+import com.ergodicity.cgate.SysEvent.SessionDataReady
+import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
+import com.ergodicity.cgate.{Reads, WhenUnhandled, SysEvent}
+import com.ergodicity.core.SessionsTracking.FutSessContents
+import com.ergodicity.core.SessionsTracking.FutSysEvent
+import com.ergodicity.core.SessionsTracking.OptSessContents
+import com.ergodicity.core.SessionsTracking.SessionEvent
+import com.ergodicity.core.SessionsTracking._
+import com.ergodicity.core.session.Implicits._
+import scala.Some
 import session.Instrument.Limits
 import session._
-import akka.util
-import com.ergodicity.cgate.StreamEvent.{TnCommit, TnBegin}
-import com.ergodicity.core.SessionsTracking._
-import com.ergodicity.core.SessionsTracking.FutSysEvent
-import scala.Some
-import com.ergodicity.core.SessionsTracking.OptSessContents
-import com.ergodicity.core.SessionsTracking.FutSessContents
-import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
-import com.ergodicity.core.SessionsTracking.SessionEvent
-import com.ergodicity.cgate.StreamEvent.StreamData
-import com.ergodicity.cgate.StreamEvent.ClearDeleted
-import com.ergodicity.core.SessionsTrackingState.{TrackingSessions, Synchronizing}
-import com.ergodicity.cgate.SysEvent.SessionDataReady
-import com.ergodicity.core.session.Implicits._
 
 case class SessionId(fut: Int, opt: Int)
 
@@ -53,10 +52,10 @@ object SessionsTracking {
 
     def append(e: OptSessContents) = copy(opt = opt :+ e)
 
-    def remove(id: SessionId): PendingEvents =
+    def filterNot(id: SessionId): PendingEvents =
       copy(sess.filterNot(_.id == id), fut.filterNot(_.sessionId == id.fut), opt.filterNot(_.sessionId == id.opt))
 
-    def consume(id: SessionId): (Seq[SessionEvent], Seq[FutSessContents], Seq[OptSessContents]) =
+    def filter(id: SessionId): (Seq[SessionEvent], Seq[FutSessContents], Seq[OptSessContents]) =
       (sess.filter(_.id == id), fut.filter(_.sessionId == id.fut), opt.filter(_.sessionId == id.opt))
   }
 
@@ -65,17 +64,19 @@ object SessionsTracking {
 
     def append(e: OptSysEvent) = copy(opt = opt :+ e)
 
-    def remove(eventId: Long) = copy(fut.filterNot(_.event.eventId == eventId), opt.filterNot(_.event.eventId == eventId))
+    def filterNot(eventId: Long) = copy(fut.filterNot(_.event.eventId == eventId), opt.filterNot(_.event.eventId == eventId))
 
-    def synchronized: Option[(FutSysEvent, OptSysEvent)] = {
+    def synchronized: Option[SynchronizedEvent] = {
       (fut.map(_.event.eventId) intersect opt.map(_.event.eventId)).headOption.flatMap {
         case eventId =>
-          (fut.find(_.event.eventId == eventId) zip opt.find(_.event.eventId == eventId)).headOption
+          (fut.find(_.event.eventId == eventId) zip opt.find(_.event.eventId == eventId)).headOption.map {
+            case (FutSysEvent(f), OptSysEvent(o)) => SynchronizedEvent(f, o)
+          }
       }
     }
   }
 
-  case class SynchronizeOnEvent(fut: SysEvent, opt: SysEvent) {
+  case class SynchronizedEvent(fut: SysEvent, opt: SysEvent) {
     if (fut.eventId != opt.eventId) {
       throw new IllegalArgumentException("Event id should be the same")
     }
@@ -95,7 +96,7 @@ object SessionsTrackingState {
 
 }
 
-class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor with LoggingFSM[SessionsTrackingState, (SystemEvents, PendingEvents)] {
+class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends Actor with ActorLogging with WhenUnhandled {
 
   import SessionsTracking._
 
@@ -104,6 +105,10 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
   var subscribers: List[ActorRef] = Nil
 
   var ongoingSession: Option[(SessionId, ActorRef)] = None
+
+  // Storage for postponed events
+  var systemEvents = SystemEvents()
+  var pendingEvents = PendingEvents()
 
   val sessions = mutable.Map[SessionId, ActorRef]()
 
@@ -116,89 +121,86 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
 
   }
 
-  startWith(TrackingSessions, (SystemEvents(), PendingEvents()))
 
-  when(TrackingSessions) {
-    case Event("NoSuchEventEver", _) => stay()
-  }
+  protected def receive =  dispatchContents orElse handleSysEvents orElse handler orElse whenUnhandled
 
-  when(Synchronizing) {
-    case Event(sync@SynchronizeOnEvent(SessionDataReady(_, futSessionId), SessionDataReady(_, optSessionId)), (sysEvents, pending)) =>
-      val sessionId = SessionId(futSessionId, optSessionId)
-      val (sessionEvents, futContents, optContents) = pending.consume(SessionId(futSessionId, optSessionId))
+  private def dispatchContents = dispatchSessions orElse dispatchFuturesContents orElse dispatchOptionsContents
 
-      for (sessionEvent <- sessionEvents) {
-        val sessionActor = sessions.getOrElseUpdate(sessionId, context.actorOf(Props(new SessionActor(sessionEvent.session)), sessionId.fut.toString))
-        sessionActor ! sessionEvent.state
-        sessionActor ! sessionEvent.intradayClearingState
-      }
+  private def dispatchSessions: Receive = {
+    case e@SessionEvent(id, _, _, _) if (!sessions.contains(id)) =>
+      pendingEvents = pendingEvents append e
 
-      for (futContent <- futContents) {
-        sessions(sessionId) ! futContent
-      }
-
-      for (optContent <- optContents) {
-        sessions(sessionId) ! optContent
-      }
-
-      changeOngoingSession(sessionId)
-
-      goto(TrackingSessions) using(sysEvents.remove(sync.eventId), pending.remove(sessionId))
-
-    case Event(sync@SynchronizeOnEvent(_, _), (sysEvents, pending)) =>
-      goto(TrackingSessions) using(sysEvents.remove(sync.eventId), pending)
-  }
-
-  whenUnhandled {
-    case Event(SubscribeOngoingSessions(ref), _) =>
-      subscribers = ref +: subscribers
-      ref ! OngoingSession(ongoingSession)
-      stay()
-
-    // Dispatch Sessions
-    case Event(e@SessionEvent(id, _, _, _), (sysEvents, pendingEvents: PendingEvents)) if (!sessions.contains(id)) =>
-      stay() using(sysEvents, pendingEvents append e)
-
-    case Event(e@SessionEvent(id, _, state, intState), _) if (sessions contains id) =>
+    case e@SessionEvent(id, _, state, intState) if (sessions contains id) =>
       sessions(id) ! state
       sessions(id) ! intState
-      stay()
-
-    // Dispatch Futures contents
-    case Event(e@FutSessContents(id, _, _), (sysEvents, pending: PendingEvents)) if (!sessions.exists(_._1.fut == id)) =>
-      stay() using(sysEvents, pending append e)
-
-    case Event(e@FutSessContents(id, _, state), _) if (sessions.exists(_._1.fut == id)) =>
-      sessions.find(_._1.fut == id) foreach (_._2 ! e)
-      stay()
-
-    // Dispatch Option contents
-    case Event(e@OptSessContents(id, _), (sysEvents, pending: PendingEvents)) if (!sessions.exists(_._1.opt == id)) =>
-      stay() using(sysEvents, pending append e)
-
-    case Event(e@OptSessContents(id, _), _) if (sessions.exists(_._1.opt == id)) =>
-      sessions.find(_._1.opt == id) foreach (_._2 ! e)
-      stay()
-
-    // Dispatch sys events
-    case Event(e: FutSysEvent, (sysEvents, pending)) =>
-      synchronize(sysEvents.append(e), pending)
-
-    case Event(e: OptSysEvent, (sysEvents, pending)) =>
-      synchronize(sysEvents.append(e), pending)
-
-    // Drop session
-    case Event(DropSession(id), _) =>
-      sessions(id) ! PoisonPill
-      sessions.remove(id)
-      stay()
   }
 
-  private def synchronize(sysEvents: SystemEvents, pending: PendingEvents): State = sysEvents.synchronized.map {
-    case (futEvent, optEvent) =>
-      self ! SynchronizeOnEvent(futEvent.event, optEvent.event)
-      goto(Synchronizing) using(sysEvents, pending)
-  } getOrElse (stay() using(sysEvents, pending))
+  private def dispatchFuturesContents: Receive = {
+    case e@FutSessContents(id, _, _) if (!sessions.exists(_._1.fut == id)) =>
+      pendingEvents = pendingEvents append e
+
+    case e@FutSessContents(id, _, state) if (sessions.exists(_._1.fut == id)) =>
+      sessions.find(_._1.fut == id) foreach (_._2 ! e)
+  }
+
+  private def dispatchOptionsContents: Receive = {
+    case e@OptSessContents(id, _) if (!sessions.exists(_._1.opt == id)) =>
+      pendingEvents = pendingEvents append e
+
+    case e@OptSessContents(id, _) if (sessions.exists(_._1.opt == id)) =>
+      sessions.find(_._1.opt == id) foreach (_._2 ! e)
+  }
+
+  private def handleSysEvents: Receive = {
+    case e: FutSysEvent =>
+      systemEvents = systemEvents.append(e)
+      systemEvents.synchronized foreach synchronize
+
+    case e: OptSysEvent =>
+      systemEvents = systemEvents.append(e)
+      systemEvents.synchronized foreach synchronize
+  }
+
+  private def handler: Receive = {
+    case SubscribeOngoingSessions(ref) =>
+      subscribers = ref +: subscribers
+      ref ! OngoingSession(ongoingSession)
+
+    case DropSession(id) =>
+      sessions(id) ! PoisonPill
+      sessions.remove(id)
+  }
+
+  private def synchronize(event: SynchronizedEvent) {
+    event match {
+      case SynchronizedEvent(SessionDataReady(_, futSessionId), SessionDataReady(_, optSessionId)) =>
+        val sessionId = SessionId(futSessionId, optSessionId)
+        val (sessionEvents, futContents, optContents) = pendingEvents.filter(sessionId)
+
+        for (sessionEvent <- sessionEvents) {
+          val sessionActor = sessions.getOrElseUpdate(sessionId, context.actorOf(Props(new SessionActor(sessionEvent.session)), sessionId.fut.toString))
+          sessionActor ! sessionEvent.state
+          sessionActor ! sessionEvent.intradayClearingState
+        }
+
+        for (futContent <- futContents) {
+          sessions(sessionId) ! futContent
+        }
+
+        for (optContent <- optContents) {
+          sessions(sessionId) ! optContent
+        }
+
+        changeOngoingSession(sessionId)
+
+        systemEvents = systemEvents.filterNot(event.eventId)
+        pendingEvents = pendingEvents.filterNot(sessionId)
+
+      case _ =>
+        log.debug("Remove ignored event = " + event)
+        systemEvents = systemEvents.filterNot(event.eventId)
+    }
+  }
 
   private def changeOngoingSession(id: SessionId) {
     val newOngoingSession = Some((id, sessions(id)))

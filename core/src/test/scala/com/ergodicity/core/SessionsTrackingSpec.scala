@@ -100,11 +100,8 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
       val futInfo = TestProbe()
       val optInfo = TestProbe()
 
-      val sessions = TestFSMRef(new SessionsTracking(futInfo.ref, optInfo.ref), "SessionsTracking")
-      val underlying = sessions.underlyingActor.asInstanceOf[SessionsTracking]
-
-      then("should initialized in Tracking state")
-      assert(sessions.stateName == SessionsTrackingState.TrackingSessions)
+      val sessions = TestActorRef(new SessionsTracking(futInfo.ref, optInfo.ref), "SessionsTracking")
+      val underlying = sessions.underlyingActor
 
       when("subscribe for ongoing sessions")
       sessions ! SubscribeOngoingSessions(self)
