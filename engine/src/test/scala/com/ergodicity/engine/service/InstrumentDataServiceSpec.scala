@@ -86,7 +86,7 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
       then("should go to Stopping states")
       assert(service.stateName == InstrumentDataState.Stopping)
 
-      when("both streams goes online")
+      when("both streams closed")
       service ! Transition(underlying.FutInfoStream, DataStreamState.Online, DataStreamState.Closed)
       service ! Transition(underlying.OptInfoStream, DataStreamState.Online, DataStreamState.Closed)
 

@@ -11,10 +11,6 @@ import com.ergodicity.cgate.StreamEvent.{TnCommit, TnBegin}
 import com.ergodicity.cgate.SysEvent.SessionDataReady
 import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
 import com.ergodicity.cgate.{Reads, WhenUnhandled, SysEvent}
-import com.ergodicity.core.SessionsTracking.FutSessContents
-import com.ergodicity.core.SessionsTracking.FutSysEvent
-import com.ergodicity.core.SessionsTracking.OptSessContents
-import com.ergodicity.core.SessionsTracking.SessionEvent
 import com.ergodicity.core.SessionsTracking._
 import com.ergodicity.core.session.Implicits._
 import scala.Some
@@ -28,9 +24,9 @@ object SessionsTracking {
 
   case class SubscribeOngoingSessions(ref: ActorRef)
 
-  case class OngoingSession(session: Option[(SessionId, ActorRef)])
+  case class OngoingSession(id: SessionId, ref: ActorRef)
 
-  case class OngoingSessionTransition(from: Option[(SessionId, ActorRef)], to: Option[(SessionId, ActorRef)])
+  case class OngoingSessionTransition(from: OngoingSession, to: OngoingSession)
 
   // Dispatching events
   case class DropSession(id: SessionId)
@@ -104,7 +100,7 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
 
   var subscribers: List[ActorRef] = Nil
 
-  var ongoingSession: Option[(SessionId, ActorRef)] = None
+  var ongoingSession: Option[OngoingSession] = None
 
   // Storage for postponed events
   var systemEvents = SystemEvents()
@@ -164,7 +160,7 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
   private def handler: Receive = {
     case SubscribeOngoingSessions(ref) =>
       subscribers = ref +: subscribers
-      ref ! OngoingSession(ongoingSession)
+      ongoingSession.map(session => ref ! session)
 
     case DropSession(id) =>
       sessions(id) ! PoisonPill
@@ -203,9 +199,12 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
   }
 
   private def changeOngoingSession(id: SessionId) {
-    val newOngoingSession = Some((id, sessions(id)))
-    subscribers.foreach(_ ! OngoingSessionTransition(ongoingSession, newOngoingSession))
-    ongoingSession = newOngoingSession
+    val newOngoingSession = OngoingSession(id, sessions(id))
+    ongoingSession match {
+      case None => subscribers.foreach(_ ! newOngoingSession)
+      case Some(old) => subscribers.foreach(_ ! OngoingSessionTransition(old, newOngoingSession))
+    }
+    ongoingSession = Some(newOngoingSession)
   }
 }
 

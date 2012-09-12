@@ -11,7 +11,7 @@ import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate._
-import com.ergodicity.core.SessionsTracking.{OngoingSessionTransition, SubscribeOngoingSessions}
+import com.ergodicity.core.SessionsTracking.{OngoingSession, SubscribeOngoingSessions}
 import com.ergodicity.core.session.SessionActor.GetAssignedInstruments
 import com.ergodicity.core.{SessionsTracking, PositionsTracking}
 import config.ConnectionConfig.Tcp
@@ -80,7 +80,7 @@ class PositionsTrackingIntegrationSpec extends TestKit(ActorSystem("PositionsTra
         var openedPosition = false
 
         protected def receive = {
-          case OngoingSessionTransition(_, Some((id, ref))) =>
+          case OngoingSession(id, ref) =>
             (ref ? GetAssignedInstruments) pipeTo positions
             if (!openedPosition) {
               system.scheduler.scheduleOnce(10.second) {

@@ -1,22 +1,21 @@
 package com.ergodicity.engine.strategy
 
-import com.ergodicity.engine.service.InstrumentData.{InstrumentData => InstrumentDataId}
-import akka.dispatch.Await
-import akka.util.duration._
+import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack, UnsubscribeTransitionCallBack}
+import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
-import akka.actor._
-import com.ergodicity.core.{SessionId, Isin}
-import com.ergodicity.engine.strategy.InstrumentWatchDogState.{Watching, Catching}
-import com.ergodicity.core.session.{InstrumentState, Instrument}
+import akka.util.Timeout
+import akka.util.duration._
+import com.ergodicity.core.SessionsTracking.OngoingSession
+import com.ergodicity.core.SessionsTracking.OngoingSessionTransition
 import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
 import com.ergodicity.core.session.SessionActor.{AssignedInstruments, GetAssignedInstruments, GetInstrumentActor}
-import com.ergodicity.core.SessionsTracking.OngoingSessionTransition
-import scala.Some
-import com.ergodicity.core.SessionsTracking.OngoingSession
-import akka.util.Timeout
+import com.ergodicity.core.session.{InstrumentState, Instrument}
+import com.ergodicity.core.{SessionId, Isin}
+import com.ergodicity.engine.service.InstrumentData.{InstrumentData => InstrumentDataId}
 import com.ergodicity.engine.strategy.InstrumentWatchDog.{CatchedState, WatchDogConfig, Catched}
-import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack, UnsubscribeTransitionCallBack}
+import com.ergodicity.engine.strategy.InstrumentWatchDogState.{Watching, Catching}
+import scala.Some
 
 trait InstrumentWatcher {
   strategy: Strategy with Actor =>
@@ -68,7 +67,7 @@ class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: 
   startWith(Catching, None)
 
   when(Catching, stateTimeout = 1.second) {
-    case Event(OngoingSession(Some((id, session))), _) =>
+    case Event(OngoingSession(id, session), _) =>
       log.info("Catched ongoing session, session id = " + id)
       val actor = (session ? GetInstrumentActor(isin)).mapTo[ActorRef]
       val instrument = (session ? GetAssignedInstruments).mapTo[AssignedInstruments] map (_.instruments.find(_.security.isin == isin))
@@ -101,7 +100,7 @@ class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: 
   }
 
   when(Watching) {
-    case Event(OngoingSessionTransition(_, Some((id, session))), _) =>
+    case Event(OngoingSessionTransition(_, OngoingSession(id, session)), _) =>
       log.info("Catched ongoing session transition, new session id = " + id)
       val actor = (session ? GetInstrumentActor(isin)).mapTo[ActorRef]
       val instrument = (session ? GetAssignedInstruments).mapTo[AssignedInstruments].map(_.instruments.find(_.security.isin == isin))
@@ -118,12 +117,6 @@ class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: 
     case Event(Status.Failure(cause), _) =>
       log.error("WatchDog failed, cause = {}", cause)
       throw new InstrumentWatcherException("WatchDog failed, cause = " + cause)
-
-    case Event(OngoingSession(None), _) =>
-      throw new InstrumentWatcherException("No ongoing session")
-
-    case Event(OngoingSessionTransition(_, None), _) =>
-      throw new InstrumentWatcherException("Lost ongoing session")
 
     case Event(Terminated(ref), Some(Catched(_, _, _, catched))) if (ref == catched) =>
       throw new InstrumentWatcherException("Watched instrument unexpectedly terminated")

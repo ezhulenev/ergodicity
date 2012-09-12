@@ -95,7 +95,7 @@ class SessionsTrackingIntegrationSpec extends TestKit(ActorSystem("SessionsTrack
 
       sessions ! SubscribeOngoingSessions(TestActorRef(new Actor {
         protected def receive = {
-          case OngoingSession(Some((id, ref))) =>
+          case OngoingSession(id, ref) =>
             log.info("Ongoing session = " + id)
             val assigned = Await.result((ref ? GetAssignedInstruments).mapTo[AssignedInstruments], 1.second)
             log.info("Assigned instruments; Size = " + assigned.instruments.size)

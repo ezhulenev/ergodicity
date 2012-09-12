@@ -106,8 +106,8 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
       when("subscribe for ongoing sessions")
       sessions ! SubscribeOngoingSessions(self)
 
-      then("should be returned None")
-      expectMsg(OngoingSession(None))
+      then("nothing returned as no ongoing session available")
+      expectNoMsg(100.millis)
 
       // Session #1 lifecycle
 
@@ -135,9 +135,9 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
       val sessionActor1 = underlying.sessions(id1)
       assert(underlying.sessions.size == 1)
 
-      and("should be notified about ongoing session update")
-      assert(underlying.ongoingSession == Some((id1, sessionActor1)))
-      expectMsg(OngoingSessionTransition(None, Some((id1, sessionActor1))))
+      and("should be notified about ongoing session")
+      assert(underlying.ongoingSession == Some(OngoingSession(id1, sessionActor1)))
+      expectMsg(OngoingSession(id1, sessionActor1))
 
       and("session's state should be Assigned")
       watch(sessionActor1)
@@ -145,7 +145,7 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
       expectMsg(CurrentState(sessionActor1, SessionState.Assigned))
 
       and("it should contain AssignedInstruments")
-      val assigned = Await.result((sessionActor1 ? GetAssignedInstruments).mapTo[AssignedInstruments], 1.second)
+      val assigned = Await.result((sessionActor1 ? GetAssignedInstruments).mapTo[AssignedInstruments], 2.second)
       log.info("Assigned instruments = " + assigned)
       assert(assigned.instruments.size == 2)
 
@@ -167,8 +167,8 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
       assert(underlying.sessions.size == 2)
 
       and("should change ongoing session to new one")
-      assert(underlying.ongoingSession == Some((id2, sessionActor2)))
-      expectMsg(OngoingSessionTransition(Some((id1, sessionActor1)), Some((id2, sessionActor2))))
+      assert(underlying.ongoingSession == Some(OngoingSession(id2, sessionActor2)))
+      expectMsg(OngoingSessionTransition(OngoingSession(id1, sessionActor1), OngoingSession(id2, sessionActor2)))
 
       when("asked to drop session")
       sessions ! DropSession(id1)
