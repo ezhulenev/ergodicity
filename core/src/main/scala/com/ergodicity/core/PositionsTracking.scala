@@ -88,7 +88,7 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
 
   whenUnhandled {
     case Event(assigned: AssignedInstruments, old) =>
-      log.debug("Assigned instruments = " + assigned)
+      log.debug("Assigned instruments; Size = " + assigned.instruments.size)
       stay() using assigned
   }
 

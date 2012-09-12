@@ -26,7 +26,7 @@ class SessionContents[T](Session: ActorRef) extends Actor with ActorLogging with
 
   protected[core] val instruments = mutable.Map[Instrument, ActorRef]()
 
-  var sessionState = Await.result((Session ? GetState).mapTo[SessionState], 5.seconds)
+  var sessionState = Await.result((Session ? GetState).mapTo[SessionState], 15.seconds)
 
   override def preStart() {
     log.info("Start SessionContents with parent session state = " + sessionState)
