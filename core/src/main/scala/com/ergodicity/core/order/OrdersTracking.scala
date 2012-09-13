@@ -10,12 +10,16 @@ import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.StreamEvent._
 import com.ergodicity.cgate.scheme.{FutOrder, OptOrder}
 import com.ergodicity.cgate.{Protocol, WhenUnhandled, Reads}
-import com.ergodicity.core.order.OrdersTracking.{StickyAction, IllegalEvent}
+import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef, StickyAction, IllegalEvent}
 
 
 object OrdersTracking {
 
   case class GetSessionOrdersTracking(sessionId: Int)
+
+  case class GetOrder(id: Long)
+
+  case class OrderRef(order: Order, ref: ActorRef)
 
   case class DropSession(sessionId: Int)
 
@@ -97,27 +101,40 @@ class OptionOrdersDispatcher(ordersTracking: ActorRef, stream: ActorRef)(implici
   }
 }
 
-class SessionOrdersTracking(sessionId: Int) extends Actor with ActorLogging with WhenUnhandled {
-  protected[order] val orders = mutable.Map[Long, ActorRef]()
 
-  protected def receive = handleCreateOrder orElse handleDeleteOrder orElse handleFillOrder orElse whenUnhandled
+class SessionOrdersTracking(sessionId: Int) extends Actor with ActorLogging with WhenUnhandled {
+  protected[order] val orders = mutable.Map[Long, (Order, ActorRef)]()
+
+  private[this] val pendingOrders = mutable.Map[Long, ActorRef]()
+
+  protected def receive = getOrder orElse handleCreateOrder orElse handleDeleteOrder orElse handleFillOrder orElse whenUnhandled
+
+  private def getOrder: Receive = {
+    case GetOrder(id) =>
+      if (orders contains id)
+        sender ! OrderRef(orders(id)._1, orders(id)._2)
+      else
+        pendingOrders(id) = sender
+  }
 
   private def handleCreateOrder: Receive = {
     case Create(order) =>
       log.debug("Create new order, id = " + order.id)
       val orderActor = context.actorOf(Props(new OrderActor(order)), order.id.toString)
-      orders(order.id) = orderActor
+      orders(order.id) = (order, orderActor)
+      pendingOrders.get(order.id) map (_ ! OrderRef(order, orderActor))
+      pendingOrders.remove(order.id)
   }
 
   private def handleDeleteOrder: Receive = {
     case Delete(orderId, amount) =>
       log.debug("Cancel order, id = " + orderId)
-      orders(orderId) ! CancelOrder(amount)
+      orders(orderId)._2 ! CancelOrder(amount)
   }
 
   private def handleFillOrder: Receive = {
     case Fill(orderId, deal, amount, price, rest) =>
       log.debug("Fill order, id = " + orderId + ", amount = " + amount + ", rest = " + rest + ", deal id = " + deal + ", price = " + price)
-      orders(orderId) ! FillOrder(price, amount)
+      orders(orderId)._2 ! FillOrder(price, amount)
   }
 }

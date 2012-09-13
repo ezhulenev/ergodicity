@@ -9,7 +9,7 @@ import com.ergodicity.cgate.scheme.Message
 import com.ergodicity.core.Market.{Options, Futures}
 import java.nio.ByteBuffer
 
-private[broker] trait MarketCommand[A <: Action[R], R <: Reaction, M <: Market] {
+trait MarketCommand[A <: Action[R], R <: Reaction, M <: Market] {
   def encode(publisher: CGPublisher)(implicit config: Broker.Config): DataMessage
 
   def decode(msgId: Int, data: ByteBuffer): R

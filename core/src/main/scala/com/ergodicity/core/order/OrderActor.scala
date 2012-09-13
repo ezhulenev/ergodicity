@@ -15,31 +15,36 @@ object OrderState {
 
 }
 
-case class RestAmount(amount: Int) {
-  if (amount < 0) throw new IllegalArgumentException("Rest amount should be greater then 0")
+case class Trace(rest: Int, actions: Seq[OrderAction] = Seq()) {
+  if (rest < 0) throw new IllegalArgumentException("Rest amount should be greater then 0")
 }
 
-// Order Events
-case class FillOrder(price: BigDecimal, amount: Int)
+// Order Actions
 
-case class CancelOrder(amount: Int)
+sealed trait OrderAction
+
+case class FillOrder(price: BigDecimal, amount: Int) extends OrderAction
+
+case class CancelOrder(amount: Int) extends OrderAction
 
 object OrderActor {
+
   case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
+
 }
 
-class OrderActor(val order: Order) extends Actor with FSM[OrderState, RestAmount] {
+class OrderActor(val order: Order) extends Actor with FSM[OrderState, Trace] {
 
   import OrderState._
 
   log.debug("Create order = " + order)
 
-  startWith(Active, RestAmount(order.amount))
+  startWith(Active, Trace(order.amount))
 
   when(Active) {
-    case Event(FillOrder(_, fillAmount), RestAmount(restAmount)) =>
-      if (restAmount - fillAmount == 0) goto(Filled) using RestAmount(0)
-      else stay() using RestAmount(restAmount - fillAmount)
+    case Event(fill@FillOrder(_, fillAmount), Trace(restAmount, actions)) =>
+      if (restAmount - fillAmount == 0) goto(Filled) using Trace(0, actions :+ fill)
+      else stay() using Trace(restAmount - fillAmount, actions :+ fill)
   }
 
   when(Filled) {
@@ -51,7 +56,8 @@ class OrderActor(val order: Order) extends Actor with FSM[OrderState, RestAmount
   }
 
   whenUnhandled {
-    case Event(CancelOrder(cancelAmount), RestAmount(restAmount)) => goto(Cancelled) using RestAmount(restAmount - cancelAmount)
+    case Event(cancel@CancelOrder(cancelAmount), Trace(restAmount, actions)) =>
+      goto(Cancelled) using Trace(restAmount - cancelAmount, actions :+ cancel)
   }
 
   onTransition {

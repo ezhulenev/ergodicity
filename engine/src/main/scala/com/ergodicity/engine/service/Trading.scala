@@ -3,26 +3,50 @@ package com.ergodicity.engine.service
 import akka.actor.FSM.CurrentState
 import akka.actor.FSM.SubscribeTransitionCallBack
 import akka.actor.FSM.Transition
-import akka.actor.{FSM, LoggingFSM, Actor, Props}
+import akka.actor._
+import akka.pattern.ask
+import akka.pattern.pipe
+import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.cgate._
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
 import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.cgate.config.Replies.RepliesParams
 import com.ergodicity.cgate.config.{Replication, Replies}
-import com.ergodicity.core.broker.{ReplySubscriber, Broker}
-import com.ergodicity.core.order.OrdersTracking
+import com.ergodicity.core.Market.Futures
+import com.ergodicity.core.OrderType.ImmediateOrCancel
+import com.ergodicity.core.SessionsTracking.{OngoingSessionTransition, OngoingSession, SubscribeOngoingSessions}
+import com.ergodicity.core.broker.{Cancelled, OrderId, ReplySubscriber, Broker}
+import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef, DropSession, GetSessionOrdersTracking}
+import com.ergodicity.core.order.{Order, OrdersTracking}
+import com.ergodicity.core.session.Instrument
+import com.ergodicity.core.{FutureContract, SessionId}
 import com.ergodicity.engine.service.Service.{Stop, Start}
+import com.ergodicity.engine.service.Trading.{Sell, ExecutionReport, Buy}
+import com.ergodicity.engine.service.TradingService.SetOngoingSessionOrdersTracker
 import com.ergodicity.engine.service.TradingState.TradingStates
 import com.ergodicity.engine.underlying._
 import com.ergodicity.engine.{Services, Engine}
 import java.io.File
 import ru.micexrts.cgate.{Publisher => CGPublisher, Connection => CGConnection}
+import scala.Some
+import akka.dispatch.Await
 
 object Trading {
 
   implicit case object Trading extends ServiceId
 
+  case class Buy(instrument: Instrument, amount: Int, price: BigDecimal)
+
+  case class Sell(instrument: Instrument, amount: Int, price: BigDecimal)
+
+  class ExecutionReport(val instrument: Instrument, val order: Order, ref: ActorRef)(broker: ActorRef) {
+    implicit val cancelTimeout = Timeout(5.seconds)
+    def cancel = instrument.security match {
+      case _: FutureContract => (broker ? Broker.Cancel[Futures](OrderId(order.id))).mapTo[Cancelled]
+      case _ => throw new RuntimeException("Unsupported security")
+    }
+  }
 }
 
 
@@ -33,13 +57,11 @@ trait Trading {
 
   def engine: Engine with UnderlyingListener with UnderlyingConnection with UnderlyingTradingConnections with UnderlyingPublisher
 
-  register(Props(
-    new TradingService(engine.listenerFactory,
-      engine.publisherName,
-      engine.brokerCode,
-      engine.underlyingPublisher,
-      engine.underlyingRepliesConnection,
-      engine.underlyingConnection)))
+  lazy val creator = new TradingService(
+    engine.listenerFactory, engine.publisherName, engine.brokerCode,
+    engine.underlyingPublisher, engine.underlyingRepliesConnection, engine.underlyingConnection
+  )
+  register(Props(creator), dependOn = InstrumentData.InstrumentData :: Nil)
 }
 
 protected[service] sealed trait TradingState
@@ -58,6 +80,12 @@ protected[service] object TradingState {
 
 }
 
+protected[service] object TradingService {
+
+  case class SetOngoingSessionOrdersTracker(sessionId: SessionId, ref: ActorRef)
+
+}
+
 protected[service] class TradingService(listener: ListenerFactory,
                                         publisherName: String,
                                         brokerCode: String,
@@ -68,6 +96,8 @@ protected[service] class TradingService(listener: ListenerFactory,
 
   import TradingState._
   import services._
+
+  private[this] val instrumentData = service(InstrumentData.InstrumentData)
 
   private[this] implicit val brokerConfig = Broker.Config(brokerCode)
 
@@ -81,7 +111,7 @@ protected[service] class TradingService(listener: ListenerFactory,
   val FutOrdersStream = context.actorOf(Props(new DataStream), "FutOrdersStream")
   val OptOrdersStream = context.actorOf(Props(new DataStream), "OptOrdersStream")
 
-  val OrdersTracking = context.actorOf(Props(new OrdersTracking(FutOrdersStream, OptOrdersStream)))
+  val OrdersTracking = context.actorOf(Props(new OrdersTracking(FutOrdersStream, OptOrdersStream)), "OrdersTracking")
 
   // Orders tracking listeners
   private[this] val futListenerConfig = Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/FutOrders.ini"), "CustReplScheme")
@@ -91,6 +121,14 @@ protected[service] class TradingService(listener: ListenerFactory,
   private[this] val optListenerConfig = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptOrders.ini"), "CustReplScheme")
   private[this] val underlyingOptListener = listener(replicationConnection, optListenerConfig(), new DataStreamSubscriber(OptOrdersStream))
   private[this] val optListener = context.actorOf(Props(new Listener(underlyingOptListener)).withDispatcher(Engine.ReplicationDispatcher), "OptOrdersListener")
+
+  // Current session orders tracker
+  var ordersTracker: ActorRef = context.system.deadLetters
+
+  override def preStart() {
+    log.info("Start " + id + " service")
+    instrumentData ! SubscribeOngoingSessions(self)
+  }
 
   startWith(Idle, TradingStates())
 
@@ -134,6 +172,28 @@ protected[service] class TradingService(listener: ListenerFactory,
       futListener ! Listener.Close
       optListener ! Listener.Close
       goto(Stopping)
+
+    case Event(Buy(instrument@Instrument(FutureContract(_, isin, _, _), _), amount, price), _) =>
+      val orderId = (TradingBroker.ask(Broker.Buy[Futures](isin, amount, price, ImmediateOrCancel))(1.second)).mapTo[OrderId]
+
+      val ebaka = Await.result(orderId, 1.second)
+      log.info("EBAKA = "+ebaka)
+
+      val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
+      orderRef map (order => {
+        log.info("Order = "+order)
+        new ExecutionReport(instrument, order.order, order.ref)(TradingBroker)
+      }) pipeTo sender
+      stay()
+
+/*
+    case Event(Sell(instrument@Instrument(FutureContract(_, isin, _, _), _), amount, price), _) =>
+      val orderId = (TradingBroker ? Broker.Sell[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
+      val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
+      orderRef map (order => new ExecutionReport(instrument, order.order, order.ref)(TradingBroker)) pipeTo sender
+      stay()
+*/
+
   }
 
   when(Stopping, stateTimeout = 10.seconds) {
@@ -149,6 +209,22 @@ protected[service] class TradingService(listener: ListenerFactory,
       // Open replies listener when publisher already started
       replyListener ! Listener.Open(RepliesParams)
       serviceStarted
+  }
+
+  whenUnhandled {
+    case Event(OngoingSession(sessionId, ref), _) =>
+      (OrdersTracking ? GetSessionOrdersTracking(sessionId.fut)).mapTo[ActorRef] map (SetOngoingSessionOrdersTracker(sessionId, _)) pipeTo self
+      stay()
+
+    case Event(OngoingSessionTransition(from, OngoingSession(sessionId, ref)), _) =>
+      OrdersTracking ! DropSession(from.id.fut)
+      (OrdersTracking ? GetSessionOrdersTracking(sessionId.fut)).mapTo[ActorRef] map (SetOngoingSessionOrdersTracker(sessionId, _)) pipeTo self
+      stay()
+
+    case Event(SetOngoingSessionOrdersTracker(sessionId, ref), _) =>
+      log.debug("Set session orders tracker for " + sessionId + "; ref = " + ref)
+      ordersTracker = ref
+      stay()
   }
 
   private def shutDown(states: TradingStates) = states match {

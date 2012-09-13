@@ -1,18 +1,16 @@
 package com.ergodicity.core.order
 
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import akka.actor.ActorSystem
 import akka.event.Logging
-import com.ergodicity.core.AkkaConfigurations
-import AkkaConfigurations._
-import com.ergodicity.core.{IsinId}
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
-import akka.actor.{Terminated, ActorSystem}
-import com.ergodicity.core.OrderType._
+import com.ergodicity.core.IsinId
 import com.ergodicity.core.OrderDirection._
+import com.ergodicity.core.OrderType._
 import com.ergodicity.core.order.OrderActor.IllegalLifeCycleEvent
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
 
 
-class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   override def afterAll() {
@@ -28,7 +26,7 @@ class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", ConfigWithDet
 
       assert(underlying.order.amount == 1)
       assert(order.stateName == OrderState.Active)
-      assert(order.stateData == RestAmount(1))
+      assert(order.stateData == Trace(1))
     }
 
     "move from Active to Filled" in {
@@ -36,7 +34,8 @@ class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", ConfigWithDet
 
       order ! FillOrder(BigDecimal(100), 1)
       assert(order.stateName == OrderState.Filled)
-      assert(order.stateData == RestAmount(0))
+      assert(order.stateData.rest == 0)
+      assert(order.stateData.actions.size == 1)
     }
 
     "stay in Active and move to Filled later" in {
@@ -44,11 +43,13 @@ class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", ConfigWithDet
 
       order ! FillOrder(BigDecimal(100), 1)
       assert(order.stateName == OrderState.Active)
-      assert(order.stateData == RestAmount(1))
+      assert(order.stateData.rest == 1)
+      assert(order.stateData.actions.size == 1)
 
       order ! FillOrder(BigDecimal(100), 1)
       assert(order.stateName == OrderState.Filled)
-      assert(order.stateData == RestAmount(0))
+      assert(order.stateData.rest == 0)
+      assert(order.stateData.actions.size == 2)
     }
 
     "fail to fill more then rest amount" in {
