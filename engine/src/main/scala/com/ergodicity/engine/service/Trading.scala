@@ -30,7 +30,6 @@ import com.ergodicity.engine.{Services, Engine}
 import java.io.File
 import ru.micexrts.cgate.{Publisher => CGPublisher, Connection => CGConnection}
 import scala.Some
-import akka.dispatch.Await
 
 object Trading {
 
@@ -180,24 +179,16 @@ protected[service] class TradingService(listener: ListenerFactory,
       goto(Stopping)
 
     case Event(Buy(instrument@Instrument(FutureContract(_, isin, _, _), _), amount, price), _) =>
-      val orderId = (TradingBroker.ask(Broker.Buy[Futures](isin, amount, price, ImmediateOrCancel))).mapTo[OrderId]
-      val orderRef = orderId flatMap (id => (ordersTracker.ask(GetOrder(id.id))(1.second)).mapTo[OrderRef])
-      val ebaka = Await.result(orderRef, 1.second)
-      log.info("EBAKA = " + ebaka)
-
-      orderRef map (order => {
-        log.info("Order = " + order)
-        new ExecutionReport(instrument, order.order, order.ref)(TradingBroker)
-      }) pipeTo sender
+      val orderId = (TradingBroker ? Broker.Buy[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
+      val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
+      orderRef map (order => new ExecutionReport(instrument, order.order, order.ref)(TradingBroker)) pipeTo sender
       stay()
 
-    /*
-        case Event(Sell(instrument@Instrument(FutureContract(_, isin, _, _), _), amount, price), _) =>
-          val orderId = (TradingBroker ? Broker.Sell[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
-          val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
-          orderRef map (order => new ExecutionReport(instrument, order.order, order.ref)(TradingBroker)) pipeTo sender
-          stay()
-    */
+    case Event(Sell(instrument@Instrument(FutureContract(_, isin, _, _), _), amount, price), _) =>
+      val orderId = (TradingBroker ? Broker.Sell[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
+      val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
+      orderRef map (order => new ExecutionReport(instrument, order.order, order.ref)(TradingBroker)) pipeTo sender
+      stay()
 
   }
 

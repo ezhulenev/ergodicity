@@ -2,7 +2,7 @@ package com.ergodicity.engine.service
 
 import akka.actor.FSM.CurrentState
 import akka.actor.FSM.Transition
-import akka.actor.{Props, Terminated, Actor, ActorSystem}
+import akka.actor.{Terminated, Actor, ActorSystem}
 import akka.event.Logging
 import akka.testkit._
 import akka.util.duration._
@@ -14,7 +14,7 @@ import com.ergodicity.core.session.Instrument
 import com.ergodicity.core.session.Instrument.Limits
 import com.ergodicity.engine.Services
 import com.ergodicity.engine.service.Service.{Stop, Start}
-import com.ergodicity.engine.service.Trading.{ExecutionReport, Buy}
+import com.ergodicity.engine.service.Trading.{Sell, ExecutionReport, Buy}
 import com.ergodicity.engine.underlying.ListenerFactory
 import org.mockito.Mockito
 import org.mockito.Mockito._
@@ -112,7 +112,7 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
       verify(services).serviceStopped(Trading.Trading)
     }
 
-    "buy future" in {
+    "buy & sell future" in {
       val publisher = mock(classOf[CGPublisher])
       val repliesConnection = mock(classOf[CGConnection])
       val replicationConnection = mock(classOf[CGConnection])
@@ -125,18 +125,17 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
       val shortIsin = ShortIsin("Short")
       val orderId = 99999
 
-      val broker = system.actorOf(Props(new Actor {
+      val broker = TestActorRef(new Actor {
         protected def receive = {
           case command: MarketCommand[_, _, _] => sender ! OrderId(orderId)
         }
-      }), "Broker")
+      }, "Broker")
 
-      val tracker = system.actorOf(Props(new Actor {
+      val tracker = TestActorRef(new Actor {
         protected def receive = {
           case GetOrder(id) if (id == orderId) => sender ! OrderRef(mock(classOf[Order]), system.deadLetters)
-          case _ => "EBAKA!"
         }
-      }), "orderTracker")
+      }, "OrderTracker")
 
       given("Trading service in started state")
       val service = TestFSMRef(new TradingService(listenerFactory, publisherName, brokerCode, publisher, repliesConnection, replicationConnection) {
@@ -145,12 +144,17 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
       }, "TradingService")
       service.setState(TradingState.Started)
 
+      when("receive buy command")
       service ! Buy(Instrument(FutureContract(isinId, isin, shortIsin, ""), Limits(0, 0)), 1, 100)
-      val res = receiveOne(100.millis)
-      log.info("Result = " + res)
-      val report = res.asInstanceOf[ExecutionReport]
-      log.info("Reports = " + report)
-      Thread.sleep(1000)
+      then("should return ExecutionReport")
+      val buyReport = receiveOne(100.millis).asInstanceOf[ExecutionReport]
+      log.info("Buy Report = " + buyReport)
+
+      when("receive Sell command")
+      service ! Sell(Instrument(FutureContract(isinId, isin, shortIsin, ""), Limits(0, 0)), 1, 100)
+      then("should return ExecutionReport")
+      val sellReport = receiveOne(100.millis).asInstanceOf[ExecutionReport]
+      log.info("Sell Report = " + sellReport)
     }
   }
 }
