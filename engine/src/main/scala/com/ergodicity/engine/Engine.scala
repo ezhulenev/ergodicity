@@ -11,6 +11,12 @@ import com.ergodicity.cgate.config.Replication
 
 
 object Engine {
+  val ReplicationDispatcher = "engine.dispatchers.replicationDispatcher"
+
+  val ReplyDispatcher = "engine.dispatchers.replyDispatcher"
+
+  val PublisherDispatcher = "engine.dispatchers.publisherDispatcher"
+
   case object StartEngine
 
   case object StopEngine

@@ -214,6 +214,10 @@ class ServicesActor extends Services with Actor with LoggingFSM[ServicesState, P
       stay()
   }
 
+  onTransition {
+    case Starting -> Active => log.info("All services started")
+  }
+
   override def preStart() {
     log.info("Registered services = " + services.keys)
     services.foreach {

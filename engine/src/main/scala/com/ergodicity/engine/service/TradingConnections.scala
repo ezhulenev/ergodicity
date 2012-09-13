@@ -59,8 +59,8 @@ protected[service] class TradingConnectionsService(publisherConnection: CGConnec
   import services._
   import TradingConnectionsService._
 
-  val PublisherConnection = context.actorOf(Props(new CgateConnection(publisherConnection)), "PublisherConnection")
-  val RepliesConnection = context.actorOf(Props(new CgateConnection(repliesConnection)), "RepliesConnection")
+  val PublisherConnection = context.actorOf(Props(new CgateConnection(publisherConnection)).withDispatcher(Engine.PublisherDispatcher), "PublisherConnection")
+  val RepliesConnection = context.actorOf(Props(new CgateConnection(repliesConnection)).withDispatcher(Engine.ReplyDispatcher), "RepliesConnection")
 
   context.watch(PublisherConnection)
   context.watch(RepliesConnection)

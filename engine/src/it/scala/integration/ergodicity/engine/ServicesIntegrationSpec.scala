@@ -1,22 +1,20 @@
 package integration.ergodicity.engine
 
-import akka.testkit.{TestActorRef, TestKit}
 import akka.actor.ActorSystem
-import akka.util.duration._
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
+import akka.testkit.{TestActorRef, TestKit}
+import akka.util.duration._
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import com.ergodicity.cgate.config.{Replication, CGateConfig}
-import java.io.File
-import com.ergodicity.engine.{ServicesActor, Engine, Services}
-import com.ergodicity.engine.service.{Portfolio, InstrumentData, TradingConnections, Connection}
-import com.ergodicity.engine.underlying.{UnderlyingListener, ListenerFactory, UnderlyingTradingConnections, UnderlyingConnection}
-import java.util.concurrent.TimeUnit
-import com.ergodicity.engine.Services.StartServices
+import com.ergodicity.cgate.config.{FortsMessages, CGateConfig, Replication}
 import com.ergodicity.engine.ReplicationScheme.{PosReplication, OptInfoReplication, FutInfoReplication}
-import ru.micexrts.cgate
-import cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener}
-import com.ergodicity.cgate.Connection.StartMessageProcessing
+import com.ergodicity.engine.Services.StartServices
+import com.ergodicity.engine.service._
+import com.ergodicity.engine.underlying._
+import com.ergodicity.engine.{ServicesActor, Engine}
+import java.io.File
+import java.util.concurrent.TimeUnit
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener, Publisher => CGPublisher}
 
 class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -62,12 +60,20 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
     }
   }
 
-  class IntegrationEngine extends Engine with Connections with Replication with Listener
+  trait Publisher extends UnderlyingPublisher {
+    self: Engine with UnderlyingConnection =>
+    val publisherName: String = "Engine"
+    val brokerCode: String = "533"
+    val messagesConfig = FortsMessages(publisherName, 5.seconds, new File("./cgate/scheme/FortsMessages.ini"))
+    val underlyingPublisher = new CGPublisher(underlyingConnection, messagesConfig())
+  }
 
-  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with Connection with TradingConnections with InstrumentData with Portfolio
+  class IntegrationEngine extends Engine with Connections with Replication with Listener with Publisher
+
+  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with Connection with TradingConnections with InstrumentData with Portfolio with Trading
 
   "Services" must {
-    "support Connection Service" in {
+    "start all registered services" in {
 
       val underlyingEngine = TestActorRef(new IntegrationEngine, "Engine").underlyingActor
       val services = TestActorRef(new IntegrationServices(underlyingEngine), "Services")
@@ -77,5 +83,4 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
   }
-
 }

@@ -113,6 +113,8 @@ class Broker(underlying: CGPublisher, updateStateDuration: Option[Duration] = So
   }
 
   whenUnhandled {
+    case Event(ReplyEvent.Open, _) => stay()
+
     case Event(PublisherState(com.ergodicity.cgate.Error), _) => throw new BrokerError
 
     case Event(PublisherState(state), _) if (state != stateName) => goto(state)

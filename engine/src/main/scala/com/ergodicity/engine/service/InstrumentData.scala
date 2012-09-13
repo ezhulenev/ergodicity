@@ -67,10 +67,10 @@ protected[service] class InstrumentDataService(listener: ListenerFactory, underl
 
   // Listeners
   val underlyingFutInfoListener = listener(underlyingConnection, futInfoReplication(), new DataStreamSubscriber(FutInfoStream))
-  val futInfoListener = context.actorOf(Props(new Listener(underlyingFutInfoListener)), "FutInfoListener")
+  val futInfoListener = context.actorOf(Props(new Listener(underlyingFutInfoListener)).withDispatcher(Engine.ReplicationDispatcher), "FutInfoListener")
 
   val underlyingOptInfoListener = listener(underlyingConnection, optInfoReplication(), new DataStreamSubscriber(OptInfoStream))
-  val optInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)), "OptInfoListener")
+  val optInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)).withDispatcher(Engine.ReplicationDispatcher), "OptInfoListener")
 
   startWith(Idle, StreamStates())
 
@@ -90,7 +90,7 @@ protected[service] class InstrumentDataService(listener: ListenerFactory, underl
     case Event(CurrentState(FutInfoStream, state: DataStreamState), states) => startUp(states.copy(fut = Some(state)))
     case Event(CurrentState(OptInfoStream, state: DataStreamState), states) => startUp(states.copy(opt = Some(state)))
     case Event(Transition(FutInfoStream, _, to: DataStreamState), states) => startUp(states.copy(fut = Some(to)))
-    case Event(Transition(OptInfoStream, _, to: DataStreamState), states) => startUp(states.copy(fut = Some(to)))
+    case Event(Transition(OptInfoStream, _, to: DataStreamState), states) => startUp(states.copy(opt = Some(to)))
 
     case Event(FSM.StateTimeout, _) => failed("Starting timed out")
   }

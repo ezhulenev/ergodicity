@@ -30,7 +30,7 @@ protected[service] class ConnectionService(underlyingConnection: CGConnection)
 
   import services._
 
-  val Connection = context.actorOf(Props(new CgateConnection(underlyingConnection)), "Connection")
+  val Connection = context.actorOf(Props(new CgateConnection(underlyingConnection)).withDispatcher(Engine.ReplicationDispatcher), "Connection")
 
   // Stop Connection on any CGException
   override def supervisorStrategy() = AllForOneStrategy() {

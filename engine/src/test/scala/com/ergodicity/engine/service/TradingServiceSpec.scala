@@ -1,18 +1,16 @@
 package com.ergodicity.engine.service
 
+import akka.actor.FSM.{CurrentState, Transition}
 import akka.actor.{Terminated, ActorSystem}
-import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import akka.testkit._
-import org.mockito.Mockito._
+import com.ergodicity.cgate.DataStreamState
 import com.ergodicity.engine.Services
+import com.ergodicity.engine.service.Service.{Stop, Start}
 import com.ergodicity.engine.underlying.ListenerFactory
-import ru.micexrts.cgate
-import cgate.{ISubscriber, Connection => CGConnection, Listener => CGListener, Publisher => CGPublisher}
-import com.ergodicity.core.broker.Broker
-import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
-import com.ergodicity.engine.service.Service.Start
-import com.ergodicity.cgate.{Active, Opening}
+import org.mockito.Mockito._
+import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
+import ru.micexrts.cgate.{ISubscriber, Connection => CGConnection, Listener => CGListener, Publisher => CGPublisher}
 
 class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -24,56 +22,80 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
   implicit val Id = Trading.Trading
 
   val listenerFactory = new ListenerFactory {
-    def apply(connection: cgate.Connection, config: String, subscriber: ISubscriber) = mock(classOf[CGListener])
+    def apply(connection: CGConnection, config: String, subscriber: ISubscriber) = mock(classOf[CGListener])
   }
 
-  implicit val BrokerConfig = Broker.Config("000")
+
+  val publisherName = "Engine"
+  val brokerCode = "000"
 
   "Trading Service" must {
+    "initialized in Idle state" in {
+      val publisher = mock(classOf[CGPublisher])
+      val repliesConnection = mock(classOf[CGConnection])
+      val replicationConnection = mock(classOf[CGConnection])
+
+      implicit val services = mock(classOf[Services])
+
+      val service =  TestFSMRef(new TradingService(listenerFactory, publisherName, brokerCode, publisher, repliesConnection, replicationConnection), "TradingService")
+
+      assert(service.stateName == TradingState.Idle)
+    }
+
     "start service" in {
       val publisher = mock(classOf[CGPublisher])
       val repliesConnection = mock(classOf[CGConnection])
+      val replicationConnection = mock(classOf[CGConnection])
 
       implicit val services = mock(classOf[Services])
-      val broker = TestProbe()
 
-      val service =  TestActorRef(new TradingService(listenerFactory, publisher, repliesConnection) {
-        override val TradingBroker = broker.ref
-      }, "TradingService")
+      given("Trading service")
+      val service =  TestFSMRef(new TradingService(listenerFactory, publisherName, brokerCode, publisher, repliesConnection, replicationConnection), "TradingService")
+      val underlying = service.underlyingActor.asInstanceOf[TradingService]
 
-      when("got Start message ")
+      when("receive Start message")
       service ! Start
+      when("should go to Starting state")
+      assert(service.stateName == TradingState.Starting)
 
-      then("should track Trading state")
-      broker.expectMsg(SubscribeTransitionCallBack(service))
+      when("broker Active and both streams goes Online")
+      service ! CurrentState(underlying.TradingBroker, com.ergodicity.cgate.Active)
+      service ! CurrentState(underlying.FutOrdersStream, DataStreamState.Online)
+      service ! CurrentState(underlying.OptOrdersStream, DataStreamState.Online)
 
-      when("Broker activated")
-      service ! Transition(broker.ref, Opening, Active)
-
-      then("Service Manager should be notified")
-      verify(services).serviceStarted(Id)
+      then("service shoud be started")
+      assert(service.stateName == TradingState.Started)
+      and("Service Manager should be notified")
+      verify(services).serviceStarted(Trading.Trading)
     }
 
     "stop service" in {
       val publisher = mock(classOf[CGPublisher])
       val repliesConnection = mock(classOf[CGConnection])
+      val replicationConnection = mock(classOf[CGConnection])
 
       implicit val services = mock(classOf[Services])
-      val broker = TestProbe()
 
-      val service =  TestActorRef(new TradingService(listenerFactory, publisher, repliesConnection){
-        override val TradingBroker = broker.ref
-      }, "TradingService")
+      given("Trading service in started state")
+      val service =  TestFSMRef(new TradingService(listenerFactory, publisherName, brokerCode, publisher, repliesConnection, replicationConnection), "TradingService")
+      service.setState(TradingState.Started)
+      val underlying = service.underlyingActor.asInstanceOf[TradingService]
 
-      when("stop Service")
-      service ! Service.Stop
+      when("receive Stop message")
+      service ! Stop
+      when("should go to Stopping state")
+      assert(service.stateName == TradingState.Stopping)
 
-      then("service should be terminated")
+      when("broker Closed and both streams Closed too")
+      service ! Transition(underlying.TradingBroker, com.ergodicity.cgate.Active, com.ergodicity.cgate.Closed)
+      service ! Transition(underlying.FutOrdersStream, DataStreamState.Online, DataStreamState.Closed)
+      service ! Transition(underlying.OptOrdersStream, DataStreamState.Online, DataStreamState.Closed)
+
+      then("service shoud be stopped")
       watch(service)
       expectMsg(Terminated(service))
-
-      and("service manager should be notified")
-      verify(services).serviceStopped(Id)
+      and("Service Manager should be notified")
+      verify(services).serviceStopped(Trading.Trading)
     }
   }
 }
