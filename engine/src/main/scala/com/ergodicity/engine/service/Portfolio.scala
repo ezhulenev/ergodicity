@@ -24,6 +24,7 @@ import com.ergodicity.engine.underlying.{ListenerFactory, UnderlyingConnection, 
 import com.ergodicity.engine.{Services, Engine}
 import ru.micexrts.cgate.{Connection => CGConnection}
 import scala.Some
+import akka.util.Timeout
 
 object Portfolio {
 
@@ -64,6 +65,8 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
 
   import PortfolioState._
   import services._
+
+  implicit val timeout = Timeout(5.second)
 
   val instrumentData = service(InstrumentData.InstrumentData)
 

@@ -42,11 +42,15 @@ object Trading {
 
   class ExecutionReport(val instrument: Instrument, val order: Order, ref: ActorRef)(broker: ActorRef) {
     implicit val cancelTimeout = Timeout(5.seconds)
+
     def cancel = instrument.security match {
       case _: FutureContract => (broker ? Broker.Cancel[Futures](OrderId(order.id))).mapTo[Cancelled]
       case _ => throw new RuntimeException("Unsupported security")
     }
+
+    override def toString = "ExecutionReport(instrument = " + instrument + ", order = " + order + ")"
   }
+
 }
 
 
@@ -96,6 +100,8 @@ protected[service] class TradingService(listener: ListenerFactory,
 
   import TradingState._
   import services._
+
+  implicit val timeout = Timeout(5.second)
 
   private[this] val instrumentData = service(InstrumentData.InstrumentData)
 
@@ -174,25 +180,24 @@ protected[service] class TradingService(listener: ListenerFactory,
       goto(Stopping)
 
     case Event(Buy(instrument@Instrument(FutureContract(_, isin, _, _), _), amount, price), _) =>
-      val orderId = (TradingBroker.ask(Broker.Buy[Futures](isin, amount, price, ImmediateOrCancel))(1.second)).mapTo[OrderId]
+      val orderId = (TradingBroker.ask(Broker.Buy[Futures](isin, amount, price, ImmediateOrCancel))).mapTo[OrderId]
+      val orderRef = orderId flatMap (id => (ordersTracker.ask(GetOrder(id.id))(1.second)).mapTo[OrderRef])
+      val ebaka = Await.result(orderRef, 1.second)
+      log.info("EBAKA = " + ebaka)
 
-      val ebaka = Await.result(orderId, 1.second)
-      log.info("EBAKA = "+ebaka)
-
-      val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
       orderRef map (order => {
-        log.info("Order = "+order)
+        log.info("Order = " + order)
         new ExecutionReport(instrument, order.order, order.ref)(TradingBroker)
       }) pipeTo sender
       stay()
 
-/*
-    case Event(Sell(instrument@Instrument(FutureContract(_, isin, _, _), _), amount, price), _) =>
-      val orderId = (TradingBroker ? Broker.Sell[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
-      val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
-      orderRef map (order => new ExecutionReport(instrument, order.order, order.ref)(TradingBroker)) pipeTo sender
-      stay()
-*/
+    /*
+        case Event(Sell(instrument@Instrument(FutureContract(_, isin, _, _), _), amount, price), _) =>
+          val orderId = (TradingBroker ? Broker.Sell[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
+          val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
+          orderRef map (order => new ExecutionReport(instrument, order.order, order.ref)(TradingBroker)) pipeTo sender
+          stay()
+    */
 
   }
 

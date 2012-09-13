@@ -102,7 +102,7 @@ abstract class Services {
 
   implicit val Self = this
 
-  implicit val timeout = Timeout(5.seconds)
+  private implicit val timeout = Timeout(5.seconds)
 
   protected[engine] val services = mutable.Map.empty[ServiceId, ManagedService]
 
