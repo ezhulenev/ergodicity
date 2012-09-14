@@ -14,7 +14,7 @@ import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.cgate.config.Replies.RepliesParams
 import com.ergodicity.cgate.config.{Replication, Replies}
 import com.ergodicity.core.Market.Futures
-import com.ergodicity.core.OrderType.ImmediateOrCancel
+import com.ergodicity.core.OrderType.{GoodTillCancelled, ImmediateOrCancel}
 import com.ergodicity.core.SessionsTracking.{OngoingSessionTransition, OngoingSession, SubscribeOngoingSessions}
 import com.ergodicity.core.broker.{Cancelled, OrderId, ReplySubscriber, Broker}
 import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef, DropSession, GetSessionOrdersTracking}
@@ -66,7 +66,7 @@ trait Trading {
 
   lazy val creator = new TradingService(
     engine.listenerFactory, engine.publisherName, engine.brokerCode,
-    engine.underlyingPublisher, engine.underlyingRepliesConnection, engine.underlyingConnection
+    engine.underlyingPublisher, engine.underlyingTradingConnection, engine.underlyingConnection
   )
   register(Props(creator), dependOn = InstrumentData.InstrumentData :: Nil)
 }
@@ -97,14 +97,14 @@ protected[service] class TradingService(listener: ListenerFactory,
                                         publisherName: String,
                                         brokerCode: String,
                                         underlyingPublisher: CGPublisher,
-                                        underlyingRepliesConnection: CGConnection,
+                                        tradingConnection: CGConnection,
                                         replicationConnection: CGConnection)
                                        (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[TradingState, TradingStates] with Service {
 
   import TradingState._
   import services._
 
-  implicit val timeout = Timeout(5.second)
+  implicit val timeout = Timeout(30.second)
 
   private[this] val instrumentData = service(InstrumentData.InstrumentData)
 
@@ -113,7 +113,7 @@ protected[service] class TradingService(listener: ListenerFactory,
   // Execution broker
   val TradingBroker = context.actorOf(Props(new Broker(underlyingPublisher)).withDispatcher(Engine.PublisherDispatcher), "Broker")
 
-  private[this] val underlyingRepliesListener = listener(underlyingRepliesConnection, Replies(publisherName)(), new ReplySubscriber(TradingBroker))
+  private[this] val underlyingRepliesListener = listener(tradingConnection, Replies(publisherName)(), new ReplySubscriber(TradingBroker))
   private[this] val replyListener = context.actorOf(Props(new Listener(underlyingRepliesListener)).withDispatcher(Engine.ReplyDispatcher), "RepliesListener")
 
   // Orders tracking
@@ -183,7 +183,7 @@ protected[service] class TradingService(listener: ListenerFactory,
       goto(Stopping)
 
     case Event(Buy(security@FutureContract(_, isin, _, _), amount, price), _) =>
-      val orderId = (TradingBroker ? Broker.Buy[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
+      val orderId = (TradingBroker ? Broker.Buy[Futures](isin, amount, price, GoodTillCancelled)).mapTo[OrderId]
       val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
       orderRef map (order => new ExecutionReport(security, order.order, order.ref)(TradingBroker)) pipeTo sender
       stay()

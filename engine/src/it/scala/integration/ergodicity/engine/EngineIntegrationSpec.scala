@@ -59,7 +59,7 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
 
 /*  class TestEngine extends Engine with Underlying with Config with CreateListenerComponent
   with Connection
-  with TradingConnections
+  with TradingConnection
   with ManagedServices
   with ManagedStrategies
   //with ManagedInstrumentData
@@ -70,8 +70,7 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
   trait Underlying extends UnderlyingConnection with UnderlyingTradingConnections {
     val underlyingConnection = new CGConnection(ReplicationConnection())
 
-    val underlyingPublisherConnection = new CGConnection(PublisherConnection())
-    val underlyingRepliesConnection = new CGConnection(RepliesConnection())
+    val underlyingTradingConnection = new CGConnection(PublisherConnection())
   }
 
 
@@ -86,7 +85,7 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
     val BrokerName = "Ergodicity"
 
     val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/FortsMessages.ini"))
-    val underlyingPublisher = new CGPublisher(underlyingPublisherConnection, messagesConfig())
+    val underlyingPublisher = new CGPublisher(underlyingTradingConnection, messagesConfig())
   }
 
   trait SessionsConfig extends FutInfoReplication with OptInfoReplication {

@@ -5,24 +5,41 @@ import com.ergodicity.cgate.{Connection => CgateConnection, WhenUnhandled}
 import akka.actor._
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import akka.util.duration._
-import com.ergodicity.engine.underlying.UnderlyingConnection
+import com.ergodicity.engine.underlying.{UnderlyingTradingConnections, UnderlyingConnection}
 import ru.micexrts.cgate.{Connection => CGConnection, CGateException}
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 
-object Connection {
+object ReplicationConnection {
 
   implicit case object Connection extends ServiceId
 
 }
 
-trait Connection {
+trait ReplicationConnection {
   this: Services =>
 
-  import Connection._
+  import ReplicationConnection._
 
   def engine: Engine with UnderlyingConnection
 
   register(Props(new ConnectionService(engine.underlyingConnection)))
+}
+
+
+object TradingConnection {
+
+  implicit case object TradingConnection extends ServiceId
+
+}
+
+trait TradingConnection {
+  this: Services =>
+
+  import TradingConnection._
+
+  def engine: Engine with UnderlyingTradingConnections
+
+  register(Props(new ConnectionService(engine.underlyingTradingConnection)))
 }
 
 protected[service] class ConnectionService(underlyingConnection: CGConnection)

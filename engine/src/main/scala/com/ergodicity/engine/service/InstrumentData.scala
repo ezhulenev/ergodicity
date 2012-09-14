@@ -32,7 +32,7 @@ trait InstrumentData {
 
   register(
     Props(new InstrumentDataService(engine.listenerFactory, engine.underlyingConnection, engine.futInfoReplication, engine.optInfoReplication)),
-    dependOn = Connection.Connection :: Nil
+    dependOn = ReplicationConnection.Connection :: Nil
   )
 }
 

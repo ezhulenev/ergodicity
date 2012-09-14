@@ -41,9 +41,7 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
   trait Connections extends UnderlyingConnection with UnderlyingTradingConnections {
     val underlyingConnection = new CGConnection(ReplicationConnection())
 
-    def underlyingPublisherConnection = new CGConnection(PublisherConnection())
-
-    def underlyingRepliesConnection = new CGConnection(RepliesConnection())
+    val underlyingTradingConnection = new CGConnection(PublisherConnection())
   }
 
   trait Replication extends FutInfoReplication with OptInfoReplication with PosReplication {
@@ -70,7 +68,7 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
 
   class IntegrationEngine extends Engine with Connections with Replication with Listener with Publisher
 
-  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with Connection with TradingConnections with InstrumentData with Portfolio with Trading
+  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection with TradingConnection with InstrumentData with Portfolio with Trading
 
   "Services" must {
     "start all registered services" in {

@@ -21,7 +21,7 @@ class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec",
     "throw exception on error state" in {
       val underlyingConnection = mock(classOf[CGConnection])
       implicit val services = mock(classOf[Services])
-      implicit val Id = Connection.Connection
+      implicit val Id = ReplicationConnection.Connection
 
       val service = TestActorRef(new ConnectionService(underlyingConnection), "ConnectionService")
       intercept[ServiceFailedException] {
@@ -32,7 +32,7 @@ class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec",
     "notify engine on activated state" in {
       val underlyingConnection = mock(classOf[CGConnection])
       implicit val services = mock(classOf[Services])
-      implicit val Id = Connection.Connection
+      implicit val Id = ReplicationConnection.Connection
 
       val service = TestActorRef(new ConnectionService(underlyingConnection), "ConnectionService")
       service ! CurrentState(service.underlyingActor.Connection, com.ergodicity.cgate.Active)
@@ -43,7 +43,7 @@ class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec",
     "stop itselt of Service.Stop message" in {
       val underlyingConnection = mock(classOf[CGConnection])
       implicit val services = mock(classOf[Services])
-      implicit val Id = Connection.Connection
+      implicit val Id = ReplicationConnection.Connection
 
       // CallingThreadDispatcher for TestActorRef breaks test
       val service = system.actorOf(Props(new ConnectionService(underlyingConnection)))
