@@ -26,7 +26,8 @@ class SessionContents[T](Session: ActorRef) extends Actor with ActorLogging with
 
   protected[core] val instruments = mutable.Map[Instrument, ActorRef]()
 
-  var sessionState = Await.result((Session ? GetState).mapTo[SessionState], 15.seconds)
+  // Make assumption on parent session state
+  var sessionState: SessionState = SessionState.Suspended
 
   override def preStart() {
     log.info("Start SessionContents with parent session state = " + sessionState)
@@ -38,6 +39,7 @@ class SessionContents[T](Session: ActorRef) extends Actor with ActorLogging with
   private def receiveSessionState: Receive = {
     case CurrentState(Session, state: SessionState) =>
       sessionState = state
+      applySessionState(state)
 
     case Transition(Session, _, to: SessionState) =>
       sessionState = to

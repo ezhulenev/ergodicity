@@ -183,7 +183,7 @@ protected[service] class TradingService(listener: ListenerFactory,
       goto(Stopping)
 
     case Event(Buy(security@FutureContract(_, isin, _, _), amount, price), _) =>
-      val orderId = (TradingBroker ? Broker.Buy[Futures](isin, amount, price, GoodTillCancelled)).mapTo[OrderId]
+      val orderId = (TradingBroker ? Broker.Buy[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
       val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
       orderRef map (order => new ExecutionReport(security, order.order, order.ref)(TradingBroker)) pipeTo sender
       stay()
