@@ -160,7 +160,7 @@ protected[service] class TradingService(listener: ListenerFactory,
       goto(Starting)
   }
 
-  when(Starting, stateTimeout = 10.seconds) {
+  when(Starting, stateTimeout = 30.seconds) {
     case Event(CurrentState(FutOrdersStream, state: DataStreamState), states) => startUp(states.copy(fut = Some(state)))
     case Event(CurrentState(OptOrdersStream, state: DataStreamState), states) => startUp(states.copy(opt = Some(state)))
 

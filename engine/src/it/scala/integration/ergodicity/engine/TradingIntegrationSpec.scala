@@ -20,6 +20,7 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener, Publisher => CGPublisher}
+import akka.dispatch.Await
 
 class TradingIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -95,6 +96,40 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSpe
             f onComplete {
               res => log.info("Result = " + res)
             }
+        }
+      }))
+
+      Thread.sleep(TimeUnit.DAYS.toMillis(10))
+    }
+
+    "add order and cancel it later" in {
+
+      val underlyingEngine = TestActorRef(new IntegrationEngine, "Engine").underlyingActor
+      val services = TestActorRef(new IntegrationServices(underlyingEngine), "Services")
+
+      services ! StartServices
+
+      services ! SubscribeTransitionCallBack(TestActorRef(new Actor {
+        protected def receive = {
+          case Transition(_, _, ServicesState.Active) =>
+            val trading = services.underlyingActor.service(Trading.Trading)
+            log.info("Trading service = " + trading)
+
+            implicit val timeout = Timeout(10.minutes)
+            val f1 = (trading ? Buy(FutureContract(IsinId(0), Isin("RTS-12.12"), ShortIsin(""), ""), 1, 150000)).mapTo[ExecutionReport]
+
+            f1 onComplete (_ match {
+              case Left(err) =>
+                log.error("Error placing order; Error = " + err)
+
+              case Right(execution) =>
+                log.info("Execution report = " + execution)
+                val f2 = execution.cancel
+                val cancelled = Await.result(f2, 5.seconds)
+
+                log.info("Cancel Response = " + cancelled)
+            })
+
         }
       }))
 

@@ -47,11 +47,11 @@ object Services {
 
   // Possible failures
 
-  case class ServicesStartupTimedOut(pending: Iterable[ServiceId]) extends RuntimeException
+  case class ServicesStartupTimedOut(pending: Iterable[ServiceId]) extends RuntimeException("Service start up timed out; Pending = " + pending)
 
-  class ServiceFailedException(service: ServiceId, message: String) extends RuntimeException
+  class ServiceFailedException(service: ServiceId, message: String) extends RuntimeException(message)
 
-  class ServiceNotFoundException(service: ServiceId) extends RuntimeException
+  class ServiceNotFoundException(service: ServiceId) extends RuntimeException("Service not found; service = " + service)
 
   // Managing Services dependencies
   object ServiceBarrier {
@@ -93,6 +93,7 @@ object Services {
 
     def waitFor(id: ServiceId) = copy(stopBarrier = stopBarrier.waitFor(id))
   }
+
 }
 
 abstract class Services {
@@ -172,7 +173,7 @@ class ServicesActor extends Services with Actor with LoggingFSM[ServicesState, P
       goto(Starting) using PendingServices(services.keys)
   }
 
-  when(Starting, stateTimeout = 30.seconds) {
+  when(Starting, stateTimeout = 1.minute) {
     case Event(ServiceStarted(service), PendingServices(pending)) =>
       val remaining = pending.filterNot(_ == service)
       log.info("Service started = " + service + ", remaining = " + remaining)
