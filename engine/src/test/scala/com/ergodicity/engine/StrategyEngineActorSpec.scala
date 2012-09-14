@@ -1,28 +1,25 @@
 package com.ergodicity.engine
 
-import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import service.Portfolio
-import strategy.{CloseAllPositions, StrategyId, StrategiesFactory}
-import akka.testkit.{TestActorRef, TestFSMRef, ImplicitSender, TestKit}
-import akka.actor._
-import akka.event.Logging
-import akka.util.duration._
-import com.ergodicity.engine.StrategyEngine.{ReconciliationFailed, StrategyReady, PrepareStrategies}
-import com.ergodicity.core._
-import com.ergodicity.core.session.Instrument
-import java.nio.ByteBuffer
-import com.ergodicity.cgate.scheme.Pos
-import position.Position
-import session.Instrument.Limits
-import session.SessionActor.AssignedInstruments
-import akka.actor.InvalidActorNameException
-import com.ergodicity.core.FutureContract
-import com.ergodicity.cgate.DataStream
-import org.mockito.Mockito._
-import org.mockito.Mockito
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import akka.actor.SupervisorStrategy.Stop
+import akka.actor._
+import akka.event.Logging
+import akka.testkit.{TestActorRef, TestFSMRef, ImplicitSender, TestKit}
+import akka.util.duration._
+import com.ergodicity.cgate.DataStream
+import com.ergodicity.core.PositionsTracking.PositionUpdated
+import com.ergodicity.core._
+import com.ergodicity.core.position.{PositionDynamics, Position}
+import com.ergodicity.core.session.Instrument
+import com.ergodicity.engine.StrategyEngine.{ReconciliationFailed, StrategyReady, PrepareStrategies}
 import java.util.concurrent.{TimeUnit, CountDownLatch}
+import org.mockito.Mockito
+import org.mockito.Mockito._
+import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
+import service.Portfolio
+import session.Instrument.Limits
+import session.SessionActor.AssignedInstruments
+import strategy.{CloseAllPositions, StrategyId, StrategiesFactory}
 
 class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -48,7 +45,6 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
 
   implicit val services = mock(classOf[Services])
 
-/*
   "Strategy Engine" must {
     "prepare all strategies" in {
       given("Engine with one Strategy")
@@ -78,13 +74,11 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
 
     "succesfully prepare strategies when positions reconciled" in {
       // Use PositionsTracking as Portfolio service
-      val portfolio = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Portfolio")
-      portfolio.setState(Online)
+      val portfolio = TestActorRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Portfolio")
       portfolio ! assignedInstruments
-      portfolio ! Snapshot(
-        portfolio.underlyingActor.asInstanceOf[PositionsTracking].PositionsRepository,
-        positionRecord(3, buys = 5, sells = 2)(isinId2) :: positionRecord(1, buys = 1)(isinId1) :: Nil
-      )
+
+      portfolio ! PositionUpdated(isinId1, Position(1), PositionDynamics(buys = 1))
+      portfolio ! PositionUpdated(isinId2, Position(3), PositionDynamics(buys = 5, sells = 2))
 
       // Prepare mock for services
       implicit val services = mock(classOf[Services])
@@ -109,13 +103,11 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
     "fail on reconciling duplicated positions" in {
 
       // Use PositionsTracking as Portfolio service
-      val portfolio = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Portfolio")
-      portfolio.setState(Online)
+      val portfolio = TestActorRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Portfolio")
       portfolio ! assignedInstruments
-      portfolio ! Snapshot(
-        portfolio.underlyingActor.asInstanceOf[PositionsTracking].PositionsRepository,
-        positionRecord(3, buys = 5, sells = 2)(isinId2) :: positionRecord(1, buys = 1)(isinId1) :: Nil
-      )
+
+      portfolio ! PositionUpdated(isinId1, Position(1), PositionDynamics(buys = 1))
+      portfolio ! PositionUpdated(isinId2, Position(3), PositionDynamics(buys = 5, sells = 2))
 
       // Prepare mock for services
       implicit val services = mock(classOf[Services])
@@ -144,7 +136,6 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
       expectMsg(Terminated(engine))
     }
   }
-*/
 
   implicit val isin1: Isin = Isin("RTS-9.12")
   implicit val isinId1 = IsinId(100)
@@ -156,16 +147,4 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
     Instrument(FutureContract(isinId1, isin1, ShortIsin(""), "Future Contract #1"), Limits(0, 0)),
     Instrument(FutureContract(isinId2, isin2, ShortIsin(""), "Future Contract #2"), Limits(0, 0))
   ))
-
-  def positionRecord(pos: Int, open: Int = 0, buys: Int = 0, sells: Int = 0)(id: IsinId) = {
-    val buff = ByteBuffer.allocate(1000)
-    val position = new Pos.position(buff)
-    position.set_isin_id(id.id)
-    position.set_open_qty(open)
-    position.set_buys_qty(buys)
-    position.set_sells_qty(sells)
-    position.set_pos(pos)
-    position.set_net_volume_rur(new java.math.BigDecimal(100))
-    position
-  }
 }

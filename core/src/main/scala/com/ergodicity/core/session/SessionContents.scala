@@ -74,6 +74,14 @@ trait FuturesContentsManager extends ContentsManager[FutSessContents] {
   def handleSessionContents(contents: FutSessContents) {
     originalInstrumentState(contents.instrument) = contents.state
     val isin = contents.instrument.security.isin
+    // EBAKA BEGIN
+    instruments.keys.find(_.security.isin == isin) map {existing =>
+      if (existing != contents.instrument) {
+        log.error("EXISTING INSTURMENTS = "+existing)
+        log.error("NEW INSTRUMENT = "+contents.instrument)
+      }
+    }
+    // EBAKA END
     val instrumentActor = instruments.getOrElseUpdate(contents.instrument, context.actorOf(Props(new InstrumentActor(contents.instrument)), isin.toActorName))
     instrumentActor ! merge(sessionState, contents.state)
   }

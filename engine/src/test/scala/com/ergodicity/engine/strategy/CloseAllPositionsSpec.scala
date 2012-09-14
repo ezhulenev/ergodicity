@@ -1,22 +1,31 @@
 package com.ergodicity.engine.strategy
 
-import akka.testkit.{TestActorRef, TestFSMRef, ImplicitSender, TestKit}
 import akka.actor.ActorSystem
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
-import com.ergodicity.core._
-import com.ergodicity.core.session.Instrument
-import position.Position
-import session.Instrument.Limits
-import session.SessionActor.AssignedInstruments
-import java.nio.ByteBuffer
-import com.ergodicity.cgate.scheme.Pos
+import akka.testkit._
 import com.ergodicity.cgate.DataStream
+import com.ergodicity.cgate.SysEvent.SessionDataReady
+import com.ergodicity.core.PositionsTracking.PositionUpdated
+import com.ergodicity.core.SessionsTracking.FutSessContents
+import com.ergodicity.core.SessionsTracking.FutSysEvent
+import com.ergodicity.core.SessionsTracking.OptSysEvent
+import com.ergodicity.core.SessionsTracking.SessionEvent
+import com.ergodicity.core._
+import com.ergodicity.core.order.OrderActor.{OrderEvent, SubscribeOrderEvents}
+import com.ergodicity.core.order.{FillOrder, Order}
+import com.ergodicity.core.position.{PositionDynamics, Position}
+import com.ergodicity.core.session.Instrument.Limits
+import com.ergodicity.core.session.SessionActor.AssignedInstruments
+import com.ergodicity.core.session._
+import com.ergodicity.engine.service.Trading._
+import com.ergodicity.engine.service.{InstrumentData, Portfolio, Trading}
+import com.ergodicity.engine.strategy.Strategy.Start
 import com.ergodicity.engine.{Services, StrategyEngine}
+import org.mockito.Mockito
 import org.mockito.Mockito._
-import com.ergodicity.engine.service.Portfolio
+import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 
-class CloseAllPositionsSpec  extends TestKit(ActorSystem("CloseAllPositionsSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   override def afterAll() {
@@ -25,46 +34,52 @@ class CloseAllPositionsSpec  extends TestKit(ActorSystem("CloseAllPositionsSpec"
 
   implicit val id = CloseAllPositions.CloseAllPositions
 
+  val sessionId = SessionId(100, 100)
+
   implicit val isin1 = Isin("RTS-9.12")
   implicit val isinId1 = IsinId(100)
 
   implicit val isin2 = Isin("RTS-12.12")
   implicit val isinId2 = IsinId(101)
 
-  val assignedInstruments = AssignedInstruments(Set(
-    Instrument(FutureContract(isinId1, isin1, ShortIsin(""), "Future Contract #1"), Limits(0, 0)),
-    Instrument(FutureContract(isinId2, isin2, ShortIsin(""), "Future Contract #2"), Limits(0, 0))
-  ))
+  val futureContract1 = FutureContract(isinId1, isin1, ShortIsin(""), "Future Contract #1")
+  val futureContract2 = FutureContract(isinId2, isin2, ShortIsin(""), "Future Contract #2")
 
-  def positionRecord(pos:Int, open: Int = 0, buys: Int = 0, sells: Int = 0)(id: IsinId) = {
-    val buff = ByteBuffer.allocate(1000)
-    val position = new Pos.position(buff)
-    position.set_isin_id(id.id)
-    position.set_open_qty(open)
-    position.set_buys_qty(buys)
-    position.set_sells_qty(sells)
-    position.set_pos(pos)
-    position.set_net_volume_rur(new java.math.BigDecimal(100))
-    position
+  val instrument1 = Instrument(futureContract1, Limits(100, 200))
+  val instrument2 = Instrument(futureContract2, Limits(1000, 2000))
+
+  val assignedInstruments = AssignedInstruments(Set(instrument1, instrument2))
+
+  private def portfolioService = {
+    val portfolio = TestActorRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Portfolio")
+    portfolio ! assignedInstruments
+
+    portfolio ! PositionUpdated(isinId1, Position(1), PositionDynamics(buys = 1))
+    portfolio ! PositionUpdated(isinId2, Position(-3), PositionDynamics(buys = 5, sells = 8))
+
+    portfolio
   }
 
-/*
+  private def instrumentDataService = {
+    val sessionsTracking = TestActorRef(new SessionsTracking(system.deadLetters, system.deadLetters), "Sessions")
+    sessionsTracking ! FutSessContents(sessionId.fut, instrument1, InstrumentState.Online)
+    sessionsTracking ! FutSessContents(sessionId.fut, instrument2, InstrumentState.Online)
+    sessionsTracking ! SessionEvent(sessionId, mock(classOf[Session]), SessionState.Online, IntradayClearingState.Oncoming)
+    sessionsTracking ! FutSysEvent(SessionDataReady(1, 100))
+    sessionsTracking ! OptSysEvent(SessionDataReady(1, 100))
+    sessionsTracking
+  }
+
   "Close All Positions" must {
     "load all current positions" in {
       // Use PositionsTracking as Portfolio service
-      val portfolio = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Portfolio")
-      portfolio.setState(Online)
-      portfolio ! assignedInstruments
-      portfolio ! Snapshot(
-        portfolio.underlyingActor.asInstanceOf[PositionsTracking].PositionsRepository,
-        positionRecord(3, buys = 5, sells = 2)(isinId2) :: positionRecord(1, buys = 1)(isinId1) :: Nil
-      )
+      val portfolio = portfolioService
 
       // Prepare mock for engine and services
       val engine = mock(classOf[StrategyEngine])
       val services = mock(classOf[Services])
-      when(engine.services).thenReturn(services)
-      when(services.service(Portfolio.Portfolio)).thenReturn(portfolio)
+      Mockito.when(engine.services).thenReturn(services)
+      Mockito.when(services.apply(Portfolio.Portfolio)).thenReturn(portfolio)
 
       // Build strategy
       val strategy = TestActorRef(new CloseAllPositions(engine), "CloseAllPositions")
@@ -72,10 +87,48 @@ class CloseAllPositionsSpec  extends TestKit(ActorSystem("CloseAllPositionsSpec"
 
       assert(underlying.positions.size == 2)
       assert(underlying.positions(isin1) == Position(1))
-      assert(underlying.positions(isin2) == Position(3))
+      assert(underlying.positions(isin2) == Position(-3))
 
-      verify(engine).reportReady(Map[Isin, Position](isin1 -> Position(1), isin2 -> Position(3)))(CloseAllPositions.CloseAllPositions)
+      verify(engine).reportReady(Map[Isin, Position](isin1 -> Position(1), isin2 -> Position(-3)))(CloseAllPositions.CloseAllPositions)
+    }
+
+    "close positions" in {
+      // TestProbes
+      val trading = TestProbe()
+
+      // Prepare mock for engine and services
+      val engine = mock(classOf[StrategyEngine])
+      val services = mock(classOf[Services])
+      Mockito.when(engine.services).thenReturn(services)
+      Mockito.when(services.apply(Trading.Trading)).thenReturn(trading.ref)
+      Mockito.when(services.apply(Portfolio.Portfolio)).thenReturn(portfolioService)
+      Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(instrumentDataService)
+
+      // Build strategy
+      val strategy = TestFSMRef(new CloseAllPositions(engine), "CloseAllPositions")
+
+      strategy ! Start
+      assert(strategy.stateName == CloseAllPositionsState.ClosingPositions)
+
+      // Expect buying messages
+      trading.expectMsgAllOf(Sell(futureContract1, 1, 100), Buy(futureContract2, 3, 2000))
+
+      when("get execution reports")
+      val orderActor1 = TestProbe()
+      val orderActor2 = TestProbe()
+      val order1 = Order(1, sessionId.fut, isinId1, null, null, null, 1)
+      val order2 = Order(2, sessionId.fut, isinId2, null, null, null, 3)
+      strategy ! new ExecutionReport(futureContract1, order1, orderActor1.ref)(system.deadLetters)
+      strategy ! new ExecutionReport(futureContract2, order2, orderActor2.ref)(system.deadLetters)
+      then("should subscribe for order events")
+      orderActor1.expectMsg(SubscribeOrderEvents(strategy))
+      orderActor2.expectMsg(SubscribeOrderEvents(strategy))
+
+      when("orders filled")
+      strategy ! OrderEvent(order1, FillOrder(100, 1))
+      strategy ! OrderEvent(order2, FillOrder(100, 3))
+      then("should go to PositionsClosed state")
+      assert(strategy.stateName == CloseAllPositionsState.PositionsClosed)
     }
   }
-*/
 }

@@ -3,18 +3,22 @@ package com.ergodicity.engine.strategy
 import akka.actor._
 import akka.dispatch.Await
 import akka.pattern.ask
+import akka.pattern.pipe
 import akka.util.duration._
 import akka.util.{Duration, Timeout}
-import collection.mutable
 import com.ergodicity.core.PositionsTracking.{GetPositions, Positions}
+import com.ergodicity.core.order.FillOrder
+import com.ergodicity.core.order.OrderActor.OrderEvent
 import com.ergodicity.core.position.Position
 import com.ergodicity.core.session.{InstrumentState, Instrument}
-import com.ergodicity.core.{session, Isin}
+import com.ergodicity.core.{Isin, position}
 import com.ergodicity.engine.StrategyEngine
+import com.ergodicity.engine.service.Trading.{Buy, Sell, ExecutionReport}
 import com.ergodicity.engine.service.{Trading, Portfolio}
-import com.ergodicity.engine.strategy.CloseAllPositionsState.Catching
+import com.ergodicity.engine.strategy.CloseAllPositionsState.RemainingPositions
 import com.ergodicity.engine.strategy.InstrumentWatchDog.{CatchedState, Catched, WatchDogConfig}
-import com.ergodicity.engine.strategy.Strategy.Start
+import com.ergodicity.engine.strategy.Strategy.{Stop, Start}
+import scala.collection.{immutable, mutable}
 
 object CloseAllPositions {
 
@@ -34,28 +38,31 @@ object CloseAllPositionsState {
 
   case object Ready extends CloseAllPositionsState
 
-  case object CatchingInstruments extends CloseAllPositionsState
-
   case object ClosingPositions extends CloseAllPositionsState
 
   case object PositionsClosed extends CloseAllPositionsState
 
-  case class Catching(catching: Set[Isin], instruments: Map[Isin, Instrument] = Map(), states: Map[Isin, InstrumentState] = Map()) {
-    def catched(isin: Isin, instrument: Instrument) = copy(instruments = instruments + (isin -> instrument))
+  case class RemainingPositions(positions: immutable.Map[Isin, Position] = Map()) {
+    def closedAll = positions.values.foldLeft(true)((b, a) => b && a == Position.flat)
 
-    def catched(isin: Isin, state: InstrumentState) = copy(states = states + (isin -> state))
-
-    def catchedAll = catching == instruments.keySet && catching == states.keySet && states.foldLeft(true)((b, state) => b && state == session.InstrumentState.Assigned )
+    def fill(isin: Isin, amount: Int) = copy(positions = positions.transform {
+      case (i, Position(pos)) if (i == isin) =>
+        if (pos > 0)
+          Position(pos - amount)
+        else
+          Position(pos + amount)
+      case (_, pos) => pos
+    })
   }
 
 }
 
-class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) extends Strategy with Actor with FSM[CloseAllPositionsState, Catching] with InstrumentWatcher {
+class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) extends Strategy with Actor with LoggingFSM[CloseAllPositionsState, RemainingPositions] with InstrumentWatcher {
 
   import CloseAllPositionsState._
 
   val portfolio = engine.services(Portfolio.Portfolio)
-  val broker = engine.services(Trading.Trading)
+  val trading = engine.services(Trading.Trading)
 
   // Configuration and implicits
   implicit object WatchDog extends WatchDogConfig(self, true, true)
@@ -67,38 +74,71 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   // Positions that we are going to close
   val positions: Map[Isin, Position] = getOpenedPositions(5.seconds)
 
+  val instruments = mutable.Map[Isin, Instrument]()
+  val states = mutable.Map[Isin, InstrumentState]()
+  val executions = mutable.Map[Isin, ExecutionReport]()
+
   override def preStart() {
     log.info("Started CloseAllPositions")
     log.debug("Going to close positions = " + positions)
     engine.reportReady(positions)
   }
 
-  startWith(Ready, Catching(positions.keySet))
+  startWith(Ready, RemainingPositions(positions))
 
   when(Ready) {
     case Event(Start, _) =>
       positions.keys foreach watchInstrument
-      goto(CatchingInstruments)
+      goto(ClosingPositions)
   }
 
-  when(CatchingInstruments) {
-    case Event(Catched(isin, session, instrument, ref), catching) =>
-      val updated = catching.catched(isin, instrument)
-      if (updated.catchedAll) goto(ClosingPositions) else stay() using updated
+  when(ClosingPositions) {
+    case Event(OrderEvent(order, FillOrder(price, amount)), remaining) if (executions.values.find(_.order == order).isDefined) =>
+      val executionReport = executions.values.find(_.order == order).get
+      val isin = executionReport.security.isin
+      val updated = remaining.fill(isin, amount)
 
-    case Event(CatchedState(isin, state), catching) =>
-      val updated = catching.catched(isin, state)
-      if (updated.catchedAll) goto(ClosingPositions) else stay() using updated
+      if (updated.closedAll)
+        goto(PositionsClosed)
+      else
+        stay() using updated
   }
 
-  /*when(ClosingPositions) {
-    case Event(ExecutionReport())
+  when(PositionsClosed) {
+    case Event(Stop, _) => stop(FSM.Shutdown)
+  }
 
-  }*/
+  whenUnhandled {
+    case Event(Catched(isin, session, instrument, ref), _) =>
+      instruments(isin) = instrument
+      tryClose(isin)
+      stay()
 
-  onTransition {
-    case CatchingInstruments -> ClosingPositions =>
-      log.debug("Catched all instruments, going to close positions")
+    case Event(CatchedState(isin, state), _) =>
+      states(isin) = state
+      tryClose(isin)
+      stay()
+
+    case Event(execution: ExecutionReport, _) =>
+      executions(execution.security.isin) = execution
+      execution.subscribeOrderEvents(self)
+      stay()
+  }
+
+  private def tryClose(isin: Isin) {
+    val tuple = instruments get isin flatMap {
+      case i => states get isin map ((i, _))
+    }
+
+    tuple match {
+      case Some((Instrument(security, limits), InstrumentState.Online)) if (positions(isin).dir == position.Long) =>
+        (trading ? Sell(security, positions(isin).pos.abs, limits.lower)) pipeTo self
+
+      case Some((Instrument(security, limits), InstrumentState.Online)) if (positions(isin).dir == position.Short) =>
+        (trading ? Buy(security, positions(isin).pos.abs, limits.upper)) pipeTo self
+
+      case _ =>
+    }
   }
 
 

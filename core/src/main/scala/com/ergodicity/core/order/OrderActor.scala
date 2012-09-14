@@ -1,7 +1,7 @@
 package com.ergodicity.core.order
 
-import akka.actor.{FSM, Actor}
-import com.ergodicity.core.order.OrderActor.IllegalLifeCycleEvent
+import akka.actor.{ActorRef, FSM, Actor}
+import com.ergodicity.core.order.OrderActor.{OrderEvent, SubscribeOrderEvents, IllegalLifeCycleEvent}
 
 sealed trait OrderState
 
@@ -29,6 +29,10 @@ case class CancelOrder(amount: Int) extends OrderAction
 
 object OrderActor {
 
+  case class SubscribeOrderEvents(ref: ActorRef)
+
+  case class OrderEvent(order: Order, action: OrderAction)
+
   case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
 
 }
@@ -39,10 +43,13 @@ class OrderActor(val order: Order) extends Actor with FSM[OrderState, Trace] {
 
   log.debug("Create order = " + order)
 
+  var subscribers = Set[ActorRef]()
+
   startWith(Active, Trace(order.amount))
 
   when(Active) {
     case Event(fill@FillOrder(_, fillAmount), Trace(restAmount, actions)) =>
+      dispatch(fill)
       if (restAmount - fillAmount == 0) goto(Filled) using Trace(0, actions :+ fill)
       else stay() using Trace(restAmount - fillAmount, actions :+ fill)
   }
@@ -57,11 +64,21 @@ class OrderActor(val order: Order) extends Actor with FSM[OrderState, Trace] {
 
   whenUnhandled {
     case Event(cancel@CancelOrder(cancelAmount), Trace(restAmount, actions)) =>
+      dispatch(cancel)
       goto(Cancelled) using Trace(restAmount - cancelAmount, actions :+ cancel)
+
+    case Event(SubscribeOrderEvents(ref), trace) =>
+      trace.actions foreach (ref ! OrderEvent(order, _))
+      subscribers = subscribers + ref
+      stay()
   }
 
   onTransition {
     case Active -> Filled => log.debug("Order filled")
     case Active -> Cancelled => log.debug("Order cancelled")
+  }
+
+  private def dispatch(action: OrderAction) {
+    subscribers foreach (_ ! OrderEvent(order, action))
   }
 }

@@ -19,8 +19,7 @@ import com.ergodicity.core.SessionsTracking.{OngoingSessionTransition, OngoingSe
 import com.ergodicity.core.broker.{Cancelled, OrderId, ReplySubscriber, Broker}
 import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef, DropSession, GetSessionOrdersTracking}
 import com.ergodicity.core.order.{Order, OrdersTracking}
-import com.ergodicity.core.session.Instrument
-import com.ergodicity.core.{FutureContract, SessionId}
+import com.ergodicity.core.{Security, FutureContract, SessionId}
 import com.ergodicity.engine.service.Service.{Stop, Start}
 import com.ergodicity.engine.service.Trading.{Sell, ExecutionReport, Buy}
 import com.ergodicity.engine.service.TradingService.SetOngoingSessionOrdersTracker
@@ -30,24 +29,29 @@ import com.ergodicity.engine.{Services, Engine}
 import java.io.File
 import ru.micexrts.cgate.{Publisher => CGPublisher, Connection => CGConnection}
 import scala.Some
+import com.ergodicity.core.order.OrderActor.SubscribeOrderEvents
 
 object Trading {
 
   implicit case object Trading extends ServiceId
 
-  case class Buy(instrument: Instrument, amount: Int, price: BigDecimal)
+  case class Buy(security: Security, amount: Int, price: BigDecimal)
 
-  case class Sell(instrument: Instrument, amount: Int, price: BigDecimal)
+  case class Sell(security: Security, amount: Int, price: BigDecimal)
 
-  class ExecutionReport(val instrument: Instrument, val order: Order, ref: ActorRef)(broker: ActorRef) {
+  class ExecutionReport(val security: Security, val order: Order, orderActor: ActorRef)(broker: ActorRef) {
     implicit val cancelTimeout = Timeout(5.seconds)
 
-    def cancel = instrument.security match {
+    def cancel = security match {
       case _: FutureContract => (broker ? Broker.Cancel[Futures](OrderId(order.id))).mapTo[Cancelled]
       case _ => throw new RuntimeException("Unsupported security")
     }
 
-    override def toString = "ExecutionReport(instrument = " + instrument + ", order = " + order + ")"
+    def subscribeOrderEvents(subscriber: ActorRef) {
+      orderActor ! SubscribeOrderEvents(subscriber)
+    }
+
+    override def toString = "ExecutionReport(security = " + security + ", order = " + order + ")"
   }
 
 }
@@ -178,16 +182,16 @@ protected[service] class TradingService(listener: ListenerFactory,
       optListener ! Listener.Close
       goto(Stopping)
 
-    case Event(Buy(instrument@Instrument(FutureContract(_, isin, _, _), _), amount, price), _) =>
+    case Event(Buy(security@FutureContract(_, isin, _, _), amount, price), _) =>
       val orderId = (TradingBroker ? Broker.Buy[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
       val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
-      orderRef map (order => new ExecutionReport(instrument, order.order, order.ref)(TradingBroker)) pipeTo sender
+      orderRef map (order => new ExecutionReport(security, order.order, order.ref)(TradingBroker)) pipeTo sender
       stay()
 
-    case Event(Sell(instrument@Instrument(FutureContract(_, isin, _, _), _), amount, price), _) =>
+    case Event(Sell(security@FutureContract(_, isin, _, _), amount, price), _) =>
       val orderId = (TradingBroker ? Broker.Sell[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
       val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
-      orderRef map (order => new ExecutionReport(instrument, order.order, order.ref)(TradingBroker)) pipeTo sender
+      orderRef map (order => new ExecutionReport(security, order.order, order.ref)(TradingBroker)) pipeTo sender
       stay()
 
   }

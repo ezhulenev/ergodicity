@@ -10,8 +10,8 @@ import com.ergodicity.cgate.DataStreamState
 import com.ergodicity.core._
 import com.ergodicity.core.broker.MarketCommand
 import com.ergodicity.core.broker.OrderId
-import com.ergodicity.core.session.Instrument
-import com.ergodicity.core.session.Instrument.Limits
+import com.ergodicity.core.order.Order
+import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef}
 import com.ergodicity.engine.Services
 import com.ergodicity.engine.service.Service.{Stop, Start}
 import com.ergodicity.engine.service.Trading.{Sell, ExecutionReport, Buy}
@@ -20,8 +20,6 @@ import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{ISubscriber, Connection => CGConnection, Listener => CGListener, Publisher => CGPublisher}
-import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef}
-import com.ergodicity.core.order.Order
 
 class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -145,13 +143,13 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
       service.setState(TradingState.Started)
 
       when("receive buy command")
-      service ! Buy(Instrument(FutureContract(isinId, isin, shortIsin, ""), Limits(0, 0)), 1, 100)
+      service ! Buy(FutureContract(isinId, isin, shortIsin, ""), 1, 100)
       then("should return ExecutionReport")
       val buyReport = receiveOne(100.millis).asInstanceOf[ExecutionReport]
       log.info("Buy Report = " + buyReport)
 
       when("receive Sell command")
-      service ! Sell(Instrument(FutureContract(isinId, isin, shortIsin, ""), Limits(0, 0)), 1, 100)
+      service ! Sell(FutureContract(isinId, isin, shortIsin, ""), 1, 100)
       then("should return ExecutionReport")
       val sellReport = receiveOne(100.millis).asInstanceOf[ExecutionReport]
       log.info("Sell Report = " + sellReport)

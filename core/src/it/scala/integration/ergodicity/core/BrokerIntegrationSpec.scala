@@ -34,7 +34,7 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
 
   val RouterConnection = Tcp(Host, Port, system.name)
 
-  implicit val timeout = Timeout(5.seconds)
+  implicit val timeout = Timeout(25.minutes)
 
   override def beforeAll() {
     val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
@@ -90,7 +90,7 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
     val underlyingConnection = new CGConnection(RouterConnection())
     val connection = system.actorOf(Props(new Connection(underlyingConnection, Some(500.millis))), "Connection")
 
-    val messagesConfig = FortsMessages(BrokerName, 5.seconds, new File("./cgate/scheme/FortsMessages.ini"))
+    val messagesConfig = FortsMessages(BrokerName, 15.minutes, new File("./cgate/scheme/FortsMessages.ini"))
     val underlyingPublisher = new CGPublisher(underlyingConnection, messagesConfig())
 
     val broker = system.actorOf(Props(new Broker(underlyingPublisher)), "Broker")
