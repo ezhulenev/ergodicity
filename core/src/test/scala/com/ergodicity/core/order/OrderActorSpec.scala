@@ -6,11 +6,11 @@ import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import com.ergodicity.core.IsinId
 import com.ergodicity.core.OrderDirection._
 import com.ergodicity.core.OrderType._
-import com.ergodicity.core.order.OrderActor.IllegalLifeCycleEvent
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import com.ergodicity.core.order.OrderActor.{OrderEvent, SubscribeOrderEvents, IllegalLifeCycleEvent}
+import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 
 
-class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   override def afterAll() {
@@ -32,24 +32,39 @@ class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", com.ergodicit
     "move from Active to Filled" in {
       val order = TestFSMRef(new OrderActor(props), "TestOrder")
 
+      when("subscribed for order events")
+      order ! SubscribeOrderEvents(self)
+      and("order filled")
       order ! FillOrder(BigDecimal(100), 1)
+
+      then("order should be in Filled state")
       assert(order.stateName == OrderState.Filled)
       assert(order.stateData.rest == 0)
       assert(order.stateData.actions.size == 1)
+
+      and("receive OrderEvent")
+      expectMsg(OrderEvent(props, FillOrder(BigDecimal(100), 1)))
     }
 
     "stay in Active and move to Filled later" in {
-      val order = TestFSMRef(new OrderActor(props.copy(amount = 2)), "TestOrder")
+      val order = props.copy(amount = 2)
+      val orderActor = TestFSMRef(new OrderActor(order), "TestOrder")
 
-      order ! FillOrder(BigDecimal(100), 1)
-      assert(order.stateName == OrderState.Active)
-      assert(order.stateData.rest == 1)
-      assert(order.stateData.actions.size == 1)
+      orderActor ! FillOrder(BigDecimal(100), 1)
+      assert(orderActor.stateName == OrderState.Active)
+      assert(orderActor.stateData.rest == 1)
+      assert(orderActor.stateData.actions.size == 1)
 
-      order ! FillOrder(BigDecimal(100), 1)
-      assert(order.stateName == OrderState.Filled)
-      assert(order.stateData.rest == 0)
-      assert(order.stateData.actions.size == 2)
+      orderActor ! FillOrder(BigDecimal(100), 1)
+      assert(orderActor.stateName == OrderState.Filled)
+      assert(orderActor.stateData.rest == 0)
+      assert(orderActor.stateData.actions.size == 2)
+
+      when("subscribe to already filled order")
+      orderActor ! SubscribeOrderEvents(self)
+      then("should return all order events history")
+      expectMsg(OrderEvent(order, FillOrder(BigDecimal(100), 1)))
+      expectMsg(OrderEvent(order, FillOrder(BigDecimal(100), 1)))
     }
 
     "fail to fill more then rest amount" in {
