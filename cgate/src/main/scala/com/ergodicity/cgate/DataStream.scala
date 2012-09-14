@@ -164,5 +164,9 @@ class DataStream extends Actor with LoggingFSM[DataStreamState, StreamEventSubsc
       stay()
   }
 
+  onTransition {
+    case _ -> Online => log.info("DataStream goes Online")
+  }
+
   initialize
 }
