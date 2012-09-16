@@ -75,9 +75,12 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   // Positions that we are going to close
   val positions: Map[Isin, Position] = getOpenedPositions(5.seconds)
 
+  // Catched instruments
   val catched = mutable.Map[Isin, Security]()
-  val states = mutable.Map[Isin, InstrumentState]()
   val parameters = mutable.Map[Isin, InstrumentParameters]()
+  val states = mutable.Map[Isin, InstrumentState]()
+
+  // Order executions
   val executions = mutable.Map[Isin, OrderExecution]()
 
   override def preStart() {
