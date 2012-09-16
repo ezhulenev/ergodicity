@@ -10,15 +10,13 @@ import com.ergodicity.cgate.DataStream
 import com.ergodicity.core.PositionsTracking.PositionUpdated
 import com.ergodicity.core._
 import com.ergodicity.core.position.{PositionDynamics, Position}
-import com.ergodicity.core.session.Instrument
 import com.ergodicity.engine.StrategyEngine.{ReconciliationFailed, StrategyReady, PrepareStrategies}
 import java.util.concurrent.{TimeUnit, CountDownLatch}
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import service.Portfolio
-import session.Instrument.Limits
-import session.SessionActor.AssignedInstruments
+import session.SessionActor.AssignedContents
 import strategy.{CloseAllPositions, StrategyId, StrategiesFactory}
 
 class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
@@ -75,7 +73,7 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
     "succesfully prepare strategies when positions reconciled" in {
       // Use PositionsTracking as Portfolio service
       val portfolio = TestActorRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Portfolio")
-      portfolio ! assignedInstruments
+      portfolio ! assignedContents
 
       portfolio ! PositionUpdated(isinId1, Position(1), PositionDynamics(buys = 1))
       portfolio ! PositionUpdated(isinId2, Position(3), PositionDynamics(buys = 5, sells = 2))
@@ -104,7 +102,7 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
 
       // Use PositionsTracking as Portfolio service
       val portfolio = TestActorRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Portfolio")
-      portfolio ! assignedInstruments
+      portfolio ! assignedContents
 
       portfolio ! PositionUpdated(isinId1, Position(1), PositionDynamics(buys = 1))
       portfolio ! PositionUpdated(isinId2, Position(3), PositionDynamics(buys = 5, sells = 2))
@@ -143,8 +141,8 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
   implicit val isin2: Isin = Isin("RTS-12.12")
   implicit val isinId2 = IsinId(101)
 
-  val assignedInstruments = AssignedInstruments(Set(
-    Instrument(FutureContract(isinId1, isin1, ShortIsin(""), "Future Contract #1"), Limits(0, 0)),
-    Instrument(FutureContract(isinId2, isin2, ShortIsin(""), "Future Contract #2"), Limits(0, 0))
+  val assignedContents = AssignedContents(Set(
+    FutureContract(isinId1, isin1, ShortIsin(""), "Future Contract #1"),
+    FutureContract(isinId2, isin2, ShortIsin(""), "Future Contract #2")
   ))
 }

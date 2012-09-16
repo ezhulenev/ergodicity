@@ -15,8 +15,8 @@ import com.ergodicity.core.PositionsTracking
 import com.ergodicity.core.SessionsTracking.OngoingSession
 import com.ergodicity.core.SessionsTracking.OngoingSessionTransition
 import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
-import com.ergodicity.core.session.SessionActor.AssignedInstruments
-import com.ergodicity.core.session.SessionActor.GetAssignedInstruments
+import com.ergodicity.core.session.SessionActor.AssignedContents
+import com.ergodicity.core.session.SessionActor.GetAssignedContents
 import com.ergodicity.engine.ReplicationScheme.PosReplication
 import com.ergodicity.engine.service.PortfolioState.StreamState
 import com.ergodicity.engine.service.Service.{Stop, Start}
@@ -25,6 +25,7 @@ import com.ergodicity.engine.{Services, Engine}
 import ru.micexrts.cgate.{Connection => CGConnection}
 import scala.Some
 import akka.util.Timeout
+import com.ergodicity.core.PositionsTracking.GetPositions
 
 object Portfolio {
 
@@ -91,16 +92,16 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
   when(AssigningInstruments, stateTimeout = 10.seconds) {
     case Event(session@OngoingSession(_, ref), _) =>
       log.debug("Got ongoing session = " + session)
-      (ref ? GetAssignedInstruments) pipeTo self
+      (ref ? GetAssignedContents) pipeTo self
       stay()
 
-    case Event(assigned: AssignedInstruments, _) =>
+    case Event(assigned: AssignedContents, _) =>
       Positions ! assigned
       posListener ! Listener.Open(ReplicationParams(Combined))
 
       goto(StartingPositionsTracker)
 
-    case Event(FSM.StateTimeout, _) => failed("Timed out assigning instruments")
+    case Event(FSM.StateTimeout, _) => failed("Timed out assigning contents")
   }
 
   when(StartingPositionsTracker, stateTimeout = 10.seconds) {
@@ -132,10 +133,10 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
   whenUnhandled {
     case Event(OngoingSessionTransition(from, to@OngoingSession(_, ref)), _) =>
       log.debug("Got ongoing session transition; From = " + from + "; To = " + to)
-      (ref ? GetAssignedInstruments) pipeTo self
+      (ref ? GetAssignedContents) pipeTo self
       stay()
 
-    case Event(assigned: AssignedInstruments, _) =>
+    case Event(assigned: AssignedContents, _) =>
       Positions ! assigned
       stay()
 
@@ -144,6 +145,10 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
 
     case Event(Transition(PosStream, _, to: DataStreamState), _) =>
       stay() using StreamState(Some(to))
+
+    case Event(GetPositions, _) =>
+      Positions.tell(GetPositions, sender)
+      stay()
   }
 
   private def shutDown: State = {

@@ -2,14 +2,13 @@ package com.ergodicity.core.session
 
 import akka.actor.{ActorLogging, Props, ActorRef, Actor}
 import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack, Transition}
-import akka.pattern.ask
 import akka.util.duration._
 import com.ergodicity.cgate.WhenUnhandled
 import collection.mutable
-import com.ergodicity.core.session.SessionActor.{AssignedInstruments, GetAssignedInstruments, GetInstrumentActor, GetState}
-import akka.dispatch.Await
+import com.ergodicity.core.session.SessionActor.{AssignedContents, GetAssignedContents, GetInstrumentActor}
 import akka.util.Timeout
 import com.ergodicity.core.SessionsTracking.{OptSessContents, FutSessContents}
+import com.ergodicity.core.{OptionContract, FutureContract, Security}
 
 trait ContentsManager[T] {
   contents: SessionContents[T] =>
@@ -24,7 +23,7 @@ class SessionContents[T](Session: ActorRef) extends Actor with ActorLogging with
 
   implicit val timeout = Timeout(100.millis)
 
-  protected[core] val instruments = mutable.Map[Instrument, ActorRef]()
+  protected[core] val instruments = mutable.Map[Security, ActorRef]()
 
   // Make assumption on parent session state
   var sessionState: SessionState = SessionState.Suspended
@@ -48,24 +47,25 @@ class SessionContents[T](Session: ActorRef) extends Actor with ActorLogging with
 
   private def getInstruments: Receive = {
     case GetInstrumentActor(isin) =>
-      val instrument = instruments.find(_._1.security.isin == isin)
+      val instrument = instruments.find(_._1.isin == isin)
       log.debug("Get session instrument: " + isin + "; Result = " + instrument)
       sender ! instrument.map(_._2)
 
-    case GetAssignedInstruments =>
-      sender ! AssignedInstruments(instruments.keys.toSet)
+    case GetAssignedContents =>
+      sender ! AssignedContents(instruments.keys.toSet)
   }
 
 }
 
 trait FuturesContentsManager extends ContentsManager[FutSessContents] {
-  contents: SessionContents[FutSessContents] =>
+  this: SessionContents[FutSessContents] =>
 
-  private val originalInstrumentState = mutable.Map[Instrument, InstrumentState]()
+  private val originalInstrumentState = mutable.Map[FutureContract, InstrumentState]()
 
   protected def applySessionState(state: SessionState) {
     instruments.foreach {
-      case (instrument, ref) => ref ! merge(state, originalInstrumentState(instrument))
+      case (future: FutureContract, ref) => ref ! merge(state, originalInstrumentState(future))
+      case (option: OptionContract, _) => throw new IllegalStateException("Doesn't expect OptionContrat here!")
     }
   }
 
@@ -74,17 +74,11 @@ trait FuturesContentsManager extends ContentsManager[FutSessContents] {
   }
 
   def handleSessionContents(contents: FutSessContents) {
-    originalInstrumentState(contents.instrument) = contents.state
-    val isin = contents.instrument.security.isin
-    // EBAKA BEGIN
-    instruments.keys.find(_.security.isin == isin) map {existing =>
-      if (existing != contents.instrument) {
-        log.error("EXISTING INSTURMENTS = "+existing)
-        log.error("NEW INSTRUMENT = "+contents.instrument)
-      }
-    }
-    // EBAKA END
-    val instrumentActor = instruments.getOrElseUpdate(contents.instrument, context.actorOf(Props(new InstrumentActor(contents.instrument)), isin.toActorName))
+    originalInstrumentState(contents.future) = contents.state
+    val isin = contents.future.isin
+    lazy val creator = new InstrumentActor(contents.future) with FutureParametersHandling
+    val instrumentActor = instruments.getOrElseUpdate(contents.future, context.actorOf(Props(creator), isin.toActorName))
+    instrumentActor ! contents.params
     instrumentActor ! merge(sessionState, contents.state)
   }
 
@@ -110,7 +104,7 @@ trait FuturesContentsManager extends ContentsManager[FutSessContents] {
 }
 
 trait OptionsContentsManager extends ContentsManager[OptSessContents] {
-  contents: SessionContents[OptSessContents] =>
+  this: SessionContents[OptSessContents] =>
 
   protected def applySessionState(state: SessionState) {
     instruments.foreach {
@@ -123,8 +117,10 @@ trait OptionsContentsManager extends ContentsManager[OptSessContents] {
   }
 
   protected def handleSessionContents(contents: OptSessContents) {
-    val isin = contents.instrument.security.isin
-    val instrumentActor = instruments.getOrElseUpdate(contents.instrument, context.actorOf(Props(new InstrumentActor(contents.instrument)), isin.toActorName))
+    val isin = contents.option.isin
+    lazy val creator = new InstrumentActor(contents.option) with OptionParametersHandling
+    val instrumentActor = instruments.getOrElseUpdate(contents.option, context.actorOf(Props(creator), isin.toActorName))
+    instrumentActor ! contents.params
     instrumentActor ! InstrumentState(sessionState)
   }
 }

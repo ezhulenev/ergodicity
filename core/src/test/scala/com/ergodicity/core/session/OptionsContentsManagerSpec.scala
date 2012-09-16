@@ -10,7 +10,7 @@ import akka.testkit._
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
 import com.ergodicity.core.SessionsTracking.OptSessContents
 import com.ergodicity.core._
-import com.ergodicity.core.session.Instrument.Limits
+import session.InstrumentParameters.OptionParameters
 import com.ergodicity.core.session.SessionActor.GetState
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 
@@ -26,7 +26,8 @@ class OptionsContentsManagerSpec extends TestKit(ActorSystem("OptionsContentsMan
   val isin = Isin("RTS-6.12M150612PA 175000")
   val shortIsin = ShortIsin("RI175000BR2")
 
-  val instrument = Instrument(OptionContract(id, isin, shortIsin, "Option Contract"), Limits(100, 100))
+  val instrument = OptionContract(id, isin, shortIsin, "Option Contract")
+  val parameters = OptionParameters(100)
 
   "OptionsContentsManager" must {
 
@@ -35,7 +36,7 @@ class OptionsContentsManagerSpec extends TestKit(ActorSystem("OptionsContentsMan
       val contents = TestActorRef(new SessionContents[OptSessContents](session) with OptionsContentsManager, "Options")
 
       when("receive new instrument")
-      contents ! OptSessContents(100, instrument)
+      contents ! OptSessContents(100, instrument, parameters)
 
       then("should create actor for it")
       val instrumentActor = system.actorFor("user/Options/" + Isin("RTS-6.12M150612PA 175000").toActorName)
@@ -63,8 +64,8 @@ class OptionsContentsManagerSpec extends TestKit(ActorSystem("OptionsContentsMan
     val session = TestProbe()
     session.setAutoPilot(new AutoPilot {
       def run(sender: ActorRef, msg: Any) = msg match {
-        case GetState =>
-          sender ! SessionState.Online
+        case SubscribeTransitionCallBack(ref) =>
+          ref ! CurrentState(session.ref, SessionState.Online)
           None
       }
     })

@@ -1,10 +1,9 @@
 package com.ergodicity.core.session
 
-import akka.actor.{FSM, LoggingFSM, Actor}
+import akka.actor.{ActorRef, FSM, LoggingFSM, Actor}
 import akka.util.duration._
-import com.ergodicity.core.Security
-import com.ergodicity.core.session.Instrument.Limits
-import akka.util.Timeout
+import com.ergodicity.core.{OptionContract, FutureContract, Security}
+import com.ergodicity.core.session.InstrumentParameters.{OptionParameters, FutureParameters}
 
 sealed trait InstrumentState
 
@@ -39,39 +38,50 @@ object InstrumentState {
 
 }
 
-object Instrument {
-
-  case class Limits(lower: BigDecimal, upper: BigDecimal)
-
-}
-
-case class Instrument(security: Security, limits: Limits)
-
 object InstrumentActor {
 
   case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
 
+  case class SubscribeInstrumentParameters(ref: ActorRef)
+
+  case class UnsubscribeInstrumentParameters(ref: ActorRef)
+
 }
 
-class InstrumentActor(underlying: Instrument) extends Actor with LoggingFSM[InstrumentState, Unit] {
+sealed trait InstrumentParameters
+
+object InstrumentParameters {
+
+  case class Limits(lower: BigDecimal, upper: BigDecimal)
+
+  case class FutureParameters(lastClQuote: BigDecimal, limits: Limits) extends InstrumentParameters
+
+  case class OptionParameters(lastClQuote: BigDecimal) extends InstrumentParameters
+
+}
+
+
+abstract class InstrumentActor[S <: Security](security: S) extends Actor with LoggingFSM[InstrumentState, Option[InstrumentParameters]] {
 
   import InstrumentActor._
   import InstrumentState._
 
+  private var subscribers: Seq[ActorRef] = Seq()
+
   override def preStart() {
-    log.info("Started instrument = " + underlying)
+    log.info("Started instrument for security = " + security)
     super.preStart()
   }
 
   // Start in suspended state
-  startWith(Suspended, (), timeout = Some(1.second))
+  startWith(Suspended, None, timeout = Some(1.second))
 
   when(Assigned) {
-    handleInstrumentState
+    handleInstrumentState orElse handleInstrumentParameters
   }
 
   when(Online) {
-    handleInstrumentState
+    handleInstrumentState orElse handleInstrumentParameters
   }
 
   when(Canceled) {
@@ -87,17 +97,62 @@ class InstrumentActor(underlying: Instrument) extends Actor with LoggingFSM[Inst
   }
 
   when(Suspended) {
-    handleInstrumentState
+    handleInstrumentState orElse handleInstrumentParameters
   }
 
   whenUnhandled {
     case Event(e@FSM.StateTimeout, _) =>
       throw new IllegalLifeCycleEvent("Timed out in initial Suspended state", e)
+
+    case Event(SubscribeInstrumentParameters(ref), None) =>
+      subscribers = subscribers :+ ref
+      stay()
+
+    case Event(SubscribeInstrumentParameters(ref), Some(params)) =>
+      ref ! params
+      subscribers = subscribers :+ ref
+      stay()
+
+    case Event(UnsubscribeInstrumentParameters(ref), _) =>
+      subscribers = subscribers filterNot (_ == ref)
+      stay()
   }
 
   initialize
 
   private def handleInstrumentState: StateFunction = {
     case Event(state: InstrumentState, _) => goto(state)
+  }
+
+  protected def handleInstrumentParameters: StateFunction
+
+  protected def notifySubscribers(params: InstrumentParameters) {
+    subscribers foreach (_ ! params)
+  }
+}
+
+trait FutureParametersHandling {
+  self: InstrumentActor[FutureContract] =>
+  protected def handleInstrumentParameters: StateFunction = {
+    case Event(params@FutureParameters(_, _), None) =>
+      notifySubscribers(params)
+      stay() using Some(params)
+
+    case Event(params@FutureParameters(_, _), Some(old)) if (old != params) =>
+      notifySubscribers(params)
+      stay() using Some(params)
+  }
+}
+
+trait OptionParametersHandling {
+  self: InstrumentActor[OptionContract] =>
+  protected def handleInstrumentParameters: StateFunction = {
+    case Event(params@OptionParameters(_), None) =>
+      notifySubscribers(params)
+      stay() using Some(params)
+
+    case Event(params@OptionParameters(_), Some(old)) if (old != params) =>
+      notifySubscribers(params)
+      stay() using Some(params)
   }
 }

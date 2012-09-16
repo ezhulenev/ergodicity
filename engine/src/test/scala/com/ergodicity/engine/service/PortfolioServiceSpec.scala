@@ -6,7 +6,7 @@ import akka.event.Logging
 import akka.testkit._
 import com.ergodicity.cgate.DataStreamState
 import com.ergodicity.cgate.config.Replication
-import com.ergodicity.core.session.SessionActor.AssignedInstruments
+import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.engine.Services
 import com.ergodicity.engine.service.Service.{Stop, Start}
 import com.ergodicity.engine.underlying.ListenerFactory
@@ -50,12 +50,12 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
 
       when("receive start message")
       service ! Start
-      then("should wait for ongoing session & assigned instruments")
+      then("should wait for ongoing session & assigned contents")
       assert(service.stateName == PortfolioState.AssigningInstruments)
 
-      when("got assigned instruments")
-      service ! AssignedInstruments(Set())
-      then("should ask for assigned instruments")
+      when("got assigned contents")
+      service ! AssignedContents(Set())
+      then("should ask for assigned contents")
       and("go to Starting state")
       Thread.sleep(100)
       assert(service.stateName == PortfolioState.StartingPositionsTracker)

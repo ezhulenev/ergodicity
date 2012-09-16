@@ -14,8 +14,10 @@ import com.ergodicity.cgate.{Reads, WhenUnhandled, SysEvent}
 import com.ergodicity.core.SessionsTracking._
 import com.ergodicity.core.session.Implicits._
 import scala.Some
-import session.Instrument.Limits
 import session._
+import session.InstrumentParameters.{OptionParameters, FutureParameters}
+import com.ergodicity.cgate.scheme.FutInfo.fut_sess_contents
+import com.ergodicity.cgate.scheme.OptInfo.opt_sess_contents
 
 case class SessionId(fut: Int, opt: Int)
 
@@ -33,9 +35,9 @@ object SessionsTracking {
 
   case class SessionEvent(id: SessionId, session: Session, state: SessionState, intradayClearingState: IntradayClearingState)
 
-  case class FutSessContents(sessionId: Int, instrument: Instrument, state: InstrumentState)
+  case class FutSessContents(sessionId: Int, future: FutureContract, params: FutureParameters, state: InstrumentState)
 
-  case class OptSessContents(sessionId: Int, instrument: Instrument)
+  case class OptSessContents(sessionId: Int, option: OptionContract, params: OptionParameters)
 
   case class FutSysEvent(event: SysEvent)
 
@@ -132,18 +134,18 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
   }
 
   private def dispatchFuturesContents: Receive = {
-    case e@FutSessContents(id, _, _) if (!sessions.exists(_._1.fut == id)) =>
+    case e@FutSessContents(id, _, _, _) if (!sessions.exists(_._1.fut == id)) =>
       pendingEvents = pendingEvents append e
 
-    case e@FutSessContents(id, _, state) if (sessions.exists(_._1.fut == id)) =>
+    case e@FutSessContents(id, _, _, _) if (sessions.exists(_._1.fut == id)) =>
       sessions.find(_._1.fut == id) foreach (_._2 ! e)
   }
 
   private def dispatchOptionsContents: Receive = {
-    case e@OptSessContents(id, _) if (!sessions.exists(_._1.opt == id)) =>
+    case e@OptSessContents(id, _, _) if (!sessions.exists(_._1.opt == id)) =>
       pendingEvents = pendingEvents append e
 
-    case e@OptSessContents(id, _) if (sessions.exists(_._1.opt == id)) =>
+    case e@OptSessContents(id, _, _) if (sessions.exists(_._1.opt == id)) =>
       sessions.find(_._1.opt == id) foreach (_._2 ! e)
   }
 
@@ -168,6 +170,7 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
   }
 
   private def synchronize(event: SynchronizedEvent) {
+    log.info("Synchonized event = " + event)
     event match {
       case SynchronizedEvent(SessionDataReady(_, futSessionId), SessionDataReady(_, optSessionId)) =>
         val sessionId = SessionId(futSessionId, optSessionId)
@@ -202,7 +205,7 @@ class SessionsTracking(FutInfoStream: ActorRef, OptInfoStream: ActorRef) extends
     val newOngoingSession = OngoingSession(id, sessions(id))
     ongoingSession match {
       case None => subscribers.foreach(_ ! newOngoingSession)
-      case Some(old) => subscribers.foreach(_ ! OngoingSessionTransition(old, newOngoingSession))
+      case Some(old) if (old != newOngoingSession) => subscribers.foreach(_ ! OngoingSessionTransition(old, newOngoingSession))
     }
     ongoingSession = Some(newOngoingSession)
   }
@@ -235,9 +238,11 @@ class FutInfoDispatcher(sessionsTracking: ActorRef, stream: ActorRef) extends Ac
       val record = implicitly[Reads[FutInfo.fut_sess_contents]] apply data
       // Handle only Futures, ignore Repo etc.
       if (record.get_replAct() == 0 && record.isFuture) {
-        val security = implicitly[ToSecurity[FutInfo.fut_sess_contents]] convert record
-        val instrument = Instrument(security, Limits(record.get_limit_down(), record.get_limit_up()))
-        sessionsTracking ! FutSessContents(record.get_sess_id(), instrument, InstrumentState(record.get_state()))
+        val instrument = implicitly[Instrument[fut_sess_contents, FutureContract, FutureParameters]]
+        val security = instrument security record
+        val parameters = instrument parameters record
+        val state = InstrumentState(record.get_state())
+        sessionsTracking ! FutSessContents(record.get_sess_id(), security, parameters, state)
       }
 
     case StreamData(FutInfo.sys_events.TABLE_INDEX, data) =>
@@ -266,9 +271,10 @@ class OptInfoDispatcher(sessionsTracking: ActorRef, stream: ActorRef) extends Ac
     case StreamData(OptInfo.opt_sess_contents.TABLE_INDEX, data) =>
       val record = implicitly[Reads[OptInfo.opt_sess_contents]] apply data
       if (record.get_replAct() == 0) {
-        val security = implicitly[ToSecurity[OptInfo.opt_sess_contents]] convert record
-        val instrument = Instrument(security, Limits(record.get_limit_down(), record.get_limit_up()))
-        sessionsTracking ! OptSessContents(record.get_sess_id(), instrument)
+        val instrument = implicitly[Instrument[opt_sess_contents, OptionContract, OptionParameters]]
+        val security = instrument security record
+        val parameters = instrument parameters record
+        sessionsTracking ! OptSessContents(record.get_sess_id(), security, parameters)
       }
 
     case StreamData(OptInfo.sys_events.TABLE_INDEX, data) =>

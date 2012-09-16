@@ -12,7 +12,7 @@ import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate._
 import com.ergodicity.core.{FutureContract, SessionsTracking}
 import com.ergodicity.core.SessionsTracking.{OngoingSession, SubscribeOngoingSessions}
-import com.ergodicity.core.session.SessionActor.{AssignedInstruments, GetAssignedInstruments}
+import com.ergodicity.core.session.SessionActor.{AssignedContents, GetAssignedContents}
 import config.ConnectionConfig.Tcp
 import config.Replication.{ReplicationParams, ReplicationMode}
 import config.{Replication, CGateConfig}
@@ -23,7 +23,6 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
 import scala.Some
 import akka.dispatch.Await
-import com.ergodicity.core.session.Instrument
 
 
 class SessionsTrackingIntegrationSpec extends TestKit(ActorSystem("SessionsTrackingIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
@@ -97,11 +96,11 @@ class SessionsTrackingIntegrationSpec extends TestKit(ActorSystem("SessionsTrack
         protected def receive = {
           case OngoingSession(id, ref) =>
             log.info("Ongoing session = " + id)
-            val assigned = Await.result((ref ? GetAssignedInstruments).mapTo[AssignedInstruments], 1.second)
-            log.info("Assigned instruments; Size = " + assigned.instruments.size)
-            assigned.instruments foreach {
-              case instrument@Instrument(_: FutureContract, _) =>
-                log.info("Future contract = " + instrument)
+            val assigned = Await.result((ref ? GetAssignedContents).mapTo[AssignedContents], 1.second)
+            log.info("Assigned contents; Size = " + assigned.contents.size)
+            assigned.contents foreach {
+              case future :FutureContract =>
+                log.info("Future contract = " + future)
               case _ =>
             }
         }

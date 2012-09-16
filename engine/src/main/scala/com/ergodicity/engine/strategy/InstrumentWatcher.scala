@@ -9,13 +9,14 @@ import akka.util.duration._
 import com.ergodicity.core.SessionsTracking.OngoingSession
 import com.ergodicity.core.SessionsTracking.OngoingSessionTransition
 import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
-import com.ergodicity.core.session.SessionActor.{AssignedInstruments, GetAssignedInstruments, GetInstrumentActor}
-import com.ergodicity.core.session.{InstrumentState, Instrument}
-import com.ergodicity.core.{SessionId, Isin}
+import com.ergodicity.core.session.SessionActor.{AssignedContents, GetAssignedContents, GetInstrumentActor}
+import com.ergodicity.core.session.{InstrumentParameters, InstrumentState}
+import com.ergodicity.core.{Security, SessionId, Isin}
 import com.ergodicity.engine.service.InstrumentData.{InstrumentData => InstrumentDataId}
-import com.ergodicity.engine.strategy.InstrumentWatchDog.{CatchedState, WatchDogConfig, Catched}
+import com.ergodicity.engine.strategy.InstrumentWatchDog.{CatchedParameters, CatchedState, WatchDogConfig, Catched}
 import com.ergodicity.engine.strategy.InstrumentWatchDogState.{Watching, Catching}
 import scala.Some
+import com.ergodicity.core.session.InstrumentActor.{SubscribeInstrumentParameters, UnsubscribeInstrumentParameters}
 
 trait InstrumentWatcher {
   strategy: Strategy with Actor =>
@@ -45,11 +46,13 @@ object InstrumentWatchDogState {
 
 object InstrumentWatchDog {
 
-  case class Catched(isin: Isin, session: SessionId, instrument: Instrument, ref: ActorRef)
+  case class Catched(isin: Isin, session: SessionId, security: Security, instrument: ActorRef)
 
   case class CatchedState(isin: Isin, state: InstrumentState)
 
-  case class WatchDogConfig(reportTo: ActorRef, notifyOnCatched: Boolean = true, notifyOnState: Boolean = false)
+  case class CatchedParameters(isin: Isin, parameters: InstrumentParameters)
+
+  case class WatchDogConfig(reportTo: ActorRef, notifyOnCatched: Boolean = true, notifyOnState: Boolean = false, notifyOnParams: Boolean = false)
 
 }
 
@@ -70,7 +73,7 @@ class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: 
     case Event(OngoingSession(id, session), _) =>
       log.info("Catched ongoing session, session id = " + id)
       val actor = (session ? GetInstrumentActor(isin)).mapTo[ActorRef]
-      val instrument = (session ? GetAssignedInstruments).mapTo[AssignedInstruments] map (_.instruments.find(_.security.isin == isin))
+      val instrument = (session ? GetAssignedContents).mapTo[AssignedContents] map (_.contents.find(_.isin == isin))
 
       (actor zip instrument).map {
         case (ref, Some(i)) => Catched(isin, id, i, ref)
@@ -83,12 +86,14 @@ class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: 
       log.info("Catched instrument for isin = " + isin + "; catched = " + catched)
 
       // Unwatch outdated instrument
-      outdated.foreach(old => context.unwatch(old.ref))
-      outdated.foreach(_.ref ! UnsubscribeTransitionCallBack(self))
+      outdated.foreach(old => context.unwatch(old.instrument))
+      outdated.foreach(_.instrument ! UnsubscribeTransitionCallBack(self))
+      outdated.foreach(_.instrument ! UnsubscribeInstrumentParameters(self))
 
       // Watch for catched instrument
-      context.watch(catched.ref)
-      catched.ref ! SubscribeTransitionCallBack(self)
+      context.watch(catched.instrument)
+      catched.instrument ! SubscribeTransitionCallBack(self)
+      catched.instrument ! SubscribeInstrumentParameters(self)
 
       onCatched(catched)
 
@@ -103,7 +108,7 @@ class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: 
     case Event(OngoingSessionTransition(_, OngoingSession(id, session)), _) =>
       log.info("Catched ongoing session transition, new session id = " + id)
       val actor = (session ? GetInstrumentActor(isin)).mapTo[ActorRef]
-      val instrument = (session ? GetAssignedInstruments).mapTo[AssignedInstruments].map(_.instruments.find(_.security.isin == isin))
+      val instrument = (session ? GetAssignedContents).mapTo[AssignedContents].map(_.contents.find(_.isin == isin))
 
       (actor zip instrument).map {
         case (ref, Some(i)) => Catched(isin, id, i, ref)
@@ -128,6 +133,10 @@ class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: 
     case Event(Transition(ref, _, state: InstrumentState), Some(Catched(_, _, _, catched))) if (ref == catched) =>
       onStateCatched(state)
       stay()
+
+    case Event(params: InstrumentParameters, _) =>
+      onParamsCatched(params)
+      stay()
   }
 
   initialize
@@ -138,5 +147,9 @@ class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: 
 
   private def onStateCatched(state: InstrumentState) {
     if (notifyOnState) reportTo ! CatchedState(isin, state)
+  }
+
+  private def onParamsCatched(params: InstrumentParameters) {
+    if (notifyOnParams) reportTo ! CatchedParameters(isin, params)
   }
 }

@@ -9,7 +9,7 @@ import akka.testkit.TestActor.AutoPilot
 import akka.testkit._
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
 import com.ergodicity.core.SessionsTracking.FutSessContents
-import com.ergodicity.core.session.Instrument.Limits
+import com.ergodicity.core.session.InstrumentParameters.{FutureParameters, Limits}
 import com.ergodicity.core.session.SessionActor.GetState
 import com.ergodicity.core.{ShortIsin, IsinId, Isin, FutureContract}
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
@@ -25,7 +25,8 @@ class FuturesContentsManagerSpec extends TestKit(ActorSystem("FuturesContentsMan
   val isin = Isin("GMKR-6.12")
   val shortIsin = ShortIsin("GMM2")
 
-  val instrument = Instrument(FutureContract(id, isin, shortIsin, "Future Contract"), Limits(100, 100))
+  val instrument = FutureContract(id, isin, shortIsin, "Future Contract")
+  val parameters = FutureParameters(100, Limits(100, 100))
 
   "FuturesContentsManager" must {
 
@@ -34,7 +35,7 @@ class FuturesContentsManagerSpec extends TestKit(ActorSystem("FuturesContentsMan
       val session: ActorRef = onlineSession
       val contents = TestActorRef(new SessionContents[FutSessContents](session) with FuturesContentsManager, "Futures")
       when("receive new instrument in suspended state")
-      contents ! FutSessContents(100, instrument, InstrumentState.Suspended)
+      contents ! FutSessContents(100, instrument, parameters, InstrumentState.Suspended)
 
       then("should create actor for it")
       val instrumentActor = system.actorFor("user/Futures/GMKR-6.12")
@@ -42,7 +43,7 @@ class FuturesContentsManagerSpec extends TestKit(ActorSystem("FuturesContentsMan
       expectMsg(CurrentState(instrumentActor, InstrumentState.Suspended))
 
       when("Instrument goes online")
-      contents ! FutSessContents(100, instrument, InstrumentState.Online)
+      contents ! FutSessContents(100, instrument, parameters, InstrumentState.Online)
       then("should receive transition event")
       expectMsg(Transition(instrumentActor, InstrumentState.Suspended, InstrumentState.Online))
 
@@ -52,7 +53,7 @@ class FuturesContentsManagerSpec extends TestKit(ActorSystem("FuturesContentsMan
       expectMsg(Transition(instrumentActor, InstrumentState.Online, InstrumentState.Suspended))
 
       when("instrument goes to Assigned state")
-      contents ! FutSessContents(100, instrument, InstrumentState.Assigned)
+      contents ! FutSessContents(100, instrument, parameters, InstrumentState.Assigned)
       and("session goes online")
       contents ! Transition(session, SessionState.Suspended, SessionState.Online)
       then("instrument goes to Assigned")
@@ -77,8 +78,8 @@ class FuturesContentsManagerSpec extends TestKit(ActorSystem("FuturesContentsMan
     val session = TestProbe()
     session.setAutoPilot(new AutoPilot {
       def run(sender: ActorRef, msg: Any) = msg match {
-        case GetState =>
-          sender ! SessionState.Online
+        case SubscribeTransitionCallBack(ref) =>
+          ref ! CurrentState(session.ref, SessionState.Online)
           None
       }
     })

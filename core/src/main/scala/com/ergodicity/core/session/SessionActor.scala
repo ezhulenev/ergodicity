@@ -8,7 +8,7 @@ import akka.util.Timeout
 import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.scheme.FutInfo
 import scala.Some
-import com.ergodicity.core.{SessionId, IsinId, Isin}
+import com.ergodicity.core.{Security, SessionId, IsinId, Isin}
 import collection.immutable
 import com.ergodicity.core.SessionsTracking.{OptSessContents, FutSessContents}
 
@@ -41,21 +41,21 @@ object SessionActor {
 
   case object GetState
 
-  case object GetAssignedInstruments
+  case object GetAssignedContents
 
-  case class AssignedInstruments(instruments: immutable.Set[Instrument]) {
+  case class AssignedContents(contents: immutable.Set[Security]) {
     import scalaz._
     import Scalaz._
 
-    val findByIdMemo = immutableHashMapMemo[IsinId, Option[Instrument]] {
-      id => instruments.find(_.security.id == id)
+    val findByIdMemo = immutableHashMapMemo[IsinId, Option[Security]] {
+      id => contents.find(_.id == id)
     }
 
-    val findByIsinMemo =  immutableHashMapMemo[Isin, Option[Instrument]] {
-      isin => instruments.find(_.security.isin == isin)
+    val findByIsinMemo =  immutableHashMapMemo[Isin, Option[Security]] {
+      isin => contents.find(_.isin == isin)
     }
 
-    def isin(id: IsinId) = findByIdMemo(id).getOrElse(throw new InstrumentIdNotAssigned(id)).security.isin
+    def isin(id: IsinId) = findByIdMemo(id).getOrElse(throw new InstrumentIdNotAssigned(id)).isin
   }
 
   case class GetInstrumentActor(isin: Isin)
@@ -113,12 +113,12 @@ case class SessionActor(content: Session) extends Actor with LoggingFSM[SessionS
 
       stay()
 
-    case Event(GetAssignedInstruments, _) =>
-      val assignedFutures = (futures ? GetAssignedInstruments).mapTo[AssignedInstruments]
-      val assignedOptions = (options ? GetAssignedInstruments).mapTo[AssignedInstruments]
+    case Event(GetAssignedContents, _) =>
+      val assignedFutures = (futures ? GetAssignedContents).mapTo[AssignedContents]
+      val assignedOptions = (options ? GetAssignedContents).mapTo[AssignedContents]
 
       assignedFutures zip assignedOptions map {
-        case (AssignedInstruments(fut), AssignedInstruments(opt)) => AssignedInstruments(fut ++ opt)
+        case (AssignedContents(fut), AssignedContents(opt)) => AssignedContents(fut ++ opt)
       } pipeTo sender
 
       stay()

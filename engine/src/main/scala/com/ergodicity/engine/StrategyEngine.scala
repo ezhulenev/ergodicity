@@ -1,6 +1,7 @@
 package com.ergodicity.engine
 
 import service.Portfolio.Portfolio
+import strategy.Strategy.Start
 import strategy.{StrategyBuilder, StrategiesFactory, StrategyId}
 import akka.actor.{LoggingFSM, Actor, ActorRef}
 import com.ergodicity.engine.StrategyEngine._
@@ -133,8 +134,8 @@ class StrategyEngineActor(factory: StrategiesFactory = StrategiesFactory.empty)
 
   when(Idle) {
     case Event(PrepareStrategies, Void) =>
-      factory.strategies foreach start
       log.info("Preparing strategies = " + strategies.keys)
+      factory.strategies foreach start
       goto(Preparing) using AwaitingReadiness(strategies.keys)
   }
 
@@ -164,7 +165,10 @@ class StrategyEngineActor(factory: StrategiesFactory = StrategiesFactory.empty)
   }
 
   when(StrategiesReady) {
-    case Event(_, _) => stay()
+    case Event(StartStrategies, _) =>
+      log.info("Start all strategies")
+      strategies.values foreach (_.ref ! Start)
+      stay()
   }
 
   whenUnhandled {

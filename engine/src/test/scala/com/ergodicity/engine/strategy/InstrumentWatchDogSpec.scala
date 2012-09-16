@@ -12,7 +12,7 @@ import com.ergodicity.core.SessionsTracking.OngoingSession
 import com.ergodicity.core.SessionsTracking.OngoingSessionTransition
 import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
 import com.ergodicity.core._
-import com.ergodicity.core.session.Instrument.Limits
+import session.InstrumentParameters.{FutureParameters, Limits}
 import com.ergodicity.core.session._
 import com.ergodicity.engine.strategy.InstrumentWatchDog.Catched
 import com.ergodicity.engine.strategy.InstrumentWatchDog.CatchedState
@@ -98,7 +98,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
         watchdog ! OngoingSession(sessionId, buildSessionActor(sessionId))
 
         val catched = receiveOne(100.millis).asInstanceOf[Catched]
-        watchdog ! Terminated(catched.ref)
+        watchdog ! Terminated(catched.instrument)
 
         override def supervisorStrategy() = AllForOneStrategy() {
           case _: InstrumentWatcherException => Stop
@@ -120,10 +120,10 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
       val catched = receiveOne(500.millis).asInstanceOf[Catched]
       expectMsg(CatchedState(isin, InstrumentState.Suspended))
 
-      watchdog ! CurrentState(catched.ref, InstrumentState.Assigned)
+      watchdog ! CurrentState(catched.instrument, InstrumentState.Assigned)
       expectMsg(CatchedState(isin, InstrumentState.Assigned))
 
-      watchdog ! Transition(catched.ref, InstrumentState.Assigned, InstrumentState.Online)
+      watchdog ! Transition(catched.instrument, InstrumentState.Assigned, InstrumentState.Online)
       expectMsg(CatchedState(isin, InstrumentState.Online))
     }
 
@@ -133,7 +133,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
     val session = Session(id, null, None, None, null)
     val sessionActor = TestActorRef(new SessionActor(session), "Session")
     sessionActor ! SessionState.Online
-    sessionActor ! FutSessContents(id.fut, Instrument(FutureContract(isinId, isin, shortIsin, "Future Contract GMKR-06.12"), Limits(0, 0)), InstrumentState.Suspended)
+    sessionActor ! FutSessContents(id.fut, FutureContract(isinId, isin, shortIsin, "Future Contract GMKR-06.12"), FutureParameters(100, Limits(100, 100)), InstrumentState.Suspended)
     Thread.sleep(300)
     sessionActor
   }

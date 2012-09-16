@@ -12,7 +12,7 @@ import akka.util.duration._
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate._
 import com.ergodicity.core.SessionsTracking.{OngoingSessionTransition, OngoingSession, SubscribeOngoingSessions}
-import com.ergodicity.core.session.SessionActor.GetAssignedInstruments
+import com.ergodicity.core.session.SessionActor.GetAssignedContents
 import com.ergodicity.core.{SessionsTracking, PositionsTracking}
 import config.ConnectionConfig.Tcp
 import config.Replication.{ReplicationParams, ReplicationMode}
@@ -81,7 +81,7 @@ class PositionsTrackingIntegrationSpec extends TestKit(ActorSystem("PositionsTra
 
         protected def receive = {
           case OngoingSession(id, ref) =>
-            (ref ? GetAssignedInstruments) pipeTo positions
+            (ref ? GetAssignedContents) pipeTo positions
             if (!openedPosition) {
               system.scheduler.scheduleOnce(10.second) {
                 listener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
@@ -90,7 +90,7 @@ class PositionsTrackingIntegrationSpec extends TestKit(ActorSystem("PositionsTra
             }
 
           case OngoingSessionTransition(_, OngoingSession(id, ref)) =>
-            (ref ? GetAssignedInstruments) pipeTo positions
+            (ref ? GetAssignedContents) pipeTo positions
         }
       })))
 

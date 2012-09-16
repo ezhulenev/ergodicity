@@ -10,7 +10,7 @@ import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging
 import com.ergodicity.core.SessionsTracking.FutSessContents
-import com.ergodicity.core.session.Instrument.Limits
+import com.ergodicity.core.session.InstrumentParameters.{FutureParameters, Limits}
 import com.ergodicity.core.session.SessionActor.{GetInstrumentActor, GetState}
 import com.ergodicity.core.{FutureContract, ShortIsin, IsinId, Isin}
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
@@ -29,14 +29,15 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
   val isin = Isin("GMKR-6.12")
   val shortIsin = ShortIsin("GMM2")
 
-  val instrument = Instrument(FutureContract(id, isin, shortIsin, "Future Contract"), Limits(100, 100))
+  val instrument = FutureContract(id, isin, shortIsin, "Future Contract")
+  val parameters = FutureParameters(100, Limits(100, 100))
 
   "SessionContentes with FuturesManager" must {
     import com.ergodicity.core.session._
 
     "return None if instrument not found" in {
       val contents = TestActorRef(new SessionContents[FutSessContents](onlineSession) with FuturesContentsManager, "Futures")
-      contents ! FutSessContents(100, instrument, InstrumentState.Assigned)
+      contents ! FutSessContents(100, instrument, parameters, InstrumentState.Assigned)
 
       val request = (contents ? GetInstrumentActor(Isin("BadCode"))).mapTo[Option[ActorRef]]
       val result = Await.result(request, 1.second)
@@ -45,7 +46,7 @@ class SessionContentsSpec extends TestKit(ActorSystem("SessionContentsSpec", Con
 
     "return instument reference if found" in {
       val contents = TestActorRef(new SessionContents[FutSessContents](onlineSession) with FuturesContentsManager, "Futures")
-      contents ! FutSessContents(100, instrument, InstrumentState.Assigned)
+      contents ! FutSessContents(100, instrument, parameters, InstrumentState.Assigned)
 
       val request = (contents ? GetInstrumentActor(isin)).mapTo[Option[ActorRef]]
       val result = Await.result(request, 1.second)

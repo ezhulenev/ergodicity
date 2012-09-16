@@ -105,7 +105,7 @@ class MarketContentsCapture(FutInfoStream: ActorRef, OptInfoStream: ActorRef,
       val futures = data.asInstanceOf[Iterable[FutInfo.fut_sess_contents]].foldLeft(Map[Int, Security]()) {
         case (m, r) =>
           repository.saveSessionContents(r)
-          m + (r.get_isin_id() -> com.ergodicity.core.session.Implicits.FutInfoToFuture.convert(r))
+          m + (r.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(r))
       }
       subscribers.foreach(_ ! FuturesContents(futures))
       stay()
@@ -114,7 +114,7 @@ class MarketContentsCapture(FutInfoStream: ActorRef, OptInfoStream: ActorRef,
       val options = data.asInstanceOf[Iterable[OptInfo.opt_sess_contents]].foldLeft(Map[Int, Security]()) {
         case (m, r) =>
           repository.saveSessionContents(r)
-          m + (r.get_isin_id() -> com.ergodicity.core.session.Implicits.OptInfoToOption.convert(r))
+          m + (r.get_isin_id() -> com.ergodicity.core.session.Implicits.OptionInstrument.security(r))
       }
       subscribers.foreach(_ ! OptionsContents(options))
       stay()

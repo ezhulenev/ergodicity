@@ -22,9 +22,9 @@ class EngineIntegrationSpec extends TestKit(ActorSystem("EngineIntegrationSpec",
   val Host = "localhost"
   val Port = 4001
 
-  val ReplicationConnection = Tcp(Host, Port, "Replication")
-  val PublisherConnection = Tcp(Host, Port, "Publisher")
-  val RepliesConnection = Tcp(Host, Port, "Repl")
+  val ReplicationConnection = Tcp(Host, Port, system.name + "Replication")
+  val PublisherConnection = Tcp(Host, Port,  system.name + "Publisher")
+  val RepliesConnection = Tcp(Host, Port,  system.name + "Repl")
 
   override def beforeAll() {
     val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")

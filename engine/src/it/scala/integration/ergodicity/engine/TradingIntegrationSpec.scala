@@ -12,7 +12,7 @@ import com.ergodicity.cgate.config.{FortsMessages, CGateConfig, Replication}
 import com.ergodicity.core.{IsinId, Isin, ShortIsin, FutureContract}
 import com.ergodicity.engine.ReplicationScheme.{PosReplication, OptInfoReplication, FutInfoReplication}
 import com.ergodicity.engine.Services.StartServices
-import com.ergodicity.engine.service.Trading.{ExecutionReport, Buy}
+import com.ergodicity.engine.service.Trading.{Sell, OrderExecution, Buy}
 import com.ergodicity.engine.service._
 import com.ergodicity.engine.underlying._
 import com.ergodicity.engine.{ServicesState, ServicesActor, Engine}
@@ -22,16 +22,16 @@ import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener, Publisher => CGPublisher}
 import akka.dispatch.Await
 
-class TradingIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
+class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
-  val log = Logging(system, "ServicesIntegrationSpec")
+  val log = Logging(system, "TradingIntegrationSpec")
 
   val Host = "localhost"
   val Port = 4001
 
-  val ReplicationConnection = Tcp(Host, Port, "Replication")
-  val PublisherConnection = Tcp(Host, Port, "Publisher")
-  val RepliesConnection = Tcp(Host, Port, "Replies")
+  val ReplicationConnection = Tcp(Host, Port, system.name + "Replication")
+  val PublisherConnection = Tcp(Host, Port,  system.name + "Publisher")
+  val RepliesConnection = Tcp(Host, Port,  system.name + "Repl")
 
   override def beforeAll() {
     val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
@@ -91,7 +91,7 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSpe
             log.info("Trading service = " + trading)
 
             implicit val timeout = Timeout(10.minutes)
-            val f = (trading ? Buy(FutureContract(IsinId(0), Isin("RTS-9.12"), ShortIsin(""), ""), 1, 100)).mapTo[ExecutionReport]
+            val f = (trading ? Buy(FutureContract(IsinId(0), Isin("RTS-9.12"), ShortIsin(""), ""), 1, 100)).mapTo[OrderExecution]
 
             f onComplete {
               res => log.info("Result = " + res)
@@ -116,7 +116,7 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSpe
             log.info("Trading service = " + trading)
 
             implicit val timeout = Timeout(10.minutes)
-            val f1 = (trading ? Buy(FutureContract(IsinId(0), Isin("RTS-12.12"), ShortIsin(""), ""), 1, 150000)).mapTo[ExecutionReport]
+            val f1 = (trading ? Sell(FutureContract(IsinId(0), Isin("RTS-12.12"), ShortIsin(""), ""), 1, 150000)).mapTo[OrderExecution]
 
             f1 onComplete (_ match {
               case Left(err) =>

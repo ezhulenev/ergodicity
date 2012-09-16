@@ -14,7 +14,7 @@ import com.ergodicity.core.order.Order
 import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef}
 import com.ergodicity.engine.Services
 import com.ergodicity.engine.service.Service.{Stop, Start}
-import com.ergodicity.engine.service.Trading.{Sell, ExecutionReport, Buy}
+import com.ergodicity.engine.service.Trading.{Sell, OrderExecution, Buy}
 import com.ergodicity.engine.underlying.ListenerFactory
 import org.mockito.Mockito
 import org.mockito.Mockito._
@@ -144,14 +144,14 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
 
       when("receive buy command")
       service ! Buy(FutureContract(isinId, isin, shortIsin, ""), 1, 100)
-      then("should return ExecutionReport")
-      val buyReport = receiveOne(100.millis).asInstanceOf[ExecutionReport]
+      then("should return OrderExecution")
+      val buyReport = receiveOne(100.millis).asInstanceOf[OrderExecution]
       log.info("Buy Report = " + buyReport)
 
       when("receive Sell command")
       service ! Sell(FutureContract(isinId, isin, shortIsin, ""), 1, 100)
-      then("should return ExecutionReport")
-      val sellReport = receiveOne(100.millis).asInstanceOf[ExecutionReport]
+      then("should return OrderExecution")
+      val sellReport = receiveOne(100.millis).asInstanceOf[OrderExecution]
       log.info("Sell Report = " + sellReport)
     }
   }

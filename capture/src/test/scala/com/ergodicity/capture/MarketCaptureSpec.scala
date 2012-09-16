@@ -102,7 +102,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       Thread.sleep(300)
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
-      marketCapture ! FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutInfoToFuture.convert(gmkFuture)))
+      marketCapture ! FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(gmkFuture)))
 
       assert(marketCapture.stateName == CaptureState.InitializingMarketContents)
       assert(marketCapture.stateData.asInstanceOf[Contents].contents(166911).isin.isin == "GMKR-6.12")
@@ -119,7 +119,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       Thread.sleep(300)
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
-      marketCapture ! OptionsContents(Map(rtsOption.get_isin_id() -> com.ergodicity.core.session.Implicits.OptInfoToOption.convert(rtsOption)))
+      marketCapture ! OptionsContents(Map(rtsOption.get_isin_id() -> com.ergodicity.core.session.Implicits.OptionInstrument.security(rtsOption)))
 
       assert(marketCapture.stateName == CaptureState.InitializingMarketContents)
       log.info("Isin = " + marketCapture.stateData.asInstanceOf[Contents].contents(160734).isin.isin)
@@ -138,11 +138,11 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       Thread.sleep(300)
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
-      marketCapture ! FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutInfoToFuture.convert(gmkFuture)))
-      marketCapture ! FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutInfoToFuture.convert(gmkFuture)))
-      marketCapture ! FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutInfoToFuture.convert(gmkFuture)))
-      marketCapture ! FuturesContents(Map(lukFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutInfoToFuture.convert(lukFuture)))
-      marketCapture ! FuturesContents(Map(lukFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutInfoToFuture.convert(lukFuture)))
+      marketCapture ! FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(gmkFuture)))
+      marketCapture ! FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(gmkFuture)))
+      marketCapture ! FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(gmkFuture)))
+      marketCapture ! FuturesContents(Map(lukFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(lukFuture)))
+      marketCapture ! FuturesContents(Map(lukFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(lukFuture)))
 
       log.info("State = " + marketCapture.stateName)
       assert(marketCapture.stateName == CaptureState.InitializingMarketContents)

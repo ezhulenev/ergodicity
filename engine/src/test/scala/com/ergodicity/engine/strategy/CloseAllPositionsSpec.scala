@@ -14,8 +14,8 @@ import com.ergodicity.core._
 import com.ergodicity.core.order.OrderActor.{OrderEvent, SubscribeOrderEvents}
 import com.ergodicity.core.order.{FillOrder, Order}
 import com.ergodicity.core.position.{PositionDynamics, Position}
-import com.ergodicity.core.session.Instrument.Limits
-import com.ergodicity.core.session.SessionActor.AssignedInstruments
+import session.InstrumentParameters.{FutureParameters, Limits}
+import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.core.session._
 import com.ergodicity.engine.service.Trading._
 import com.ergodicity.engine.service.{InstrumentData, Portfolio, Trading}
@@ -45,14 +45,14 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
   val futureContract1 = FutureContract(isinId1, isin1, ShortIsin(""), "Future Contract #1")
   val futureContract2 = FutureContract(isinId2, isin2, ShortIsin(""), "Future Contract #2")
 
-  val instrument1 = Instrument(futureContract1, Limits(100, 200))
-  val instrument2 = Instrument(futureContract2, Limits(1000, 2000))
+  val parameters1 = FutureParameters(100, Limits(10, 20))
+  val parameters2 = FutureParameters(1000, Limits(100, 200))
 
-  val assignedInstruments = AssignedInstruments(Set(instrument1, instrument2))
+  val assignedParameters = AssignedContents(Set(futureContract1, futureContract2))
 
   private def portfolioService = {
     val portfolio = TestActorRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Portfolio")
-    portfolio ! assignedInstruments
+    portfolio ! assignedParameters
 
     portfolio ! PositionUpdated(isinId1, Position(1), PositionDynamics(buys = 1))
     portfolio ! PositionUpdated(isinId2, Position(-3), PositionDynamics(buys = 5, sells = 8))
@@ -62,8 +62,8 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
 
   private def instrumentDataService = {
     val sessionsTracking = TestActorRef(new SessionsTracking(system.deadLetters, system.deadLetters), "Sessions")
-    sessionsTracking ! FutSessContents(sessionId.fut, instrument1, InstrumentState.Online)
-    sessionsTracking ! FutSessContents(sessionId.fut, instrument2, InstrumentState.Online)
+    sessionsTracking ! FutSessContents(sessionId.fut, futureContract1, parameters1, InstrumentState.Online)
+    sessionsTracking ! FutSessContents(sessionId.fut, futureContract2, parameters2, InstrumentState.Online)
     sessionsTracking ! SessionEvent(sessionId, mock(classOf[Session]), SessionState.Online, IntradayClearingState.Oncoming)
     sessionsTracking ! FutSysEvent(SessionDataReady(1, 100))
     sessionsTracking ! OptSysEvent(SessionDataReady(1, 100))
@@ -111,15 +111,15 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
       assert(strategy.stateName == CloseAllPositionsState.ClosingPositions)
 
       // Expect buying messages
-      trading.expectMsgAllOf(Sell(futureContract1, 1, 100), Buy(futureContract2, 3, 2000))
+      trading.expectMsgAllOf(Sell(futureContract1, 1, 90), Buy(futureContract2, 3, 1200))
 
       when("get execution reports")
       val orderActor1 = TestProbe()
       val orderActor2 = TestProbe()
       val order1 = Order(1, sessionId.fut, isinId1, null, null, null, 1)
       val order2 = Order(2, sessionId.fut, isinId2, null, null, null, 3)
-      strategy ! new ExecutionReport(futureContract1, order1, orderActor1.ref)(system.deadLetters)
-      strategy ! new ExecutionReport(futureContract2, order2, orderActor2.ref)(system.deadLetters)
+      strategy ! new OrderExecution(futureContract1, order1, orderActor1.ref)(system.deadLetters)
+      strategy ! new OrderExecution(futureContract2, order2, orderActor2.ref)(system.deadLetters)
       then("should subscribe for order events")
       orderActor1.expectMsg(SubscribeOrderEvents(strategy))
       orderActor2.expectMsg(SubscribeOrderEvents(strategy))

@@ -4,6 +4,7 @@ import com.ergodicity.cgate._
 import scheme.FutInfo.fut_sess_contents
 import scheme.OptInfo.opt_sess_contents
 import scheme.{OptInfo, FutInfo}
+import session.InstrumentParameters.{Limits, OptionParameters, FutureParameters}
 
 package object session {
 
@@ -25,8 +26,9 @@ package object session {
     def shortIsin: ShortIsin
   }
 
-  sealed trait ToSecurity[T] {
-    def convert(record: T): Security
+  sealed trait Instrument[T, S <: Security, P <: InstrumentParameters] {
+    def security(record: T): S
+    def parameters(record: T): P
   }
 
   object Implicits {
@@ -52,18 +54,22 @@ package object session {
       def shortIsin = ShortIsin(contents.get_short_isin().trim)
     }
 
-    implicit val FutInfoToFuture = new ToSecurity[FutInfo.fut_sess_contents] {
-      def convert(record: fut_sess_contents) = {
+    implicit val FutureInstrument = new Instrument[FutInfo.fut_sess_contents, FutureContract, FutureParameters] {
+      def security(record: fut_sess_contents) = {
         val enriched = enrichFutInfoContents(record)
         new FutureContract(enriched.id, enriched.isin, enriched.shortIsin, record.get_name().trim)
       }
+
+      def parameters(record: fut_sess_contents) = FutureParameters(record.get_last_cl_quote(), Limits(record.get_limit_down(), record.get_limit_up()))
     }
 
-    implicit val OptInfoToOption = new ToSecurity[OptInfo.opt_sess_contents] {
-      def convert(record: opt_sess_contents) = {
+    implicit val OptionInstrument = new Instrument[OptInfo.opt_sess_contents, OptionContract, OptionParameters] {
+      def security(record: opt_sess_contents) = {
         val enriched = enrichOptInfoContents(record)
         new OptionContract(enriched.id, enriched.isin, enriched.shortIsin, record.get_name().trim)
       }
+
+      def parameters(record: opt_sess_contents) = OptionParameters(record.get_last_cl_quote())
     }
   }
 }

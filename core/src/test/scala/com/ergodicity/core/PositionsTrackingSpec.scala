@@ -11,9 +11,7 @@ import org.scalatest.{BeforeAndAfter, GivenWhenThen, BeforeAndAfterAll, WordSpec
 import com.ergodicity.core.PositionsTracking._
 import position.PositionActor.{PositionTransition, CurrentPosition, SubscribePositionUpdates}
 import position.{PositionDynamics, Position}
-import session.Instrument
-import session.Instrument.Limits
-import session.SessionActor.AssignedInstruments
+import session.SessionActor.AssignedContents
 import com.ergodicity.core.PositionsTracking.Positions
 import com.ergodicity.core.PositionsTracking.TrackedPosition
 
@@ -29,7 +27,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
   val isin = Isin("RTS-9.12")
   val isinId = IsinId(100)
 
-  val assignedInstruments = AssignedInstruments(Set(Instrument(FutureContract(isinId, isin, ShortIsin(""), "Future Contract"), Limits(0, 0))))
+  val assignedContents = AssignedContents(Set(FutureContract(isinId, isin, ShortIsin(""), "Future Contract")))
 
   "Positions Tracking" must {
 
@@ -37,7 +35,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
       val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
       val underlying = positions.underlyingActor.asInstanceOf[PositionsTracking]
 
-      positions ! assignedInstruments
+      positions ! assignedContents
       positions ! PositionUpdated(isinId, Position(1), PositionDynamics(buys = 1))
 
       assert(underlying.positions.size == 1)
@@ -51,7 +49,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
       val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
       val underlying = positions.underlyingActor.asInstanceOf[PositionsTracking]
 
-      positions ! assignedInstruments
+      positions ! assignedContents
       when("position created")
       positions ! PositionUpdated(isinId, Position(1), PositionDynamics(buys = 1))
 
@@ -74,7 +72,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
       val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
       val underlying = positions.underlyingActor.asInstanceOf[PositionsTracking]
 
-      positions ! assignedInstruments
+      positions ! assignedContents
       positions ! PositionUpdated(isinId, Position(1), PositionDynamics(buys = 1))
 
       val positionRef = underlying.positions(isin)
@@ -104,7 +102,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
       val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
 
 
-      positions ! assignedInstruments
+      positions ! assignedContents
       positions ! PositionUpdated(isinId, Position(1), PositionDynamics(buys = 1))
 
       val trackedPosition = Await.result((positions ? GetPositionActor(isin)).mapTo[TrackedPosition], TimeOut.duration)
@@ -115,7 +113,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
     "get all opened positions" in {
       val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
 
-      positions ! assignedInstruments
+      positions ! assignedContents
       positions ! PositionUpdated(isinId, Position(1), PositionDynamics(buys = 1))
 
       val openPositions = Await.result((positions ? GetPositions).mapTo[Positions], TimeOut.duration)

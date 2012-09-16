@@ -10,8 +10,8 @@ import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.cgate.SysEvent.SessionDataReady
 import com.ergodicity.core.SessionsTracking._
-import com.ergodicity.core.session.Instrument.Limits
-import com.ergodicity.core.session.SessionActor.{AssignedInstruments, GetAssignedInstruments}
+import session.InstrumentParameters.{OptionParameters, FutureParameters, Limits}
+import com.ergodicity.core.session.SessionActor.{AssignedContents, GetAssignedContents}
 import com.ergodicity.core.session._
 import org.joda.time.DateTime
 import org.mockito.Mockito._
@@ -27,20 +27,20 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
     system.shutdown()
   }
 
-  val futureInstrument = {
+  val futureContract = {
     val id = IsinId(166911)
     val isin = Isin("GMKR-6.12")
     val shortIsin = ShortIsin("GMM2")
 
-    Instrument(FutureContract(id, isin, shortIsin, "Future Contract"), Limits(100, 100))
+    FutureContract(id, isin, shortIsin, "Future Contract")
   }
 
-  val optionInstrument = {
+  val optionContract = {
     val id = IsinId(160734)
     val isin = Isin("RTS-6.12M150612PA 175000")
     val shortIsin = ShortIsin("RI175000BR2")
 
-    Instrument(OptionContract(id, isin, shortIsin, "Option Contract"), Limits(100, 100))
+    OptionContract(id, isin, shortIsin, "Option Contract")
   }
 
   def session(id: SessionId) = {
@@ -76,7 +76,7 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
 
       underlying.sessions(SessionId(100, 0)) = self
 
-      val contents = FutSessContents(100, mock(classOf[Instrument]), InstrumentState.Assigned)
+      val contents = FutSessContents(100, futureContract, FutureParameters(100, Limits(100, 100)), InstrumentState.Assigned)
       sessions ! contents
 
       expectMsg(contents)
@@ -90,7 +90,7 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
 
       underlying.sessions(SessionId(0, 100)) = self
 
-      val contents = OptSessContents(100, mock(classOf[Instrument]))
+      val contents = OptSessContents(100, optionContract, OptionParameters(100))
       sessions ! contents
 
       expectMsg(contents)
@@ -112,8 +112,8 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
       // Session #1 lifecycle
 
       when("receive contents for nonexistent session")
-      sessions ! FutSessContents(id1.fut, futureInstrument, InstrumentState.Assigned)
-      sessions ! OptSessContents(id1.opt, optionInstrument)
+      sessions ! FutSessContents(id1.fut, futureContract, FutureParameters(100, Limits(100, 100)),InstrumentState.Assigned)
+      sessions ! OptSessContents(id1.opt, optionContract, OptionParameters(100))
 
       then("should postpone them")
 
@@ -144,17 +144,17 @@ class SessionsTrackingSpec extends TestKit(ActorSystem("SessionsTrackingSpec", A
       sessionActor1 ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(sessionActor1, SessionState.Assigned))
 
-      and("it should contain AssignedInstruments")
-      val assigned = Await.result((sessionActor1 ? GetAssignedInstruments).mapTo[AssignedInstruments], 2.second)
-      log.info("Assigned instruments = " + assigned)
-      assert(assigned.instruments.size == 2)
+      and("it should contain AssignedContents")
+      val assigned = Await.result((sessionActor1 ? GetAssignedContents).mapTo[AssignedContents], 2.second)
+      log.info("Assigned contents = " + assigned)
+      assert(assigned.contents.size == 2)
 
       // Session #2 lifecycle
 
       when("receive session events for nex session")
       sessions ! SessionEvent(id2, session(id2), SessionState.Assigned, IntradayClearingState.Oncoming)
-      sessions ! FutSessContents(id2.fut, futureInstrument, InstrumentState.Assigned)
-      sessions ! OptSessContents(id2.opt, optionInstrument)
+      sessions ! FutSessContents(id2.fut, futureContract, FutureParameters(100, Limits(100, 100)), InstrumentState.Assigned)
+      sessions ! OptSessContents(id2.opt, optionContract, OptionParameters(100))
 
       then("should postpone them all")
 

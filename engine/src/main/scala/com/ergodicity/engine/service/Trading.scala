@@ -14,14 +14,14 @@ import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.cgate.config.Replies.RepliesParams
 import com.ergodicity.cgate.config.{Replication, Replies}
 import com.ergodicity.core.Market.Futures
-import com.ergodicity.core.OrderType.{GoodTillCancelled, ImmediateOrCancel}
+import com.ergodicity.core.OrderType.ImmediateOrCancel
 import com.ergodicity.core.SessionsTracking.{OngoingSessionTransition, OngoingSession, SubscribeOngoingSessions}
 import com.ergodicity.core.broker.{Cancelled, OrderId, ReplySubscriber, Broker}
 import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef, DropSession, GetSessionOrdersTracking}
 import com.ergodicity.core.order.{Order, OrdersTracking}
 import com.ergodicity.core.{Security, FutureContract, SessionId}
 import com.ergodicity.engine.service.Service.{Stop, Start}
-import com.ergodicity.engine.service.Trading.{Sell, ExecutionReport, Buy}
+import com.ergodicity.engine.service.Trading.{Sell, OrderExecution, Buy}
 import com.ergodicity.engine.service.TradingService.SetOngoingSessionOrdersTracker
 import com.ergodicity.engine.service.TradingState.TradingStates
 import com.ergodicity.engine.underlying._
@@ -39,7 +39,7 @@ object Trading {
 
   case class Sell(security: Security, amount: Int, price: BigDecimal)
 
-  class ExecutionReport(val security: Security, val order: Order, orderActor: ActorRef)(broker: ActorRef) {
+  class OrderExecution(val security: Security, val order: Order, orderActor: ActorRef)(broker: ActorRef) {
     implicit val cancelTimeout = Timeout(5.seconds)
 
     def cancel = security match {
@@ -51,7 +51,7 @@ object Trading {
       orderActor ! SubscribeOrderEvents(subscriber)
     }
 
-    override def toString = "ExecutionReport(security = " + security + ", order = " + order + ")"
+    override def toString = "OrderExecution(security = " + security + ", order = " + order + ")"
   }
 
 }
@@ -185,13 +185,13 @@ protected[service] class TradingService(listener: ListenerFactory,
     case Event(Buy(security@FutureContract(_, isin, _, _), amount, price), _) =>
       val orderId = (TradingBroker ? Broker.Buy[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
       val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
-      orderRef map (order => new ExecutionReport(security, order.order, order.ref)(TradingBroker)) pipeTo sender
+      orderRef map (order => new OrderExecution(security, order.order, order.ref)(TradingBroker)) pipeTo sender
       stay()
 
     case Event(Sell(security@FutureContract(_, isin, _, _), amount, price), _) =>
       val orderId = (TradingBroker ? Broker.Sell[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
       val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
-      orderRef map (order => new ExecutionReport(security, order.order, order.ref)(TradingBroker)) pipeTo sender
+      orderRef map (order => new OrderExecution(security, order.order, order.ref)(TradingBroker)) pipeTo sender
       stay()
 
   }

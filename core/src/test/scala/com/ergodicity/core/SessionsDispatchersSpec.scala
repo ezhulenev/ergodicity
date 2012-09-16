@@ -52,7 +52,7 @@ class SessionsDispatchersSpec extends TestKit(ActorSystem("SessionsDispatchersSp
 
       val msg = receiveOne(100.millis).asInstanceOf[FutSessContents]
       assert(msg.sessionId == 4023)
-      assert(msg.instrument.security.id == IsinId(166911))
+      assert(msg.future.id == IsinId(166911))
       assert(msg.state == InstrumentState.Suspended)
 
       expectNoMsg(300.millis)
@@ -85,7 +85,7 @@ class SessionsDispatchersSpec extends TestKit(ActorSystem("SessionsDispatchersSp
 
       val msg = receiveOne(100.millis).asInstanceOf[OptSessContents]
       assert(msg.sessionId == 100)
-      assert(msg.instrument.security.id == IsinId(1234))
+      assert(msg.option.id == IsinId(1234))
 
       expectNoMsg(300.millis)
     }

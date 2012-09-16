@@ -12,7 +12,7 @@ import position.PositionActor.{GetCurrentPosition, CurrentPosition, UpdatePositi
 import akka.pattern.ask
 import akka.pattern.pipe
 import akka.util.Timeout
-import session.SessionActor.AssignedInstruments
+import session.SessionActor.AssignedContents
 import scala.Some
 import com.ergodicity.cgate.StreamEvent.{StreamData, ClearDeleted, TnCommit, TnBegin}
 import com.ergodicity.core.PositionsTracking.{PositionDiscarded, PositionUpdated}
@@ -46,7 +46,7 @@ object PositionsTrackingState {
   case object Tracking extends PositionsTrackingState
 }
 
-class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTrackingState, AssignedInstruments] {
+class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTrackingState, AssignedContents] {
 
   import PositionsTracking._
   import PositionsTrackingState._
@@ -59,7 +59,7 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
 
   val dispatcher = context.actorOf(Props(new PositionsDispatcher(self, PosStream)), "PositionsDispatcher")
 
-  startWith(Tracking, AssignedInstruments(Set()))
+  startWith(Tracking, AssignedContents(Set()))
 
   when(Tracking) {
     case Event(GetPositions, _) =>
@@ -87,8 +87,8 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
 
 
   whenUnhandled {
-    case Event(assigned: AssignedInstruments, old) =>
-      log.debug("Assigned instruments; Size = " + assigned.instruments.size)
+    case Event(assigned: AssignedContents, old) =>
+      log.debug("Assigned contents; Size = " + assigned.contents.size)
       stay() using assigned
   }
 
