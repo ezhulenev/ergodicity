@@ -42,9 +42,9 @@ object InstrumentActor {
 
   case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
 
-  case class SubscribeInstrumentParameters(ref: ActorRef)
+  case class SubscribeInstrumentParametersCallback(ref: ActorRef)
 
-  case class UnsubscribeInstrumentParameters(ref: ActorRef)
+  case class UnsubscribeInstrumentParametersCallback(ref: ActorRef)
 
 }
 
@@ -61,7 +61,11 @@ object InstrumentParameters {
 }
 
 
-abstract class InstrumentActor[S <: Security](security: S) extends Actor with LoggingFSM[InstrumentState, Option[InstrumentParameters]] {
+class FutureInstrument(security: FutureContract) extends InstrumentActor(security) with FutureParametersHandling
+
+class OptionInstrument(security: OptionContract) extends InstrumentActor(security) with OptionParametersHandling
+
+private[session] abstract class InstrumentActor[S <: Security](security: S) extends Actor with LoggingFSM[InstrumentState, Option[InstrumentParameters]] {
 
   import InstrumentActor._
   import InstrumentState._
@@ -104,16 +108,16 @@ abstract class InstrumentActor[S <: Security](security: S) extends Actor with Lo
     case Event(e@FSM.StateTimeout, _) =>
       throw new IllegalLifeCycleEvent("Timed out in initial Suspended state", e)
 
-    case Event(SubscribeInstrumentParameters(ref), None) =>
+    case Event(SubscribeInstrumentParametersCallback(ref), None) =>
       subscribers = subscribers :+ ref
       stay()
 
-    case Event(SubscribeInstrumentParameters(ref), Some(params)) =>
+    case Event(SubscribeInstrumentParametersCallback(ref), Some(params)) =>
       ref ! params
       subscribers = subscribers :+ ref
       stay()
 
-    case Event(UnsubscribeInstrumentParameters(ref), _) =>
+    case Event(UnsubscribeInstrumentParametersCallback(ref), _) =>
       subscribers = subscribers filterNot (_ == ref)
       stay()
   }
@@ -131,7 +135,7 @@ abstract class InstrumentActor[S <: Security](security: S) extends Actor with Lo
   }
 }
 
-trait FutureParametersHandling {
+private[session] trait FutureParametersHandling {
   self: InstrumentActor[FutureContract] =>
   protected def handleInstrumentParameters: StateFunction = {
     case Event(params@FutureParameters(_, _), None) =>
@@ -144,7 +148,7 @@ trait FutureParametersHandling {
   }
 }
 
-trait OptionParametersHandling {
+private[session] trait OptionParametersHandling {
   self: InstrumentActor[OptionContract] =>
   protected def handleInstrumentParameters: StateFunction = {
     case Event(params@OptionParameters(_), None) =>

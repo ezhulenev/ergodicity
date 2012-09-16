@@ -76,7 +76,7 @@ trait FuturesContentsManager extends ContentsManager[FutSessContents] {
   def handleSessionContents(contents: FutSessContents) {
     originalInstrumentState(contents.future) = contents.state
     val isin = contents.future.isin
-    lazy val creator = new InstrumentActor(contents.future) with FutureParametersHandling
+    lazy val creator = new FutureInstrument(contents.future)
     val instrumentActor = instruments.getOrElseUpdate(contents.future, context.actorOf(Props(creator), isin.toActorName))
     instrumentActor ! contents.params
     instrumentActor ! merge(sessionState, contents.state)
@@ -118,7 +118,7 @@ trait OptionsContentsManager extends ContentsManager[OptSessContents] {
 
   protected def handleSessionContents(contents: OptSessContents) {
     val isin = contents.option.isin
-    lazy val creator = new InstrumentActor(contents.option) with OptionParametersHandling
+    lazy val creator = new OptionInstrument(contents.option)
     val instrumentActor = instruments.getOrElseUpdate(contents.option, context.actorOf(Props(creator), isin.toActorName))
     instrumentActor ! contents.params
     instrumentActor ! InstrumentState(sessionState)

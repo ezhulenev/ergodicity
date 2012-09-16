@@ -16,7 +16,7 @@ import com.ergodicity.engine.service.InstrumentData.{InstrumentData => Instrumen
 import com.ergodicity.engine.strategy.InstrumentWatchDog.{CatchedParameters, CatchedState, WatchDogConfig, Catched}
 import com.ergodicity.engine.strategy.InstrumentWatchDogState.{Watching, Catching}
 import scala.Some
-import com.ergodicity.core.session.InstrumentActor.{SubscribeInstrumentParameters, UnsubscribeInstrumentParameters}
+import com.ergodicity.core.session.InstrumentActor.{SubscribeInstrumentParametersCallback, UnsubscribeInstrumentParametersCallback}
 
 trait InstrumentWatcher {
   strategy: Strategy with Actor =>
@@ -88,12 +88,12 @@ class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: 
       // Unwatch outdated instrument
       outdated.foreach(old => context.unwatch(old.instrument))
       outdated.foreach(_.instrument ! UnsubscribeTransitionCallBack(self))
-      outdated.foreach(_.instrument ! UnsubscribeInstrumentParameters(self))
+      outdated.foreach(_.instrument ! UnsubscribeInstrumentParametersCallback(self))
 
       // Watch for catched instrument
       context.watch(catched.instrument)
       catched.instrument ! SubscribeTransitionCallBack(self)
-      catched.instrument ! SubscribeInstrumentParameters(self)
+      catched.instrument ! SubscribeInstrumentParametersCallback(self)
 
       onCatched(catched)
 
