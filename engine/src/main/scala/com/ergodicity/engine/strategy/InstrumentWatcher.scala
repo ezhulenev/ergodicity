@@ -20,7 +20,7 @@ import com.ergodicity.core.session.InstrumentActor.UnsubscribeInstrumentCallback
 import com.ergodicity.core.session.InstrumentState
 import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.core.session.SessionActor.GetAssignedContents
-import com.ergodicity.core.session.SessionActor.GetInstrumentActor
+import com.ergodicity.core.session.SessionActor.GetInstrument
 import com.ergodicity.core.{Security, Isin}
 import com.ergodicity.engine.service.InstrumentData.{InstrumentData => InstrumentDataId}
 import com.ergodicity.engine.strategy.InstrumentWatchDog.Catched
@@ -84,7 +84,7 @@ class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: 
   when(Catching, stateTimeout = 1.second) {
     case Event(OngoingSession(id, session), _) =>
       log.info("Catched ongoing session, session id = " + id)
-      val actor = (session ? GetInstrumentActor(isin)).mapTo[ActorRef]
+      val actor = (session ? GetInstrument(isin)).mapTo[ActorRef]
       val instrument = (session ? GetAssignedContents).mapTo[AssignedContents] map (_.contents.find(_.isin == isin))
 
       (actor zip instrument).map {
@@ -119,7 +119,7 @@ class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: 
   when(Watching) {
     case Event(OngoingSessionTransition(_, OngoingSession(id, session)), _) =>
       log.info("Catched ongoing session transition, new session id = " + id)
-      val actor = (session ? GetInstrumentActor(isin)).mapTo[ActorRef]
+      val actor = (session ? GetInstrument(isin)).mapTo[ActorRef]
       val instrument = (session ? GetAssignedContents).mapTo[AssignedContents].map(_.contents.find(_.isin == isin))
 
       (actor zip instrument).map {

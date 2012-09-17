@@ -21,13 +21,13 @@ import com.ergodicity.cgate.Protocol._
 object PositionsTracking {
   def apply(PosStream: ActorRef) = new PositionsTracking(PosStream)
 
-  case class GetPositionActor(isin: Isin)
+  case class GetPositionActor(security: Security)
 
-  case class TrackedPosition(isin: Isin, positionActor: ActorRef)
+  case class TrackedPosition(security: Security, positionActor: ActorRef)
 
   case object GetPositions
 
-  case class Positions(positions: Map[Isin, Position])
+  case class Positions(positions: Map[Security, Position])
 
   // Failures
 
@@ -54,7 +54,7 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
   implicit val timeout = Timeout(1.second)
   implicit val executionContext = context.system
 
-  val positions = mutable.Map[Isin, ActorRef]()
+  val positions = mutable.Map[Security, ActorRef]()
   var subscribers = Set[ActorRef]()
 
   val dispatcher = context.actorOf(Props(new PositionsDispatcher(self, PosStream)), "PositionsDispatcher")
@@ -67,20 +67,20 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       currentPositions.map(_.map(_.tuple).toMap) map (Positions(_)) pipeTo sender
       stay()
 
-    case Event(GetPositionActor(isin), _) =>
-      sender ! TrackedPosition(isin, positions.getOrElseUpdate(isin, createPosition(isin)))
+    case Event(GetPositionActor(security), _) =>
+      sender ! TrackedPosition(security, positions.getOrElseUpdate(security, createPosition(security)))
       stay()
 
     case Event(PositionDiscarded(id), assigned) =>
-      val isin = assigned.isin(id)
-      log.debug("Position discarded; Isin = "+isin)
-      positions.find(_._1 == isin) foreach (_._2 ! UpdatePosition(Position.flat, PositionDynamics.empty))
+      val security = assigned ? id
+      log.debug("Position discarded; Security = "+security)
+      positions.find(_._1 == security) foreach (_._2 ! UpdatePosition(Position.flat, PositionDynamics.empty))
       stay()
 
     case Event(PositionUpdated(id, position, dynamics), assigned) =>
-      val isin = assigned.isin(id)
-      log.debug("Position updated; Isin = "+isin)
-      val positionActor = positions.getOrElseUpdate(isin, createPosition(isin))
+      val security = assigned ? id
+      log.debug("Position updated; Security = "+security)
+      val positionActor = positions.getOrElseUpdate(security, createPosition(security))
       positionActor ! UpdatePosition(position, dynamics)
       stay()
   }
@@ -92,7 +92,7 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       stay() using assigned
   }
 
-  private def createPosition(isin: Isin) = context.actorOf(Props(new PositionActor(isin)), isin.toActorName)
+  private def createPosition(security: Security) = context.actorOf(Props(new PositionActor(security)), security.isin.toActorName)
 }
 
 class PositionsDispatcher(positionsTracking: ActorRef, stream: ActorRef) extends Actor with ActorLogging with WhenUnhandled {

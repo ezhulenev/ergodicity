@@ -8,7 +8,7 @@ import com.ergodicity.engine.StrategyEngine._
 import collection.mutable
 import collection.immutable
 import com.ergodicity.core.position.Position
-import com.ergodicity.core.Isin
+import com.ergodicity.core.{Security, Isin}
 import com.ergodicity.engine.StrategyEngine.ManagedStrategy
 import akka.util.Timeout
 import akka.util.duration._
@@ -93,11 +93,11 @@ abstract class StrategyEngine(factory: StrategiesFactory = StrategiesFactory.emp
     self ! StrategyReady(id, positions)
   }
 
-  protected[engine] def reconcile(portfolioPositions: immutable.Map[Isin, Position],
+  protected[engine] def reconcile(portfolioPositions: immutable.Map[Security, Position],
                                        strategiesPositions: immutable.Map[(StrategyId, Isin), Position]): Reconciliation = {
 
     // Find each side position for given isin
-    val groupedByIsin = (portfolioPositions.keySet ++ strategiesPositions.keySet.map(_._2)).map(isin => {
+    val groupedByIsin = (portfolioPositions.keySet.map(_.isin) ++ strategiesPositions.keySet.map(_._2)).map(isin => {
       val portfolioPos = portfolioPositions.get(isin) getOrElse Position.flat
       val strategiesPos = strategiesPositions.filterKeys(_._2 == isin).values.foldLeft(Position.flat)(_ |+| _)
 

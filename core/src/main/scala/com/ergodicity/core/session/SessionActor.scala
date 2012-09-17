@@ -32,9 +32,7 @@ object SessionActor {
 
   class IllegalLifeCycleEvent(msg: String, event: Any) extends RuntimeException(msg)
 
-  class InstrumentIdNotAssigned(id: IsinId) extends RuntimeException("No such instument assigned: " + id)
-
-  class InstrumentIsinNotAssigned(isin: Isin) extends RuntimeException("No such instument assigned: " + isin)
+  class InstrumentNotAssigned(id: Any) extends RuntimeException("No such instument assigned: " + id)
 
 
   // Actions
@@ -51,19 +49,16 @@ object SessionActor {
       id => contents.find(_.id == id)
     }
 
-    val findByIsinMemo =  immutableHashMapMemo[Isin, Option[Security]] {
-      isin => contents.find(_.isin == isin)
-    }
-
-    def isin(id: IsinId) = findByIdMemo(id).getOrElse(throw new InstrumentIdNotAssigned(id)).isin
+    def ?(id: IsinId) = findByIdMemo(id).getOrElse(throw new InstrumentNotAssigned(id))
   }
 
-  case class GetInstrumentActor(isin: Isin)
+  case class GetInstrument(security: Security)
 
+  case class InstrumentRef(session: SessionId, security: Security, instrumentActor: ActorRef)
 }
 
 
-case class SessionActor(content: Session) extends Actor with LoggingFSM[SessionState, Unit] {
+case class SessionActor(session: Session) extends Actor with LoggingFSM[SessionState, Unit] {
 
   import SessionActor._
   import SessionState._
@@ -103,12 +98,12 @@ case class SessionActor(content: Session) extends Actor with LoggingFSM[SessionS
       sender ! stateName
       stay()
 
-    case Event(GetInstrumentActor(isin), _) =>
-      val future = (futures ? GetInstrumentActor(isin)).mapTo[Option[ActorRef]]
-      val option = (options ? GetInstrumentActor(isin)).mapTo[Option[ActorRef]]
+    case Event(GetInstrument(security), _) =>
+      val future = (futures ? GetInstrument(security)).mapTo[Option[ActorRef]]
+      val option = (options ? GetInstrument(security)).mapTo[Option[ActorRef]]
 
       future zip option map {
-        case (f, o) => (f orElse o).getOrElse(throw new InstrumentIsinNotAssigned(isin))
+        case (f, o) => (f orElse o).map(InstrumentRef(session.id, security, _)).getOrElse(throw new InstrumentNotAssigned(security))
       } pipeTo sender
 
       stay()

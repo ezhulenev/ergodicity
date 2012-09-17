@@ -1,8 +1,8 @@
 package com.ergodicity.core.position
 
 import akka.actor.{ActorLogging, ActorRef, Actor}
-import com.ergodicity.core.Isin
 import com.ergodicity.cgate.WhenUnhandled
+import com.ergodicity.core.Security
 
 object PositionActor {
 
@@ -14,15 +14,15 @@ object PositionActor {
 
   case class UnsubscribePositionUpdates(ref: ActorRef)
 
-  case class CurrentPosition(isin: Isin, position: Position) {
-    def tuple = (isin, position)
+  case class CurrentPosition(security: Security, position: Position) {
+    def tuple = (security, position)
   }
 
-  case class PositionTransition(isin: Isin, from: Position, to: Position)
+  case class PositionTransition(security: Security, from: Position, to: Position)
 
 }
 
-class PositionActor(isin: Isin) extends Actor with ActorLogging with WhenUnhandled {
+class PositionActor(security: Security) extends Actor with ActorLogging with WhenUnhandled {
 
   import PositionActor._
 
@@ -33,7 +33,7 @@ class PositionActor(isin: Isin) extends Actor with ActorLogging with WhenUnhandl
 
 
   override def preStart() {
-    log.info("Opened position; Isin = " + isin)
+    log.info("Opened position; Security = " + security)
   }
 
   protected def receive = getPosition orElse handleUpdates orElse subscriptions orElse whenUnhandled
@@ -44,7 +44,7 @@ class PositionActor(isin: Isin) extends Actor with ActorLogging with WhenUnhandl
 
     case UpdatePosition(to, d) =>
       log.debug("Position updated to " + to + ", dynamics = " + d)
-      subscribers.foreach(_ ! PositionTransition(isin, position, to))
+      subscribers.foreach(_ ! PositionTransition(security, position, to))
       position = to
       dynamics = d
   }
@@ -52,13 +52,13 @@ class PositionActor(isin: Isin) extends Actor with ActorLogging with WhenUnhandl
   private def subscriptions: Receive = {
     case SubscribePositionUpdates(ref) =>
       subscribers = subscribers + ref
-      ref ! CurrentPosition(isin, position)
+      ref ! CurrentPosition(security, position)
 
     case UnsubscribePositionUpdates(ref) =>
       subscribers = subscribers.filterNot(_ == ref)
   }
 
   private def getPosition: Receive = {
-    case GetCurrentPosition => sender ! CurrentPosition(isin, position)
+    case GetCurrentPosition => sender ! CurrentPosition(security, position)
   }
 }

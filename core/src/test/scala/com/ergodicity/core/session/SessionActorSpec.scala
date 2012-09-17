@@ -98,8 +98,8 @@ class SessionActorSpec extends TestKit(ActorSystem("SessionActorSpec", ConfigWit
       gmkFutures ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(gmkFutures, InstrumentState.Suspended))
 
-      val instrumentActor = (session ? GetInstrumentActor(Isin("GMKR-6.12"))).mapTo[ActorRef]
-      assert(Await.result(instrumentActor, Duration(1, TimeUnit.SECONDS)) == gmkFutures)
+      val instrumentActor = (session ? GetInstrument(contract)).mapTo[InstrumentRef]
+      assert(Await.result(instrumentActor, Duration(1, TimeUnit.SECONDS)) == InstrumentRef(SessionId(100, 101), contract, gmkFutures))
     }
 
     "return all assigned contents" in {
@@ -133,8 +133,9 @@ class SessionActorSpec extends TestKit(ActorSystem("SessionActorSpec", ConfigWit
       sessionActor ! FutSessContents(100, future, FutureParameters(100, Limits(100, 100)), InstrumentState.Assigned)
       sessionActor ! OptSessContents(100, option, OptionParameters(100))
 
-      val result = (sessionActor ? GetInstrumentActor(Isin("BadCode"))).mapTo[ActorRef]
-      intercept[InstrumentIsinNotAssigned] {
+      val nonExistingContract = FutureContract(IsinId(0), Isin("BadIsin"), ShortIsin(""), "")
+      val result = (sessionActor ? GetInstrument(nonExistingContract)).mapTo[ActorRef]
+      intercept[InstrumentNotAssigned] {
         Await.result(result, Duration(1, TimeUnit.SECONDS))
       }
     }

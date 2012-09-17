@@ -5,7 +5,7 @@ import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack, Transition}
 import akka.util.duration._
 import com.ergodicity.cgate.WhenUnhandled
 import collection.mutable
-import com.ergodicity.core.session.SessionActor.{AssignedContents, GetAssignedContents, GetInstrumentActor}
+import com.ergodicity.core.session.SessionActor.{AssignedContents, GetAssignedContents, GetInstrument}
 import akka.util.Timeout
 import com.ergodicity.core.SessionsTracking.{OptSessContents, FutSessContents}
 import com.ergodicity.core.{OptionContract, FutureContract, Security}
@@ -46,9 +46,9 @@ class SessionContents[T](Session: ActorRef) extends Actor with ActorLogging with
   }
 
   private def getInstruments: Receive = {
-    case GetInstrumentActor(isin) =>
-      val instrument = instruments.find(_._1.isin == isin)
-      log.debug("Get session instrument: " + isin + "; Result = " + instrument)
+    case GetInstrument(security) =>
+      val instrument = instruments.find(_._1 == security)
+      log.debug("Get session instrument: " + security + "; Result = " + instrument)
       sender ! instrument.map(_._2)
 
     case GetAssignedContents =>
