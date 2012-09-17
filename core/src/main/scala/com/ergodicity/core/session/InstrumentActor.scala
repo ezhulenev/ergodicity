@@ -42,9 +42,9 @@ object InstrumentActor {
 
   case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
 
-  case class SubscribeInstrumentParametersCallback(ref: ActorRef)
+  case class SubscribeInstrumentCallback(ref: ActorRef)
 
-  case class UnsubscribeInstrumentParametersCallback(ref: ActorRef)
+  case class UnsubscribeInstrumentCallback(ref: ActorRef)
 
 }
 
@@ -60,6 +60,7 @@ object InstrumentParameters {
 
 }
 
+case class Instrument(actor: ActorRef, security: Security, parameters: InstrumentParameters)
 
 class FutureInstrument(security: FutureContract) extends InstrumentActor(security) with FutureParametersHandling
 
@@ -108,16 +109,16 @@ private[session] abstract class InstrumentActor[S <: Security](security: S) exte
     case Event(e@FSM.StateTimeout, _) =>
       throw new IllegalLifeCycleEvent("Timed out in initial Suspended state", e)
 
-    case Event(SubscribeInstrumentParametersCallback(ref), None) =>
+    case Event(SubscribeInstrumentCallback(ref), None) =>
       subscribers = subscribers :+ ref
       stay()
 
-    case Event(SubscribeInstrumentParametersCallback(ref), Some(params)) =>
-      ref ! params
+    case Event(SubscribeInstrumentCallback(ref), Some(params)) =>
+      ref ! Instrument(self, security, params)
       subscribers = subscribers :+ ref
       stay()
 
-    case Event(UnsubscribeInstrumentParametersCallback(ref), _) =>
+    case Event(UnsubscribeInstrumentCallback(ref), _) =>
       subscribers = subscribers filterNot (_ == ref)
       stay()
   }
@@ -131,7 +132,7 @@ private[session] abstract class InstrumentActor[S <: Security](security: S) exte
   protected def handleInstrumentParameters: StateFunction
 
   protected def notifySubscribers(params: InstrumentParameters) {
-    subscribers foreach (_ ! params)
+    subscribers foreach (_ ! Instrument(self, security, params))
   }
 }
 

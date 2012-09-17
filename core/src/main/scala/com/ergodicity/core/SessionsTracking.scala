@@ -238,7 +238,7 @@ class FutInfoDispatcher(sessionsTracking: ActorRef, stream: ActorRef) extends Ac
       val record = implicitly[Reads[FutInfo.fut_sess_contents]] apply data
       // Handle only Futures, ignore Repo etc.
       if (record.get_replAct() == 0 && record.isFuture) {
-        val instrument = implicitly[Instrument[fut_sess_contents, FutureContract, FutureParameters]]
+        val instrument = implicitly[ToInstrument[fut_sess_contents, FutureContract, FutureParameters]]
         val security = instrument security record
         val parameters = instrument parameters record
         val state = InstrumentState(record.get_state())
@@ -271,7 +271,7 @@ class OptInfoDispatcher(sessionsTracking: ActorRef, stream: ActorRef) extends Ac
     case StreamData(OptInfo.opt_sess_contents.TABLE_INDEX, data) =>
       val record = implicitly[Reads[OptInfo.opt_sess_contents]] apply data
       if (record.get_replAct() == 0) {
-        val instrument = implicitly[Instrument[opt_sess_contents, OptionContract, OptionParameters]]
+        val instrument = implicitly[ToInstrument[opt_sess_contents, OptionContract, OptionParameters]]
         val security = instrument security record
         val parameters = instrument parameters record
         sessionsTracking ! OptSessContents(record.get_sess_id(), security, parameters)

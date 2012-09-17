@@ -172,7 +172,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
       marketCapture ! DataStreamClosed(underlying.FutTradeStream, ReplState("FutTradeState"))
       marketCapture ! DataStreamClosed(underlying.OptTradeStream, ReplState("OptTradeState"))
       marketCapture ! DataStreamClosed(underlying.OrdLogStream, ReplState("OrdLogState"))
-      
+
       verify(repository).setReplicationState("FORTS_FUTTRADE_REPL", "FutTradeState")
       verify(repository).setReplicationState("FORTS_OPTTRADE_REPL", "OptTradeState")
       verify(repository).setReplicationState("FORTS_ORDLOG_REPL", "OrdLogState")

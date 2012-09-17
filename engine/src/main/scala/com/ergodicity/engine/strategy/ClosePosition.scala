@@ -6,20 +6,24 @@ import akka.pattern.ask
 import akka.pattern.pipe
 import akka.util.duration._
 import akka.util.{Duration, Timeout}
-import com.ergodicity.core.PositionsTracking.{GetPositions, Positions}
+import com.ergodicity.core.PositionsTracking.GetPositions
+import com.ergodicity.core.PositionsTracking.Positions
 import com.ergodicity.core.order.FillOrder
 import com.ergodicity.core.order.OrderActor.OrderEvent
 import com.ergodicity.core.position.Position
-import com.ergodicity.core.session.{InstrumentParameters, InstrumentState}
-import com.ergodicity.core.{Security, Isin, position}
+import com.ergodicity.core.session.InstrumentParameters.FutureParameters
+import com.ergodicity.core.session.{Instrument, InstrumentState}
+import com.ergodicity.core.{Isin, position}
 import com.ergodicity.engine.StrategyEngine
-import com.ergodicity.engine.service.Trading.{Buy, Sell, OrderExecution}
+import com.ergodicity.engine.service.Trading.Buy
+import com.ergodicity.engine.service.Trading.OrderExecution
+import com.ergodicity.engine.service.Trading.Sell
 import com.ergodicity.engine.service.{Trading, Portfolio}
 import com.ergodicity.engine.strategy.CloseAllPositionsState.RemainingPositions
-import com.ergodicity.engine.strategy.InstrumentWatchDog.{CatchedParameters, CatchedState, Catched, WatchDogConfig}
+import com.ergodicity.engine.strategy.InstrumentWatchDog._
 import com.ergodicity.engine.strategy.Strategy.{Stop, Start}
+import scala.Some
 import scala.collection.{immutable, mutable}
-import com.ergodicity.core.session.InstrumentParameters.FutureParameters
 
 object CloseAllPositions {
 
@@ -76,8 +80,7 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   val positions: Map[Isin, Position] = getOpenedPositions(5.seconds)
 
   // Catched instruments
-  val catched = mutable.Map[Isin, Security]()
-  val parameters = mutable.Map[Isin, InstrumentParameters]()
+  val instruments = mutable.Map[Isin, Instrument]()
   val states = mutable.Map[Isin, InstrumentState]()
 
   // Order executions
@@ -120,8 +123,7 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
 
   whenUnhandled {
     case Event(Catched(isin, session, security, ref), _) =>
-      catched(isin) = security
-      tryClose(isin)
+      log.info("Catched assigned instrument; Isin = " + isin + ", session = " + session)
       stay()
 
     case Event(CatchedState(isin, state), _) =>
@@ -129,8 +131,8 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
       tryClose(isin)
       stay()
 
-    case Event(CatchedParameters(isin, params), _) =>
-      parameters(isin) = params
+    case Event(CatchedInstrument(isin, instrument), _) =>
+      instruments(isin) = instrument
       tryClose(isin)
       stay()
 
@@ -145,20 +147,20 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   }
 
   private def tryClose(isin: Isin) {
-    import scalaz._
-    import Scalaz._
+    import scalaz.Scalaz._
 
-    val c = catched get isin
+
+    val i = instruments get isin
     val s = states get isin
-    val p = parameters get isin
 
-    val tuple = (c |@| s |@| p) ((_, _, _))
+
+    val tuple = (i |@| s) ((_, _))
 
     tuple match {
-      case Some((security, InstrumentState.Online, FutureParameters(lastClQuote, limits))) if (positions(isin).dir == position.Long) =>
+      case Some((Instrument(_, security, FutureParameters(lastClQuote, limits)), InstrumentState.Online)) if (positions(isin).dir == position.Long) =>
         (trading ? Sell(security, positions(isin).pos.abs, lastClQuote - limits.lower)) pipeTo self
 
-      case Some((security, InstrumentState.Online, FutureParameters(lastClQuote, limits))) if (positions(isin).dir == position.Short) =>
+      case Some((Instrument(_, security, FutureParameters(lastClQuote, limits)), InstrumentState.Online)) if (positions(isin).dir == position.Short) =>
         (trading ? Buy(security, positions(isin).pos.abs, lastClQuote + limits.upper)) pipeTo self
 
       case Some(unsupported) => log.warning("Unsupported position = "+unsupported)

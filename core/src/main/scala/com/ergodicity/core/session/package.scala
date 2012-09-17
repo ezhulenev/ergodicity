@@ -26,7 +26,7 @@ package object session {
     def shortIsin: ShortIsin
   }
 
-  sealed trait Instrument[T, S <: Security, P <: InstrumentParameters] {
+  sealed trait ToInstrument[T, S <: Security, P <: InstrumentParameters] {
     def security(record: T): S
     def parameters(record: T): P
   }
@@ -54,7 +54,7 @@ package object session {
       def shortIsin = ShortIsin(contents.get_short_isin().trim)
     }
 
-    implicit val FutureInstrument = new Instrument[FutInfo.fut_sess_contents, FutureContract, FutureParameters] {
+    implicit val FutureInstrument = new ToInstrument[FutInfo.fut_sess_contents, FutureContract, FutureParameters] {
       def security(record: fut_sess_contents) = {
         val enriched = enrichFutInfoContents(record)
         new FutureContract(enriched.id, enriched.isin, enriched.shortIsin, record.get_name().trim)
@@ -63,7 +63,7 @@ package object session {
       def parameters(record: fut_sess_contents) = FutureParameters(record.get_last_cl_quote(), Limits(record.get_limit_down(), record.get_limit_up()))
     }
 
-    implicit val OptionInstrument = new Instrument[OptInfo.opt_sess_contents, OptionContract, OptionParameters] {
+    implicit val OptionInstrument = new ToInstrument[OptInfo.opt_sess_contents, OptionContract, OptionParameters] {
       def security(record: opt_sess_contents) = {
         val enriched = enrichOptInfoContents(record)
         new OptionContract(enriched.id, enriched.isin, enriched.shortIsin, record.get_name().trim)

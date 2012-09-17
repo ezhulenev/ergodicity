@@ -68,7 +68,7 @@ object ErgodicityBuild extends Build {
   override lazy val settings = super.settings ++ buildSettings
   
   lazy val compilerSettings = scala.Seq[sbt.Project.Setting[_]](
-    scalacOptions += "-unchecked"
+    scalacOptions += "-unchecked -deprecation"
   )
 
   lazy val repositoriesSetting = Seq(
