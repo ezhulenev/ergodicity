@@ -4,11 +4,14 @@ import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import akka.actor.{Actor, ActorSystem}
 import akka.event.Logging
-import com.ergodicity.core.Isin
+import com.ergodicity.core._
 import com.ergodicity.core.position.Position
 import strategy.StrategyId
-import com.ergodicity.engine.StrategyEngine.{Mismatch, Mismatched, Reconciled}
+import com.ergodicity.engine.StrategyEngine.Reconciled
 import org.mockito.Mockito._
+import com.ergodicity.engine.StrategyEngine.Mismatch
+import com.ergodicity.core.FutureContract
+import com.ergodicity.engine.StrategyEngine.Mismatched
 
 class StrategyEngineSpec  extends TestKit(ActorSystem("StrategyEngineSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -25,13 +28,13 @@ class StrategyEngineSpec  extends TestKit(ActorSystem("StrategyEngineSpec", com.
       })
       val underlying = engine.underlyingActor
 
-      val isin: Isin = Isin("RTS-9.12")
-      val portfolioPositions: Map[Isin, Position] = Map(isin -> Position(2))
+      val contract = FutureContract(IsinId(1), Isin("RTS-9.12"), ShortIsin(""), "Future contract")
+      val portfolioPositions: Map[Security, Position] = Map(contract -> Position(2))
 
       case object Strategy1 extends StrategyId
       case object Strategy2 extends StrategyId
 
-      val strategiesPositions: Map[(StrategyId, Isin), Position] = Map((Strategy1, isin) -> Position(5), (Strategy2, isin) -> Position(-3))
+      val strategiesPositions: Map[(StrategyId, Security), Position] = Map((Strategy1, contract) -> Position(5), (Strategy2, contract) -> Position(-3))
 
       val reconciliation = underlying.reconcile(portfolioPositions, strategiesPositions)
 
@@ -47,13 +50,13 @@ class StrategyEngineSpec  extends TestKit(ActorSystem("StrategyEngineSpec", com.
       })
       val underlying = engine.underlyingActor
 
-      val isin: Isin = Isin("RTS-9.12")
-      val portfolioPositions: Map[Isin, Position] = Map(isin -> Position(2))
+      val contract = FutureContract(IsinId(1), Isin("RTS-9.12"), ShortIsin(""), "Future contract")
+      val portfolioPositions: Map[Security, Position] = Map(contract -> Position(2))
 
       case object Strategy1 extends StrategyId
       case object Strategy2 extends StrategyId
 
-      val strategiesPositions: Map[(StrategyId, Isin), Position] = Map((Strategy1, isin) -> Position(6), (Strategy2, isin) -> Position(-3))
+      val strategiesPositions: Map[(StrategyId, Security), Position] = Map((Strategy1, contract) -> Position(6), (Strategy2, contract) -> Position(-3))
 
       val reconciliation = underlying.reconcile(portfolioPositions, strategiesPositions)
 
@@ -62,7 +65,7 @@ class StrategyEngineSpec  extends TestKit(ActorSystem("StrategyEngineSpec", com.
       assert(reconciliation match {
         case Mismatched(x: Set[_]) if (x.size == 1) =>
           val mismatch = x.head.asInstanceOf[Mismatch]
-          mismatch == Mismatch(isin, Position(2), Position(3), Map(Strategy1 -> Position(6), Strategy2 -> Position(-3)))
+          mismatch == Mismatch(contract, Position(2), Position(3), Map(Strategy1 -> Position(6), Strategy2 -> Position(-3)))
         case _ => false
       })
     }
@@ -74,13 +77,13 @@ class StrategyEngineSpec  extends TestKit(ActorSystem("StrategyEngineSpec", com.
       })
       val underlying = engine.underlyingActor
 
-      val isin1: Isin = Isin("RTS-9.12")
-      val isin2: Isin = Isin("RTS-12.12")
-      val portfolioPositions: Map[Isin, Position] = Map(isin1 -> Position(1))
+      val contract1 = FutureContract(IsinId(1), Isin("RTS-9.12"), ShortIsin(""), "Future contract #1")
+      val contract2 = FutureContract(IsinId(2), Isin("RTS-12.12"), ShortIsin(""), "Future contract #2")
+      val portfolioPositions: Map[Security, Position] = Map(contract1 -> Position(1))
 
       case object Strategy1 extends StrategyId
 
-      val strategiesPositions: Map[(StrategyId, Isin), Position] = Map((Strategy1, isin2) -> Position(1))
+      val strategiesPositions: Map[(StrategyId, Security), Position] = Map((Strategy1, contract2) -> Position(1))
 
       val reconciliation = underlying.reconcile(portfolioPositions, strategiesPositions)
 

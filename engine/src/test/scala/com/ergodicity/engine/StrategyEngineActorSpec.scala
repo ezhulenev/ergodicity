@@ -127,7 +127,7 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
       // Prepare strategies
       watch(engine)
       engine ! PrepareStrategies
-      engine ! StrategyReady(TestStrategy, Map(isin1 -> Position(1), isin2 -> Position(1)))
+      engine ! StrategyReady(TestStrategy, Map(futureContract1 -> Position(1), futureContract2 -> Position(1)))
 
       // Ensure that exception was thrown
       reconciliationFailed.await(1, TimeUnit.SECONDS)
@@ -137,12 +137,12 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
 
   implicit val isin1: Isin = Isin("RTS-9.12")
   implicit val isinId1 = IsinId(100)
+  val futureContract1 = FutureContract(isinId1, isin1, ShortIsin(""), "Future Contract #1")
 
   implicit val isin2: Isin = Isin("RTS-12.12")
   implicit val isinId2 = IsinId(101)
+  val futureContract2 = FutureContract(isinId2, isin2, ShortIsin(""), "Future Contract #2")
 
-  val assignedContents = AssignedContents(Set(
-    FutureContract(isinId1, isin1, ShortIsin(""), "Future Contract #1"),
-    FutureContract(isinId2, isin2, ShortIsin(""), "Future Contract #2")
-  ))
+  val assignedContents = AssignedContents(Set(futureContract1, futureContract2))
+
 }

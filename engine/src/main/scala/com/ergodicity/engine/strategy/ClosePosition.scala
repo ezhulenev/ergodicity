@@ -12,8 +12,8 @@ import com.ergodicity.core.order.FillOrder
 import com.ergodicity.core.order.OrderActor.OrderEvent
 import com.ergodicity.core.position.Position
 import com.ergodicity.core.session.InstrumentParameters.FutureParameters
-import com.ergodicity.core.session.{Instrument, InstrumentState}
-import com.ergodicity.core.{Isin, position}
+import com.ergodicity.core.session.{InstrumentParameters, InstrumentState}
+import com.ergodicity.core.{Security, position}
 import com.ergodicity.engine.StrategyEngine
 import com.ergodicity.engine.service.Trading.Buy
 import com.ergodicity.engine.service.Trading.OrderExecution
@@ -47,11 +47,11 @@ object CloseAllPositionsState {
 
   case object PositionsClosed extends CloseAllPositionsState
 
-  case class RemainingPositions(positions: immutable.Map[Isin, Position] = Map()) {
+  case class RemainingPositions(positions: immutable.Map[Security, Position] = Map()) {
     def closedAll = positions.values.foldLeft(true)((b, a) => b && a == Position.flat)
 
-    def fill(isin: Isin, amount: Int) = copy(positions = positions.transform {
-      case (i, Position(pos)) if (i == isin) =>
+    def fill(security: Security, amount: Int) = copy(positions = positions.transform {
+      case (s, Position(pos)) if (s == security) =>
         if (pos > 0)
           Position(pos - amount)
         else
@@ -77,14 +77,14 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   implicit val executionContext = context.system
 
   // Positions that we are going to close
-  val positions: Map[Isin, Position] = getOpenedPositions(5.seconds)
+  val positions: Map[Security, Position] = getOpenedPositions(5.seconds)
 
   // Catched instruments
-  val instruments = mutable.Map[Isin, Instrument]()
-  val states = mutable.Map[Isin, InstrumentState]()
+  val parameters = mutable.Map[Security, InstrumentParameters]()
+  val states = mutable.Map[Security, InstrumentState]()
 
   // Order executions
-  val executions = mutable.Map[Isin, OrderExecution]()
+  val executions = mutable.Map[Security, OrderExecution]()
 
   override def preStart() {
     log.info("Started CloseAllPositions")
@@ -108,8 +108,7 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   when(ClosingPositions) {
     case Event(OrderEvent(order, FillOrder(price, amount)), remaining) if (executions.values.find(_.order == order).isDefined) =>
       val executionReport = executions.values.find(_.order == order).get
-      val isin = executionReport.security.isin
-      val updated = remaining.fill(isin, amount)
+      val updated = remaining.fill(executionReport.security, amount)
 
       if (updated.closedAll)
         goto(PositionsClosed)
@@ -122,22 +121,22 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   }
 
   whenUnhandled {
-    case Event(Catched(isin, session, security, ref), _) =>
-      log.info("Catched assigned instrument; Isin = " + isin + ", session = " + session)
+    case Event(Catched(security, session, ref), _) =>
+      log.info("Catched assigned instrument; Security = " + security + ", session = " + session)
       stay()
 
-    case Event(CatchedState(isin, state), _) =>
-      states(isin) = state
-      tryClose(isin)
+    case Event(CatchedState(security, state), _) =>
+      states(security) = state
+      tryClose(security)
       stay()
 
-    case Event(CatchedInstrument(isin, instrument), _) =>
-      instruments(isin) = instrument
-      tryClose(isin)
+    case Event(CatchedParameters(security, params), _) =>
+      parameters(security) = params
+      tryClose(security)
       stay()
 
     case Event(execution: OrderExecution, _) =>
-      executions(execution.security.isin) = execution
+      executions(execution.security) = execution
       execution.subscribeOrderEvents(self)
       stay()
   }
@@ -146,22 +145,20 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
     case _ -> PositionsClosed => log.info("Initial positions closed")
   }
 
-  private def tryClose(isin: Isin) {
+  private def tryClose(security: Security) {
     import scalaz.Scalaz._
 
+    val p = parameters get security
+    val s = states get security
 
-    val i = instruments get isin
-    val s = states get isin
-
-
-    val tuple = (i |@| s) ((_, _))
+    val tuple = (p |@| s) ((_, _))
 
     tuple match {
-      case Some((Instrument(_, security, FutureParameters(lastClQuote, limits)), InstrumentState.Online)) if (positions(isin).dir == position.Long) =>
-        (trading ? Sell(security, positions(isin).pos.abs, lastClQuote - limits.lower)) pipeTo self
+      case Some((FutureParameters(lastClQuote, limits), InstrumentState.Online)) if (positions(security).dir == position.Long) =>
+        (trading ? Sell(security, positions(security).pos.abs, lastClQuote - limits.lower)) pipeTo self
 
-      case Some((Instrument(_, security, FutureParameters(lastClQuote, limits)), InstrumentState.Online)) if (positions(isin).dir == position.Short) =>
-        (trading ? Buy(security, positions(isin).pos.abs, lastClQuote + limits.upper)) pipeTo self
+      case Some((FutureParameters(lastClQuote, limits), InstrumentState.Online)) if (positions(security).dir == position.Short) =>
+        (trading ? Buy(security, positions(security).pos.abs, lastClQuote + limits.upper)) pipeTo self
 
       case Some(unsupported) => log.warning("Unsupported position = "+unsupported)
 
@@ -170,7 +167,7 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   }
 
 
-  private def getOpenedPositions(atMost: Duration): Map[Isin, Position] = {
+  private def getOpenedPositions(atMost: Duration): Map[Security, Position] = {
     val future = (portfolio ? GetPositions).mapTo[Positions]
     Await.result(future, atMost).positions.filterNot(_._2.dir == position.Flat)
   }

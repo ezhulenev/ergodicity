@@ -46,7 +46,7 @@ class InstrumentActorSpec extends TestKit(ActorSystem("InstrumentActorSpec", Con
       val instrument = TestFSMRef(new FutureInstrument(future))
       instrument ! SubscribeInstrumentCallback(self)
       instrument ! FutureParameters(100, Limits(100, 100))
-      expectMsg(Instrument(instrument, future, FutureParameters(100, Limits(100, 100))))
+      expectMsg(InstrumentUpdated(instrument, FutureParameters(100, Limits(100, 100))))
     }
   }
 

@@ -1,6 +1,6 @@
 package com.ergodicity.engine.strategy
 
-import akka.actor.ActorSystem
+import akka.actor.{Props, ActorRef, ActorSystem}
 import akka.event.Logging
 import akka.testkit._
 import com.ergodicity.cgate.DataStream
@@ -24,6 +24,8 @@ import com.ergodicity.engine.{Services, StrategyEngine}
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
+import akka.testkit.TestActor.AutoPilot
+import akka.dispatch.ExecutionContext
 
 class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -51,7 +53,7 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
   val assignedParameters = AssignedContents(Set(futureContract1, futureContract2))
 
   private def portfolioService = {
-    val portfolio = TestActorRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Portfolio")
+    val portfolio = system.actorOf(Props(new PositionsTracking(TestFSMRef(new DataStream, "DataStream"))))
     portfolio ! assignedParameters
 
     portfolio ! PositionUpdated(isinId1, Position(1), PositionDynamics(buys = 1))
@@ -61,7 +63,7 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
   }
 
   private def instrumentDataService = {
-    val sessionsTracking = TestActorRef(new SessionsTracking(system.deadLetters, system.deadLetters), "Sessions")
+    val sessionsTracking = system.actorOf(Props(new SessionsTracking(system.deadLetters, system.deadLetters)))
     sessionsTracking ! FutSessContents(sessionId.fut, futureContract1, parameters1, InstrumentState.Online)
     sessionsTracking ! FutSessContents(sessionId.fut, futureContract2, parameters2, InstrumentState.Online)
     sessionsTracking ! SessionEvent(sessionId, mock(classOf[Session]), SessionState.Online, IntradayClearingState.Oncoming)
@@ -72,29 +74,47 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
 
   "Close All Positions" must {
     "load all current positions" in {
-      // Use PositionsTracking as Portfolio service
-      val portfolio = portfolioService
-
       // Prepare mock for engine and services
       val engine = mock(classOf[StrategyEngine])
       val services = mock(classOf[Services])
       Mockito.when(engine.services).thenReturn(services)
-      Mockito.when(services.apply(Portfolio.Portfolio)).thenReturn(portfolio)
+      Mockito.when(services.apply(Trading.Trading)).thenReturn(system.deadLetters)
+      Mockito.when(services.apply(Portfolio.Portfolio)).thenReturn(portfolioService)
+      Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(instrumentDataService)
 
       // Build strategy
       val strategy = TestActorRef(new CloseAllPositions(engine), "CloseAllPositions")
       val underlying = strategy.underlyingActor
 
       assert(underlying.positions.size == 2)
-      assert(underlying.positions(isin1) == Position(1))
-      assert(underlying.positions(isin2) == Position(-3))
+      assert(underlying.positions(futureContract1) == Position(1))
+      assert(underlying.positions(futureContract2) == Position(-3))
 
-      verify(engine).reportReady(Map[Isin, Position](isin1 -> Position(1), isin2 -> Position(-3)))(CloseAllPositions.CloseAllPositions)
+      verify(engine).reportReady(Map[Security, Position](futureContract1 -> Position(1), futureContract2 -> Position(-3)))(CloseAllPositions.CloseAllPositions)
+
+      strategy.stop()
     }
 
     "close positions" in {
       // TestProbes
       val trading = TestProbe()
+
+      val orderActor1 = TestProbe()
+      val orderActor2 = TestProbe()
+      val order1 = Order(1, sessionId.fut, isinId1, null, null, null, 1)
+      val order2 = Order(2, sessionId.fut, isinId2, null, null, null, 3)
+
+      trading.setAutoPilot(new AutoPilot {
+        def run(sender: ActorRef, msg: Any) = msg match {
+          case order if (order == Sell(futureContract1, 1, 90)) =>
+            sender ! new OrderExecution(futureContract1, order1, orderActor1.ref)(system.deadLetters)
+            Some(this)
+
+          case order if (order == Buy(futureContract2, 3, 1200)) =>
+            sender ! new OrderExecution(futureContract2, order2, orderActor2.ref)(system.deadLetters)
+            Some(this)
+        }
+      })
 
       // Prepare mock for engine and services
       val engine = mock(classOf[StrategyEngine])
@@ -114,12 +134,7 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
       trading.expectMsgAllOf(Sell(futureContract1, 1, 90), Buy(futureContract2, 3, 1200))
 
       when("get execution reports")
-      val orderActor1 = TestProbe()
-      val orderActor2 = TestProbe()
-      val order1 = Order(1, sessionId.fut, isinId1, null, null, null, 1)
-      val order2 = Order(2, sessionId.fut, isinId2, null, null, null, 3)
-      strategy ! new OrderExecution(futureContract1, order1, orderActor1.ref)(system.deadLetters)
-      strategy ! new OrderExecution(futureContract2, order2, orderActor2.ref)(system.deadLetters)
+      // ExecutionContext reports set up in AutoPilot upper
       then("should subscribe for order events")
       orderActor1.expectMsg(SubscribeOrderEvents(strategy))
       orderActor2.expectMsg(SubscribeOrderEvents(strategy))
@@ -129,6 +144,8 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
       strategy ! OrderEvent(order2, FillOrder(100, 3))
       then("should go to PositionsClosed state")
       assert(strategy.stateName == CloseAllPositionsState.PositionsClosed)
+
+      strategy.stop()
     }
   }
 }

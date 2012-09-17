@@ -8,7 +8,7 @@ import com.ergodicity.engine.StrategyEngine._
 import collection.mutable
 import collection.immutable
 import com.ergodicity.core.position.Position
-import com.ergodicity.core.{Security, Isin}
+import com.ergodicity.core.Security
 import com.ergodicity.engine.StrategyEngine.ManagedStrategy
 import akka.util.Timeout
 import akka.util.duration._
@@ -34,9 +34,9 @@ object StrategyEngine {
     def id: StrategyId
   }
 
-  case class StrategyPosition(id: StrategyId, isin: Isin, position: Position) extends StrategyNotification
+  case class StrategyPosition(id: StrategyId, security: Security, position: Position) extends StrategyNotification
 
-  case class StrategyReady(id: StrategyId, positions: Map[Isin, Position]) extends StrategyNotification
+  case class StrategyReady(id: StrategyId, positions: Map[Security, Position]) extends StrategyNotification
 
   // Positions Reconciliation
   sealed trait Reconciliation
@@ -45,7 +45,7 @@ object StrategyEngine {
 
   case class Mismatched(mismatches: Iterable[Mismatch]) extends Reconciliation
 
-  case class Mismatch(isin: Isin, portfolioPosition: Position, strategiesPosition: Position, strategiesAllocation: Map[StrategyId, Position])
+  case class Mismatch(security: Security, portfolioPosition: Position, strategiesPosition: Position, strategiesAllocation: Map[StrategyId, Position])
 
   class ReconciliationFailed(mismatches: Iterable[Mismatch]) extends RuntimeException("Reconciliation failed; Mismatches size = " + mismatches.size)
 
@@ -85,33 +85,33 @@ abstract class StrategyEngine(factory: StrategiesFactory = StrategiesFactory.emp
 
   protected val strategies = mutable.Map[StrategyId, ManagedStrategy]()
 
-  def reportPosition(isin: Isin, position: Position)(implicit id: StrategyId) {
-    self ! StrategyPosition(id, isin, position)
+  def reportPosition(security: Security, position: Position)(implicit id: StrategyId) {
+    self ! StrategyPosition(id, security, position)
   }
 
-  def reportReady(positions: Map[Isin, Position])(implicit id: StrategyId) {
+  def reportReady(positions: Map[Security, Position])(implicit id: StrategyId) {
     self ! StrategyReady(id, positions)
   }
 
   protected[engine] def reconcile(portfolioPositions: immutable.Map[Security, Position],
-                                       strategiesPositions: immutable.Map[(StrategyId, Isin), Position]): Reconciliation = {
+                                       strategiesPositions: immutable.Map[(StrategyId, Security), Position]): Reconciliation = {
 
-    // Find each side position for given isin
-    val groupedByIsin = (portfolioPositions.keySet.map(_.isin) ++ strategiesPositions.keySet.map(_._2)).map(isin => {
-      val portfolioPos = portfolioPositions.get(isin) getOrElse Position.flat
-      val strategiesPos = strategiesPositions.filterKeys(_._2 == isin).values.foldLeft(Position.flat)(_ |+| _)
+    // Find each side position for given security
+    val groupedBySecurity = (portfolioPositions.keySet ++ strategiesPositions.keySet.map(_._2)).map(security => {
+      val portfolioPos = portfolioPositions.get(security) getOrElse Position.flat
+      val strategiesPos = strategiesPositions.filterKeys(_._2 == security).values.foldLeft(Position.flat)(_ |+| _)
 
-      (isin, portfolioPos, strategiesPos)
+      (security, portfolioPos, strategiesPos)
     })
 
     // Find mismatched position
-    val mismatches = groupedByIsin.map {
-      case (isin, portfolioPos, strategiesPos) if (portfolioPos == strategiesPos) => None
-      case (isin, portfolioPos, strategiesPos) =>
-        val allocation = strategiesPositions.filterKeys(_._2 == isin).toSeq.map {
+    val mismatches = groupedBySecurity.map {
+      case (security, portfolioPos, strategiesPos) if (portfolioPos == strategiesPos) => None
+      case (security, portfolioPos, strategiesPos) =>
+        val allocation = strategiesPositions.filterKeys(_._2 == security).toSeq.map {
           case ((id, _), position) => id -> position
         }.toMap
-        Some(Mismatch(isin, portfolioPos, strategiesPos, allocation))
+        Some(Mismatch(security, portfolioPos, strategiesPos, allocation))
     }
 
     // If found any mismath, reconcilation failed
@@ -128,7 +128,7 @@ class StrategyEngineActor(factory: StrategiesFactory = StrategiesFactory.empty)
 
   implicit val timeout = Timeout(5.seconds)
 
-  private val positions = mutable.Map[(StrategyId, Isin), Position]()
+  private val positions = mutable.Map[(StrategyId, Security), Position]()
 
   startWith(Idle, Void)
 
@@ -143,8 +143,8 @@ class StrategyEngineActor(factory: StrategiesFactory = StrategiesFactory.empty)
     case Event(StrategyReady(id, strategyPositions), w@AwaitingReadiness(awaiting)) =>
       log.info("Strategy ready, Id = " + id + ", positions = " + strategyPositions)
       strategyPositions.foreach {
-        case (isin, position) =>
-          positions(id -> isin) = position
+        case (security, position) =>
+          positions(id -> security) = position
       }
       val remaining = w.copy(strategies = awaiting filterNot (_ == id))
 
@@ -172,8 +172,8 @@ class StrategyEngineActor(factory: StrategiesFactory = StrategiesFactory.empty)
   }
 
   whenUnhandled {
-    case Event(pos@StrategyPosition(id, isin, position), _) =>
-      positions(id -> isin) = position
+    case Event(pos@StrategyPosition(id, security, position), _) =>
+      positions(id -> security) = position
       stay()
   }
 

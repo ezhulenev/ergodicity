@@ -50,7 +50,7 @@ class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec",
       watch(service)
       service ! Service.Stop
 
-      Thread.sleep(1100)
+      Thread.sleep(1200)
 
       verify(services).serviceStopped(Id)
       expectMsg(Terminated(service))

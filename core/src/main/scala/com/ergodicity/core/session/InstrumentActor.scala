@@ -60,7 +60,7 @@ object InstrumentParameters {
 
 }
 
-case class Instrument(actor: ActorRef, security: Security, parameters: InstrumentParameters)
+case class InstrumentUpdated(actor: ActorRef, parameters: InstrumentParameters)
 
 class FutureInstrument(security: FutureContract) extends InstrumentActor(security) with FutureParametersHandling
 
@@ -114,7 +114,7 @@ private[session] abstract class InstrumentActor[S <: Security](security: S) exte
       stay()
 
     case Event(SubscribeInstrumentCallback(ref), Some(params)) =>
-      ref ! Instrument(self, security, params)
+      ref ! InstrumentUpdated(self, params)
       subscribers = subscribers :+ ref
       stay()
 
@@ -132,7 +132,7 @@ private[session] abstract class InstrumentActor[S <: Security](security: S) exte
   protected def handleInstrumentParameters: StateFunction
 
   protected def notifySubscribers(params: InstrumentParameters) {
-    subscribers foreach (_ ! Instrument(self, security, params))
+    subscribers foreach (_ ! InstrumentUpdated(self, params))
   }
 }
 
