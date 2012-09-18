@@ -61,11 +61,11 @@ object ReplicaExtractor {
     def repl(in: OptOrder.orders_log) = replica(in)
   }
 
-  implicit val OrderBookOrdersExtractor = new ReplicaExtractor[OrderBook.orders] {
-    def repl(in: OrderBook.orders) = replica(in)
+  implicit val OrderBookOrdersExtractor = new ReplicaExtractor[OrdBook.orders] {
+    def repl(in: OrdBook.orders) = replica(in)
   }
 
-  implicit val OrderBookInfoExtractor = new ReplicaExtractor[OrderBook.info] {
-    def repl(in: OrderBook.info) = replica(in)
+  implicit val OrderBookInfoExtractor = new ReplicaExtractor[OrdBook.info] {
+    def repl(in: OrdBook.info) = replica(in)
   }
 }

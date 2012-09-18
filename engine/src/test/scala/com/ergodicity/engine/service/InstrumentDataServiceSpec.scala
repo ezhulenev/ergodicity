@@ -65,6 +65,7 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
       then("service shoud be started")
       assert(service.stateName == Started)
       and("Service Manager should be notified")
+      Thread.sleep(700) // Notification delayed
       verify(services).serviceStarted(InstrumentData.InstrumentData)
     }
 

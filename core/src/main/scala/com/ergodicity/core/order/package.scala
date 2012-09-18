@@ -1,6 +1,6 @@
 package com.ergodicity.core
 
-import com.ergodicity.cgate.scheme.{OptOrder, FutOrder}
+import com.ergodicity.cgate.scheme.{OrdLog, OrdBook, OptOrder, FutOrder}
 
 package object order {
 
@@ -26,6 +26,24 @@ package object order {
   )
 
   implicit def convertOptOrder(record: OptOrder.orders_log) = Order(record.get_id_ord(),
+    record.get_sess_id(),
+    IsinId(record.get_isin_id()),
+    mapOrderType(record.get_status()),
+    mapOrderDirection(record.get_dir()),
+    record.get_price(),
+    record.get_amount()
+  )
+
+  implicit def convertOrderBook(record: OrdBook.orders) = Order(record.get_id_ord(),
+    record.get_sess_id(),
+    IsinId(record.get_isin_id()),
+    mapOrderType(record.get_status()),
+    mapOrderDirection(record.get_dir()),
+    record.get_price(),
+    record.get_amount()
+  )
+
+  implicit def convertOrderLog(record: OrdLog.orders_log) = Order(record.get_id_ord(),
     record.get_sess_id(),
     IsinId(record.get_isin_id()),
     mapOrderType(record.get_status()),

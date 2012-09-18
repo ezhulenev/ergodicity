@@ -11,7 +11,7 @@ import com.ergodicity.core.PositionsTracking.Positions
 import com.ergodicity.core.order.FillOrder
 import com.ergodicity.core.order.OrderActor.OrderEvent
 import com.ergodicity.core.position.Position
-import com.ergodicity.core.session.InstrumentParameters.FutureParameters
+import com.ergodicity.core.session.InstrumentParameters.{OptionParameters, FutureParameters}
 import com.ergodicity.core.session.{InstrumentParameters, InstrumentState}
 import com.ergodicity.core.{Security, position}
 import com.ergodicity.engine.StrategyEngine
@@ -148,19 +148,27 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   private def tryClose(security: Security) {
     import scalaz.Scalaz._
 
+    def sellPrice(parameters: InstrumentParameters) = parameters match {
+      case FutureParameters(lastClQuote, limits) => lastClQuote - limits.lower
+      case OptionParameters(lastClQuote) => failed("Option parameters no supported")
+    }
+
+    def buyPrice(parameters: InstrumentParameters) = parameters match {
+      case FutureParameters(lastClQuote, limits) => lastClQuote + limits.upper
+      case OptionParameters(lastClQuote) => failed("Option parameters no supported")
+    }
+
     val p = parameters get security
     val s = states get security
 
     val tuple = (p |@| s) ((_, _))
 
     tuple match {
-      case Some((FutureParameters(lastClQuote, limits), InstrumentState.Online)) if (positions(security).dir == position.Long) =>
-        (trading ? Sell(security, positions(security).pos.abs, lastClQuote - limits.lower)) pipeTo self
+      case Some((params, InstrumentState.Online)) if (positions(security).dir == position.Long) =>
+        (trading ? Sell(security, positions(security).pos.abs, sellPrice(params))) pipeTo self
 
-      case Some((FutureParameters(lastClQuote, limits), InstrumentState.Online)) if (positions(security).dir == position.Short) =>
-        (trading ? Buy(security, positions(security).pos.abs, lastClQuote + limits.upper)) pipeTo self
-
-      case Some(unsupported) => log.warning("Unsupported position = "+unsupported)
+      case Some((params, InstrumentState.Online)) if (positions(security).dir == position.Short) =>
+        (trading ? Buy(security, positions(security).pos.abs, buyPrice(params))) pipeTo self
 
       case _ =>
     }

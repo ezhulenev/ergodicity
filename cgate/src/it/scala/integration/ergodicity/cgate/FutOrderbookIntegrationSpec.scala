@@ -11,7 +11,7 @@ import akka.actor.FSM.Transition
 import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import config.{Replication, CGateConfig}
-import scheme.OrderBook
+import scheme.OrdBook
 import com.ergodicity.cgate.config.Replication._
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import akka.event.Logging
@@ -60,12 +60,12 @@ class FutOrderbookIntegrationSpec extends TestKit(ActorSystem("FutOrderBookInteg
         override def handleData(data: StreamData) {
           import com.ergodicity.cgate.Protocol._
           data match {
-            case StreamData(OrderBook.orders.TABLE_INDEX, bytes) =>
-              val rec = implicitly[Reads[OrderBook.orders]] apply bytes
+            case StreamData(OrdBook.orders.TABLE_INDEX, bytes) =>
+              val rec = implicitly[Reads[OrdBook.orders]] apply bytes
               log.info("Order record; Order id = " + rec.get_id_ord() + ", revision = " + rec.get_replRev() + ", sess id = " + rec.get_sess_id())
 
-            case StreamData(OrderBook.info.TABLE_INDEX, bytes) =>
-              val rec = implicitly[Reads[OrderBook.info]] apply bytes
+            case StreamData(OrdBook.info.TABLE_INDEX, bytes) =>
+              val rec = implicitly[Reads[OrdBook.info]] apply bytes
               log.info("Info record; Moment = " + rec.get_moment() + ", revision = " + rec.get_logRev())
           }
         }

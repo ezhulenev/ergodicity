@@ -17,6 +17,7 @@ import akka.pattern.pipe
 import scalaz._
 import Scalaz._
 import com.ergodicity.core.PositionsTracking.{Positions, GetPositions}
+import com.ergodicity.engine.service.ServiceId
 
 object StrategyEngine {
 
@@ -49,6 +50,7 @@ object StrategyEngine {
 
   class ReconciliationFailed(mismatches: Iterable[Mismatch]) extends RuntimeException("Reconciliation failed; Mismatches size = " + mismatches.size)
 
+  class StrategyFailedException(stragety: StrategyId, message: String) extends RuntimeException(message)
 }
 
 sealed trait StrategyEngineState

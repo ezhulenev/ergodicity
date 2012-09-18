@@ -111,7 +111,9 @@ protected[service] class InstrumentDataService(listener: ListenerFactory, underl
   }
 
   onTransition {
-    case Starting -> Started => serviceStarted
+    case Starting -> Started =>
+      // Let dispatch all session messages before notify Services
+      context.system.scheduler.scheduleOnce(500.millis)(serviceStarted)
   }
 
   whenUnhandled {

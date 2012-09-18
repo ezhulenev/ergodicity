@@ -22,7 +22,7 @@ object SchemeTools {
     SchemeProps("Pos.ini", "Pos", "CustReplScheme"),
     SchemeProps("OrdLog.ini", "OrdLog", "CustReplScheme"),
     SchemeProps("FortsMessages.ini", "Message", "message"),
-    SchemeProps("Orderbook.ini", "OrderBook", "CustReplScheme")
+    SchemeProps("Orderbook.ini", "OrdBook", "CustReplScheme")
   )
 
   def generateSchemes(projectDir: File, outDir: File): Seq[File] = {
