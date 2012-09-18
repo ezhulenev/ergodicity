@@ -20,6 +20,7 @@ import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Liste
 import akka.util.Timeout
 import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
 import com.ergodicity.cgate.StreamEvent.StreamData
+import java.util.Date
 
 class FutOrderbookIntegrationSpec extends TestKit(ActorSystem("FutOrderBookIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -66,7 +67,7 @@ class FutOrderbookIntegrationSpec extends TestKit(ActorSystem("FutOrderBookInteg
 
             case StreamData(OrdBook.info.TABLE_INDEX, bytes) =>
               val rec = implicitly[Reads[OrdBook.info]] apply bytes
-              log.info("Info record; Moment = " + rec.get_moment() + ", revision = " + rec.get_logRev())
+              log.info("Info record; Moment = " + new Date(rec.get_moment()) + ", revision = " + rec.get_logRev())
           }
         }
       }))

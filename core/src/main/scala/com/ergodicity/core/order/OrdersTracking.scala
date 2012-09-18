@@ -133,8 +133,8 @@ class SessionOrdersTracking(sessionId: Int) extends Actor with ActorLogging with
   }
 
   private def handleFillOrder: Receive = {
-    case Fill(orderId, deal, amount, price, rest) =>
-      log.debug("Fill order, id = " + orderId + ", amount = " + amount + ", rest = " + rest + ", deal id = " + deal + ", price = " + price)
-      orders(orderId)._2 ! FillOrder(price, amount)
+    case Fill(orderId, amount, rest, deal) =>
+      log.debug("Fill order, id = {}, amount = {}, rest = {}, deal = {}", orderId, amount, rest, deal)
+      orders(orderId)._2 ! FillOrder(amount, deal)
   }
 }

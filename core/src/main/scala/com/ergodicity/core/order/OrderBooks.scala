@@ -6,11 +6,11 @@ import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.scheme.OrdLog
 import com.ergodicity.cgate.Protocol._
 import com.ergodicity.cgate.{Reads, WhenUnhandled}
-import com.ergodicity.core.order.OrderBooks.{OrderBookAction,  StickyAction}
+import com.ergodicity.core.order.OrderBooks.{OrdersLog,  StickyAction}
 import com.ergodicity.core.order.OrderBooksState.WaitingSnapshots
 import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.core.{IsinId, SessionId}
-import com.ergodicity.core.order.OrderBookSnapshot.OrdersSnapshot
+import com.ergodicity.core.order.OrdersSnapshotActor.OrdersSnapshot
 
 object OrderBooks {
 
@@ -20,7 +20,7 @@ object OrderBooks {
 
   case class StickyAction(isin: IsinId, action: Action)
 
-  case class OrderBookAction(revision: Long, sessionId: Int, action: StickyAction)
+  case class OrdersLog(revision: Long, sessionId: Int, action: StickyAction)
 
 }
 
@@ -67,6 +67,6 @@ class OrderBooksDispatcher(orderBooks: ActorRef, OrdLogStream: ActorRef) extends
       val session = record.get_sess_id()
       val isin = IsinId(record.get_isin_id())
       val action = Action(record)
-      orderBooks ! OrderBookAction(revision, session, StickyAction(isin, action))
+      orderBooks ! OrdersLog(revision, session, StickyAction(isin, action))
   }
 }

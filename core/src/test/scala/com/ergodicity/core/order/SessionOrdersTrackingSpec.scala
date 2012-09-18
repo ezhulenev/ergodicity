@@ -52,8 +52,8 @@ class SessionOrdersTrackingSpec extends TestKit(ActorSystem("SessionOrdersTracki
       order._2 ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(order._2, OrderState.Active))
 
-      orders ! Fill(orderId, 0l, 2, 100, 1)
-      orders ! Fill(orderId, 0l, 1, 100, 0)
+      orders ! Fill(orderId, 2, 1, None)
+      orders ! Fill(orderId, 1, 0, None)
 
       expectMsg(Transition(order._2, OrderState.Active, OrderState.Filled))
     }

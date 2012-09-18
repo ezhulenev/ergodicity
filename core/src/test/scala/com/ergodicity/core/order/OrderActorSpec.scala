@@ -35,7 +35,7 @@ class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", com.ergodicit
       when("subscribed for order events")
       order ! SubscribeOrderEvents(self)
       and("order filled")
-      order ! FillOrder(BigDecimal(100), 1)
+      order ! FillOrder(1, None)
 
       then("order should be in Filled state")
       assert(order.stateName == OrderState.Filled)
@@ -43,19 +43,19 @@ class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", com.ergodicit
       assert(order.stateData.actions.size == 1)
 
       and("receive OrderEvent")
-      expectMsg(OrderEvent(props, FillOrder(BigDecimal(100), 1)))
+      expectMsg(OrderEvent(props, FillOrder(1, None)))
     }
 
     "stay in Active and move to Filled later" in {
       val order = props.copy(amount = 2)
       val orderActor = TestFSMRef(new OrderActor(order), "TestOrder")
 
-      orderActor ! FillOrder(BigDecimal(100), 1)
+      orderActor ! FillOrder(1, None)
       assert(orderActor.stateName == OrderState.Active)
       assert(orderActor.stateData.rest == 1)
       assert(orderActor.stateData.actions.size == 1)
 
-      orderActor ! FillOrder(BigDecimal(100), 1)
+      orderActor ! FillOrder(1, None)
       assert(orderActor.stateName == OrderState.Filled)
       assert(orderActor.stateData.rest == 0)
       assert(orderActor.stateData.actions.size == 2)
@@ -63,15 +63,15 @@ class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", com.ergodicit
       when("subscribe to already filled order")
       orderActor ! SubscribeOrderEvents(self)
       then("should return all order events history")
-      expectMsg(OrderEvent(order, FillOrder(BigDecimal(100), 1)))
-      expectMsg(OrderEvent(order, FillOrder(BigDecimal(100), 1)))
+      expectMsg(OrderEvent(order, FillOrder(1, None)))
+      expectMsg(OrderEvent(order, FillOrder(1, None)))
     }
 
     "fail to fill more then rest amount" in {
       val order = TestFSMRef(new OrderActor(props), "TestOrder")
 
       intercept[IllegalArgumentException] {
-        order.receive(FillOrder(BigDecimal(100), 100))
+        order.receive(FillOrder(100, None))
       }
     }
 

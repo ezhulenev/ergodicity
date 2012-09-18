@@ -29,8 +29,8 @@ class OrderBook(security: Security) extends Actor with ActorLogging with WhenUnh
   }
 
   private def handleFillOrder: Receive = {
-    case Fill(orderId, deal, amount, price, rest) =>
-      log.debug("Fill order, id = {}, amount = {}, rest = {}", orderId, amount, rest)
-      orders(orderId) ! FillOrder(price, amount)
+    case Fill(orderId, amount, rest, deal) =>
+      log.debug("Fill order, id = {}, amount = {}, rest = {}, deal = {}", orderId, amount, rest, deal)
+      orders(orderId) ! FillOrder(amount, deal)
   }
 }

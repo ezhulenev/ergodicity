@@ -12,15 +12,15 @@ import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate._
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.config.Replication._
-import com.ergodicity.core.order.OrderBookSnapshot
-import com.ergodicity.core.order.OrderBookSnapshot.GetOrdersSnapshot
+import com.ergodicity.core.order.OrdersSnapshotActor
+import com.ergodicity.core.order.OrdersSnapshotActor.{OrdersSnapshot, GetOrdersSnapshot}
 import config.{Replication, CGateConfig}
 import java.io.File
 import java.util.concurrent.TimeUnit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{CGate, Connection => CGConnection, Listener => CGListener}
 
-class OrderBookSnapshotIntegrationSpec extends TestKit(ActorSystem("OrderBookSnapshotIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class OrdersSnapshotIntegrationSpec extends TestKit(ActorSystem("OrdersSnapshotIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   val Host = "localhost"
@@ -40,7 +40,7 @@ class OrderBookSnapshotIntegrationSpec extends TestKit(ActorSystem("OrderBookSna
 
   implicit val timeout = Timeout(5.seconds)
 
-  "OrderBookSnapshot" must {
+  "OrdersSnapshotActor" must {
     "load snapshots from FORTS_FUT/OPTORDERBOOK_REPL" in {
 
       val underlyingConnection = new CGConnection(RouterConnection())
@@ -60,18 +60,18 @@ class OrderBookSnapshotIntegrationSpec extends TestKit(ActorSystem("OrderBookSna
       val optListener = TestFSMRef(new Listener(underlyingOptListener), "OptTradeListener")
 
       // Snapshots
-      val futuresSnapshot = TestActorRef(new OrderBookSnapshot(futOrderBook), "FutturesSnapshot")
-      val optionsSnapshot = TestActorRef(new OrderBookSnapshot(optOrderBook), "FutturesSnapshot")
+      val futuresSnapshot = TestActorRef(new OrdersSnapshotActor(futOrderBook), "FutturesSnapshot")
+      val optionsSnapshot = TestActorRef(new OrdersSnapshotActor(optOrderBook), "OptionsSnapshot")
 
       Thread.sleep(1000)
 
       // Log received snapshots
-      (futuresSnapshot ? GetOrdersSnapshot) onComplete {futures =>
-        log.info("Futures snapshot = "+futures)
+      (futuresSnapshot ? GetOrdersSnapshot).mapTo[OrdersSnapshot] onSuccess {case futures =>
+        log.info("Futures snapshot = "+futures.revision+", moment = "+futures.moment+", size = "+futures.actions.size)
       }
 
-      (optionsSnapshot ? GetOrdersSnapshot) onComplete {options =>
-        log.info("Options snapshot = "+options)
+      (optionsSnapshot ? GetOrdersSnapshot).mapTo[OrdersSnapshot] onSuccess {case options =>
+        log.info("Options snapshot = "+options.revision+", moment = "+options.moment+", size = "+options.actions.size)
       }
 
       // On connection Activated open listeners etc
@@ -79,8 +79,8 @@ class OrderBookSnapshotIntegrationSpec extends TestKit(ActorSystem("OrderBookSna
         protected def receive = {
           case Transition(_, _, Active) =>
             // Open Listener in Combined mode
-            futListener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
-            optListener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
+            futListener ! Listener.Open(ReplicationParams(ReplicationMode.Snapshot))
+            optListener ! Listener.Open(ReplicationParams(ReplicationMode.Snapshot))
 
 
             // Process messages

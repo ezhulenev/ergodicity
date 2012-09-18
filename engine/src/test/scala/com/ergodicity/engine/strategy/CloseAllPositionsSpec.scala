@@ -25,7 +25,6 @@ import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.testkit.TestActor.AutoPilot
-import akka.dispatch.ExecutionContext
 
 class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -140,8 +139,8 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
       orderActor2.expectMsg(SubscribeOrderEvents(strategy))
 
       when("orders filled")
-      strategy ! OrderEvent(order1, FillOrder(100, 1))
-      strategy ! OrderEvent(order2, FillOrder(100, 3))
+      strategy ! OrderEvent(order1, FillOrder(1, None))
+      strategy ! OrderEvent(order2, FillOrder(3, None))
       then("should go to PositionsClosed state")
       assert(strategy.stateName == CloseAllPositionsState.PositionsClosed)
 

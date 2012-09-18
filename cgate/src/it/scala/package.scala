@@ -6,7 +6,7 @@ package object integration {
     akka.actor.debug {
       receive = on
       lifecycle = on
-      fsm = on
+      fsm = off
     }
 
     akka {

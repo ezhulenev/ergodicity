@@ -13,7 +13,7 @@ import java.nio.ByteBuffer
 import com.ergodicity.cgate.scheme.OrdBook
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.DataStreamState
-import com.ergodicity.core.order.OrderBookSnapshot.{OrdersSnapshot, GetOrdersSnapshot}
+import com.ergodicity.core.order.OrdersSnapshotActor.{OrdersSnapshot, GetOrdersSnapshot}
 import akka.util.Timeout
 import akka.dispatch.Await
 
@@ -47,13 +47,13 @@ class OrderBookSnapshotSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
   "Order Book Snapshot" must {
 
     "subscribe stream events and transitions" in {
-      val snapshot = TestActorRef(new OrderBookSnapshot(self))
+      val snapshot = TestActorRef(new OrdersSnapshotActor(self))
       expectMsg(SubscribeStreamEvents(snapshot))
       expectMsg(SubscribeTransitionCallBack(snapshot))
     }
 
     "return snapshot immediately" in {
-      val snapshot = TestActorRef(new OrderBookSnapshot(self))
+      val snapshot = TestActorRef(new OrdersSnapshotActor(self))
       expectMsg(SubscribeStreamEvents(snapshot))
       expectMsg(SubscribeTransitionCallBack(snapshot))
 
@@ -67,7 +67,7 @@ class OrderBookSnapshotSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
     }
 
     "return snapshot after loaded" in {
-      val snapshot = TestActorRef(new OrderBookSnapshot(self))
+      val snapshot = TestActorRef(new OrdersSnapshotActor(self))
       expectMsg(SubscribeStreamEvents(snapshot))
       expectMsg(SubscribeTransitionCallBack(snapshot))
 

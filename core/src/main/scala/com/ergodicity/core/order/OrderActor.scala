@@ -23,7 +23,7 @@ case class Trace(rest: Int, actions: Seq[OrderAction] = Seq()) {
 
 sealed trait OrderAction
 
-case class FillOrder(price: BigDecimal, amount: Int) extends OrderAction
+case class FillOrder(amount: Int, deal: Option[(Long, BigDecimal)]) extends OrderAction
 
 case class CancelOrder(amount: Int) extends OrderAction
 
@@ -48,7 +48,7 @@ class OrderActor(val order: Order) extends Actor with FSM[OrderState, Trace] {
   startWith(Active, Trace(order.amount))
 
   when(Active) {
-    case Event(fill@FillOrder(_, fillAmount), Trace(restAmount, actions)) =>
+    case Event(fill@FillOrder(fillAmount, _), Trace(restAmount, actions)) =>
       dispatch(fill)
       if (restAmount - fillAmount == 0) goto(Filled) using Trace(0, actions :+ fill)
       else stay() using Trace(restAmount - fillAmount, actions :+ fill)
