@@ -20,7 +20,7 @@ object OrderBooks {
 
   case class StickyAction(isin: IsinId, action: Action)
 
-  case class OrderBookAction(sessionId: Int, action: StickyAction)
+  case class OrderBookAction(revision: Long, sessionId: Int, action: StickyAction)
 
 }
 
@@ -63,9 +63,10 @@ class OrderBooksDispatcher(orderBooks: ActorRef, OrdLogStream: ActorRef) extends
   private def receiveOrders: Receive = {
     case StreamData(OrdLog.orders_log.TABLE_INDEX, data) =>
       val record = implicitly[Reads[OrdLog.orders_log]] apply data
+      val revision = record.get_replRev()
       val session = record.get_sess_id()
       val isin = IsinId(record.get_isin_id())
       val action = Action(record)
-      orderBooks ! OrderBookAction(session, StickyAction(isin, action))
+      orderBooks ! OrderBookAction(revision, session, StickyAction(isin, action))
   }
 }
