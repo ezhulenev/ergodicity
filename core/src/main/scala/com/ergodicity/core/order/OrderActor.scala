@@ -15,23 +15,17 @@ object OrderState {
 
 }
 
-case class Trace(rest: Int, actions: Seq[OrderAction] = Seq()) {
+case class Trace(rest: Int, actions: Seq[Action] = Seq()) {
   if (rest < 0) throw new IllegalArgumentException("Rest amount should be greater then 0")
 }
 
 // Order Actions
 
-sealed trait OrderAction
-
-case class FillOrder(amount: Int, deal: Option[(Long, BigDecimal)]) extends OrderAction
-
-case class CancelOrder(amount: Int) extends OrderAction
-
 object OrderActor {
 
   case class SubscribeOrderEvents(ref: ActorRef)
 
-  case class OrderEvent(order: Order, action: OrderAction)
+  case class OrderEvent(order: Order, action: Action)
 
   case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
 
@@ -45,17 +39,21 @@ class OrderActor(val order: Order) extends Actor with FSM[OrderState, Trace] {
 
   var subscribers = Set[ActorRef]()
 
-  startWith(Active, Trace(order.amount))
+  startWith(Active, Trace(order.amount, Create(order) :: Nil))
 
   when(Active) {
-    case Event(fill@FillOrder(fillAmount, _), Trace(restAmount, actions)) =>
+    case Event(fill@Fill(amount, rest, _), Trace(restAmount, actions)) =>
       dispatch(fill)
-      if (restAmount - fillAmount == 0) goto(Filled) using Trace(0, actions :+ fill)
-      else stay() using Trace(restAmount - fillAmount, actions :+ fill)
+      if (restAmount - amount != rest)
+        throw new IllegalLifeCycleEvent("Rest amounts doesn't match; Rest = " + (restAmount - amount) + ", expected = " + rest, fill)
+
+      if (restAmount - amount == 0)
+        goto(Filled) using Trace(0, actions :+ fill)
+      else stay() using Trace(restAmount - amount, actions :+ fill)
   }
 
   when(Filled) {
-    case Event(e@FillOrder(_, _), _) => throw new IllegalLifeCycleEvent("Order already Filled", e)
+    case Event(e@Fill(_, _, _), _) => throw new IllegalLifeCycleEvent("Order already Filled", e)
   }
 
   when(Cancelled) {
@@ -63,7 +61,7 @@ class OrderActor(val order: Order) extends Actor with FSM[OrderState, Trace] {
   }
 
   whenUnhandled {
-    case Event(cancel@CancelOrder(cancelAmount), Trace(restAmount, actions)) =>
+    case Event(cancel@Cancel(cancelAmount), Trace(restAmount, actions)) =>
       dispatch(cancel)
       goto(Cancelled) using Trace(restAmount - cancelAmount, actions :+ cancel)
 
@@ -78,7 +76,7 @@ class OrderActor(val order: Order) extends Actor with FSM[OrderState, Trace] {
     case Active -> Cancelled => log.debug("Order cancelled")
   }
 
-  private def dispatch(action: OrderAction) {
+  private def dispatch(action: Action) {
     subscribers foreach (_ ! OrderEvent(order, action))
   }
 }

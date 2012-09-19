@@ -4,14 +4,11 @@ import akka.actor._
 import akka.util
 import akka.util.duration._
 import collection.mutable
-import com.ergodicity.cgate.DataStream._
-import com.ergodicity.cgate.StreamEvent.ClearDeleted
-import com.ergodicity.cgate.StreamEvent.StreamData
+import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
 import com.ergodicity.cgate.StreamEvent._
 import com.ergodicity.cgate.scheme.{FutOrder, OptOrder}
 import com.ergodicity.cgate.{Protocol, WhenUnhandled, Reads}
-import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef, StickyAction, IllegalEvent}
-
+import com.ergodicity.core.order.OrdersTracking._
 
 object OrdersTracking {
 
@@ -25,8 +22,7 @@ object OrdersTracking {
 
   case class IllegalEvent(event: Any) extends IllegalArgumentException
 
-  case class StickyAction(sessionId: Int, action: Action)
-
+  case class OrderLog(sessionId: Int, action: OrderAction)
 }
 
 class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends Actor with ActorLogging with WhenUnhandled {
@@ -44,7 +40,7 @@ class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends
   protected def receive = trackingHandler orElse whenUnhandled
 
   private def trackingHandler: Receive = {
-    case StickyAction(sessionId, action) =>
+    case OrderLog(sessionId, action@OrderAction(_, _)) =>
       lazy val actor = context.actorOf(Props(new SessionOrdersTracking(sessionId)), sessionId.toString)
       sessions.getOrElseUpdate(sessionId, actor) ! action
 
@@ -85,7 +81,7 @@ class FutureOrdersDispatcher(ordersTracking: ActorRef, stream: ActorRef)(implici
       if (record.get_replAct() != 0) {
         throw new IllegalEvent(e)
       }
-      ordersTracking ! StickyAction(record.get_sess_id(), Action(record))
+      ordersTracking ! OrderLog(record.get_sess_id(), OrderAction(record.get_id_ord(), Action(record)))
   }
 }
 
@@ -96,7 +92,7 @@ class OptionOrdersDispatcher(ordersTracking: ActorRef, stream: ActorRef)(implici
       if (record.get_replAct() != 0) {
         throw new IllegalEvent(e)
       }
-      ordersTracking ! StickyAction(record.get_sess_id(), Action(record))
+      ordersTracking ! OrderLog(record.get_sess_id(),  OrderAction(record.get_id_ord(), Action(record)))
 
   }
 }
@@ -118,7 +114,7 @@ class SessionOrdersTracking(sessionId: Int) extends Actor with ActorLogging with
   }
 
   private def handleCreateOrder: Receive = {
-    case Create(order) =>
+    case OrderAction(orderId, Create(order)) =>
       log.debug("Create new order, id = " + order.id)
       val orderActor = context.actorOf(Props(new OrderActor(order)), order.id.toString)
       orders(order.id) = (order, orderActor)
@@ -127,14 +123,14 @@ class SessionOrdersTracking(sessionId: Int) extends Actor with ActorLogging with
   }
 
   private def handleDeleteOrder: Receive = {
-    case Delete(orderId, amount) =>
+    case OrderAction(orderId, cancel@Cancel(amount)) =>
       log.debug("Cancel order, id = " + orderId)
-      orders(orderId)._2 ! CancelOrder(amount)
+      orders(orderId)._2 ! cancel
   }
 
   private def handleFillOrder: Receive = {
-    case Fill(orderId, amount, rest, deal) =>
+    case OrderAction(orderId, fill@Fill(amount, rest, deal)) =>
       log.debug("Fill order, id = {}, amount = {}, rest = {}, deal = {}", orderId, amount, rest, deal)
-      orders(orderId)._2 ! FillOrder(amount, deal)
+      orders(orderId)._2 ! fill
   }
 }

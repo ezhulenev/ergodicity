@@ -1,13 +1,12 @@
 package com.ergodicity.core.order
 
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
-import akka.event.Logging
-import com.ergodicity.core.AkkaConfigurations
-import AkkaConfigurations._
 import akka.actor.{ActorRef, ActorSystem}
+import akka.event.Logging
 import akka.testkit.{TestActorRef, TestProbe, ImplicitSender, TestKit}
-import com.ergodicity.core.order.OrdersTracking.{StickyAction, DropSession, GetSessionOrdersTracking}
+import com.ergodicity.core.AkkaConfigurations._
+import com.ergodicity.core.order.OrdersTracking.{OrderLog, DropSession, GetSessionOrdersTracking}
 import org.mockito.Mockito._
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
 
 class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -46,7 +45,7 @@ class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", Confi
 
     "handle Sticky actions" in {
       val actions = (1 to 10).toList.map {case i =>
-        StickyAction(i, Create(mock(classOf[Order])))
+        OrderLog(i, OrderAction(i, Create(mock(classOf[Order]))))
       }
 
       val futDs = TestProbe()

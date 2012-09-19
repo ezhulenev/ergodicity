@@ -2,6 +2,7 @@ package com.ergodicity.engine.strategy
 
 import akka.actor.{Props, ActorRef, ActorSystem}
 import akka.event.Logging
+import akka.testkit.TestActor.AutoPilot
 import akka.testkit._
 import com.ergodicity.cgate.DataStream
 import com.ergodicity.cgate.SysEvent.SessionDataReady
@@ -11,10 +12,9 @@ import com.ergodicity.core.SessionsTracking.FutSysEvent
 import com.ergodicity.core.SessionsTracking.OptSysEvent
 import com.ergodicity.core.SessionsTracking.SessionEvent
 import com.ergodicity.core._
+import com.ergodicity.core.order.{Fill, Order}
 import com.ergodicity.core.order.OrderActor.{OrderEvent, SubscribeOrderEvents}
-import com.ergodicity.core.order.{FillOrder, Order}
 import com.ergodicity.core.position.{PositionDynamics, Position}
-import session.InstrumentParameters.{FutureParameters, Limits}
 import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.core.session._
 import com.ergodicity.engine.service.Trading._
@@ -24,7 +24,7 @@ import com.ergodicity.engine.{Services, StrategyEngine}
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import akka.testkit.TestActor.AutoPilot
+import session.InstrumentParameters.{FutureParameters, Limits}
 
 class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -139,8 +139,8 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
       orderActor2.expectMsg(SubscribeOrderEvents(strategy))
 
       when("orders filled")
-      strategy ! OrderEvent(order1, FillOrder(1, None))
-      strategy ! OrderEvent(order2, FillOrder(3, None))
+      strategy ! OrderEvent(order1, Fill(1, 0, None))
+      strategy ! OrderEvent(order2, Fill(3, 0, None))
       then("should go to PositionsClosed state")
       assert(strategy.stateName == CloseAllPositionsState.PositionsClosed)
 

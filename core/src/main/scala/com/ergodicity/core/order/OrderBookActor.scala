@@ -5,7 +5,7 @@ import com.ergodicity.core.Security
 import collection.mutable
 import com.ergodicity.cgate.WhenUnhandled
 
-class OrderBook(security: Security) extends Actor with ActorLogging with WhenUnhandled {
+class OrderBookActor(security: Security) extends Actor with ActorLogging with WhenUnhandled {
 
   protected[order] val orders = mutable.Map[Long, ActorRef]()
 
@@ -13,24 +13,25 @@ class OrderBook(security: Security) extends Actor with ActorLogging with WhenUnh
     log.info("Start OrderBook for security = " + security)
   }
 
+
   protected def receive = handleCreateOrder orElse handleDeleteOrder orElse handleFillOrder orElse whenUnhandled
 
   private def handleCreateOrder: Receive = {
-    case Create(order) =>
-      log.debug("Create new order, id = {}", order.id)
-      val orderActor = context.actorOf(Props(new OrderActor(order)), order.id.toString)
+    case OrderAction(orderId, Create(order)) =>
+      log.debug("Create new order, id = {}", orderId)
+      val orderActor = context.actorOf(Props(new OrderActor(order)), orderId.toString)
       orders(order.id) = orderActor
   }
 
   private def handleDeleteOrder: Receive = {
-    case Delete(orderId, amount) =>
+    case OrderAction(orderId, cancel: Cancel) if (orders contains orderId) =>
       log.debug("Cancel order, id = {}", orderId)
-      orders(orderId) ! CancelOrder(amount)
+      orders(orderId) ! cancel
   }
 
   private def handleFillOrder: Receive = {
-    case Fill(orderId, amount, rest, deal) =>
+    case OrderAction(orderId, fill@Fill(amount, rest, deal)) if (orders contains orderId) =>
       log.debug("Fill order, id = {}, amount = {}, rest = {}, deal = {}", orderId, amount, rest, deal)
-      orders(orderId) ! FillOrder(amount, deal)
+      orders(orderId) ! fill
   }
 }

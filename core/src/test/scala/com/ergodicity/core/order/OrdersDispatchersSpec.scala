@@ -1,17 +1,18 @@
 package com.ergodicity.core.order
 
-import akka.testkit.{TestProbe, TestActorRef, ImplicitSender, TestKit}
 import akka.actor.ActorSystem
-import akka.util.duration._
-import com.ergodicity.core.AkkaConfigurations._
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
+import akka.testkit.{TestProbe, TestActorRef, ImplicitSender, TestKit}
+import akka.util.duration._
 import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
-import java.nio.ByteBuffer
-import com.ergodicity.cgate.scheme.{OptOrder, FutOrder}
-import com.ergodicity.core.IsinId
+import com.ergodicity.cgate.Protocol
 import com.ergodicity.cgate.StreamEvent.StreamData
-import com.ergodicity.core.order.OrdersTracking.StickyAction
+import com.ergodicity.cgate.scheme.{OptOrder, FutOrder}
+import com.ergodicity.core.AkkaConfigurations._
+import com.ergodicity.core.IsinId
+import com.ergodicity.core.order.OrdersTracking.OrderLog
+import java.nio.ByteBuffer
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
 
 class OrdersDispatchersSpec extends TestKit(ActorSystem("OrdersDispatchersSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -22,19 +23,18 @@ class OrdersDispatchersSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
 
   val isinId = IsinId(100)
 
-  import com.ergodicity.cgate.Protocol._
 
   "Future Orders dispatcher" must {
 
     "subscribe stream events" in {
       val stream = TestProbe()
-      val dispatcher = TestActorRef(new FutureOrdersDispatcher(self, stream.ref))
+      val dispatcher = TestActorRef(new FutureOrdersDispatcher(self, stream.ref)(Protocol.ReadsFutOrders))
       stream.expectMsg(SubscribeStreamEvents(dispatcher))
     }
 
     "handle FutTrade stream events" in {
       val stream = TestProbe()
-      val dispatcher = TestActorRef(new FutureOrdersDispatcher(self, stream.ref))
+      val dispatcher = TestActorRef(new FutureOrdersDispatcher(self, stream.ref)(Protocol.ReadsFutOrders))
 
       val createOrder = {
         val buffer = ByteBuffer.allocate(1000)
@@ -49,7 +49,7 @@ class OrdersDispatchersSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
       dispatcher ! StreamData(FutOrder.orders_log.TABLE_INDEX, createOrder.getData)
       val msg = receiveOne(100.millis)
       assert(msg match {
-        case StickyAction(100, _: Create) =>
+        case OrderLog(100, OrderAction(0, _: Create)) =>
           log.debug("Action = " + msg)
           true
         case _ => false
@@ -60,7 +60,7 @@ class OrdersDispatchersSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
   "Option Orders dispatcher" must {
     "handle OptTrade stream events" in {
       val stream = TestProbe()
-      val dispatcher = TestActorRef(new FutureOrdersDispatcher(self, stream.ref))
+      val dispatcher = TestActorRef(new OptionOrdersDispatcher(self, stream.ref)(Protocol.ReadsOptOrders))
 
       val createOrder = {
         val buffer = ByteBuffer.allocate(1000)
@@ -75,7 +75,7 @@ class OrdersDispatchersSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
       dispatcher ! StreamData(OptOrder.orders_log.TABLE_INDEX, createOrder.getData)
       val msg = receiveOne(100.millis)
       assert(msg match {
-        case StickyAction(100, _: Create) =>
+        case OrderLog(100, OrderAction(0, _: Create)) =>
           log.debug("Action = " + msg)
           true
         case _ => false

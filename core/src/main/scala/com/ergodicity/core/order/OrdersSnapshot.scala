@@ -10,6 +10,7 @@ import com.ergodicity.cgate.{DataStreamState, Reads}
 import com.ergodicity.core.order.OrdersSnapshotActor.{OrdersSnapshot, GetOrdersSnapshot}
 import com.ergodicity.core.order.SnapshotState.{Loaded, Loading}
 import org.joda.time.DateTime
+import com.ergodicity.core.IsinId
 
 sealed trait SnapshotState
 
@@ -25,10 +26,10 @@ object OrdersSnapshotActor {
 
   case object GetOrdersSnapshot
 
-  case class OrdersSnapshot(revision: Long, moment: DateTime, actions: Seq[Action])
+  case class OrdersSnapshot(revision: Long, moment: DateTime, actions: Seq[(Int, IsinId, Long, Action)])
 }
 
-class OrdersSnapshotActor(OrderBookStream: ActorRef) extends Actor with LoggingFSM[SnapshotState, (Option[Long], Option[DateTime], Seq[Action])] {
+class OrdersSnapshotActor(OrderBookStream: ActorRef) extends Actor with LoggingFSM[SnapshotState, (Option[Long], Option[DateTime], Seq[(Int, IsinId, Long, Action)])] {
 
   override def preStart() {
     OrderBookStream ! SubscribeStreamEvents(self)
@@ -42,7 +43,10 @@ class OrdersSnapshotActor(OrderBookStream: ActorRef) extends Actor with LoggingF
   when(Loading) {
     case Event(StreamData(OrdBook.orders.TABLE_INDEX, data), (rev, moment, actions)) =>
       val record = implicitly[Reads[OrdBook.orders]] apply data
-      val action = Action(record)
+      val sessionId = record.get_sess_id()
+      val isin = IsinId(record.get_isin_id())
+      val orderId = record.get_id_ord()
+      val action = (sessionId, isin, orderId, Action(record))
       stay() using (rev, moment, actions :+ action)
 
     case Event(StreamData(OrdBook.info.TABLE_INDEX, data), (_, _, actions)) =>

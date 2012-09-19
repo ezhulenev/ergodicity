@@ -23,7 +23,7 @@ class SessionOrdersTrackingSpec extends TestKit(ActorSystem("SessionOrdersTracki
     "create new order" in {
       val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
       val underlying = orders.underlyingActor
-      orders ! Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1))
+      orders ! OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1)))
       assert(underlying.orders.size == 1)
     }
 
@@ -31,13 +31,13 @@ class SessionOrdersTrackingSpec extends TestKit(ActorSystem("SessionOrdersTracki
       val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
       val underlying = orders.underlyingActor
 
-      orders ! Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1))
+      orders ! OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1)))
 
       val order = underlying.orders(orderId)
       order._2 ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(order._2, OrderState.Active))
 
-      orders ! Delete(orderId, 1)
+      orders ! OrderAction(orderId, Cancel(1))
 
       expectMsg(Transition(order._2, OrderState.Active, OrderState.Cancelled))
     }
@@ -46,21 +46,21 @@ class SessionOrdersTrackingSpec extends TestKit(ActorSystem("SessionOrdersTracki
       val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
       val underlying = orders.underlyingActor
 
-      orders ! Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 3))
+      orders ! OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 3)))
 
       val order = underlying.orders(orderId)
       order._2 ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(order._2, OrderState.Active))
 
-      orders ! Fill(orderId, 2, 1, None)
-      orders ! Fill(orderId, 1, 0, None)
+      orders ! OrderAction(orderId, Fill(2, 1, None))
+      orders ! OrderAction(orderId, Fill(1, 0, None))
 
       expectMsg(Transition(order._2, OrderState.Active, OrderState.Filled))
     }
 
     "get order immediately" in {
       val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
-      orders ! Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1))
+      orders ! OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1)))
       orders ! GetOrder(orderId)
       val reply = receiveOne(100.millis)
       assert(reply match {
@@ -72,7 +72,7 @@ class SessionOrdersTrackingSpec extends TestKit(ActorSystem("SessionOrdersTracki
     "get order after it's created" in {
       val orders = TestActorRef(new SessionOrdersTracking(4072), "SessionOrdersTracking")
       orders ! GetOrder(orderId)
-      orders ! Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1))
+      orders ! OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1)))
       val reply = receiveOne(100.millis)
       assert(reply match {
         case OrderRef(o, ref) => log.info("Got order = " + o +", ref = "+ref); true

@@ -17,77 +17,79 @@ class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", com.ergodicit
     system.shutdown()
   }
 
-  val props = Order(100, 100, IsinId(111), GoodTillCancelled, Buy, BigDecimal(100), 1)
+  val order = Order(100, 100, IsinId(111), GoodTillCancelled, Buy, BigDecimal(100), 1)
 
   "Order" must {
     "create new order in New state" in {
-      val order = TestFSMRef(new OrderActor(props), "TestOrder")
-      val underlying = order.underlyingActor.asInstanceOf[OrderActor]
+      val orderActor = TestFSMRef(new OrderActor(order), "TestOrder")
+      val underlying = orderActor.underlyingActor.asInstanceOf[OrderActor]
 
       assert(underlying.order.amount == 1)
-      assert(order.stateName == OrderState.Active)
-      assert(order.stateData == Trace(1))
+      assert(orderActor.stateName == OrderState.Active)
+      assert(orderActor.stateData == Trace(1, Create(order) :: Nil))
     }
 
     "move from Active to Filled" in {
-      val order = TestFSMRef(new OrderActor(props), "TestOrder")
-
-      when("subscribed for order events")
-      order ! SubscribeOrderEvents(self)
-      and("order filled")
-      order ! FillOrder(1, None)
-
-      then("order should be in Filled state")
-      assert(order.stateName == OrderState.Filled)
-      assert(order.stateData.rest == 0)
-      assert(order.stateData.actions.size == 1)
-
-      and("receive OrderEvent")
-      expectMsg(OrderEvent(props, FillOrder(1, None)))
-    }
-
-    "stay in Active and move to Filled later" in {
-      val order = props.copy(amount = 2)
       val orderActor = TestFSMRef(new OrderActor(order), "TestOrder")
 
-      orderActor ! FillOrder(1, None)
-      assert(orderActor.stateName == OrderState.Active)
-      assert(orderActor.stateData.rest == 1)
-      assert(orderActor.stateData.actions.size == 1)
+      when("subscribed for order events")
+      orderActor ! SubscribeOrderEvents(self)
+      and("order filled")
+      orderActor ! Fill(1, 0, None)
 
-      orderActor ! FillOrder(1, None)
+      then("order should be in Filled state")
       assert(orderActor.stateName == OrderState.Filled)
       assert(orderActor.stateData.rest == 0)
       assert(orderActor.stateData.actions.size == 2)
 
+      and("receive OrderEvent")
+      expectMsg(OrderEvent(order, Create(order)))
+      expectMsg(OrderEvent(order, Fill(1, 0, None)))
+    }
+
+    "stay in Active and move to Filled later" in {
+      val orderCopy = order.copy(amount = 2)
+      val orderActor = TestFSMRef(new OrderActor(orderCopy), "TestOrder")
+
+      orderActor ! Fill(1, 1, None)
+      assert(orderActor.stateName == OrderState.Active)
+      assert(orderActor.stateData.rest == 1)
+      assert(orderActor.stateData.actions.size == 2)
+
+      orderActor ! Fill(1, 0, None)
+      assert(orderActor.stateName == OrderState.Filled)
+      assert(orderActor.stateData.rest == 0)
+      assert(orderActor.stateData.actions.size == 3)
+
       when("subscribe to already filled order")
       orderActor ! SubscribeOrderEvents(self)
       then("should return all order events history")
-      expectMsg(OrderEvent(order, FillOrder(1, None)))
-      expectMsg(OrderEvent(order, FillOrder(1, None)))
+      expectMsg(OrderEvent(orderCopy, Create(orderCopy)))
+      expectMsg(OrderEvent(orderCopy, Fill(1, 1, None)))
+      expectMsg(OrderEvent(orderCopy, Fill(1, 0, None)))
     }
 
     "fail to fill more then rest amount" in {
-      val order = TestFSMRef(new OrderActor(props), "TestOrder")
+      val orderActor = TestFSMRef(new OrderActor(order), "TestOrder")
 
       intercept[IllegalArgumentException] {
-        order.receive(FillOrder(100, None))
+        orderActor.receive(Fill(100, 1, None))
       }
     }
 
     "cancel order" in {
-      val order = TestFSMRef(new OrderActor(props.copy(amount = 2)), "TestOrder")
-      order ! CancelOrder(1)
-      assert(order.stateName == OrderState.Cancelled)
+      val orderActor = TestFSMRef(new OrderActor(order.copy(amount = 2)), "TestOrder")
+      orderActor ! Cancel(1)
+      assert(orderActor.stateName == OrderState.Cancelled)
     }
 
     "fail cancel order twice" in {
-      val order = TestFSMRef(new OrderActor(props.copy(amount = 2)), "TestOrder")
-      order ! CancelOrder(1)
-      assert(order.stateName == OrderState.Cancelled)
+      val orderActor = TestFSMRef(new OrderActor(order.copy(amount = 2)), "TestOrder")
+      orderActor ! Cancel(1)
+      assert(orderActor.stateName == OrderState.Cancelled)
 
       intercept[IllegalLifeCycleEvent] {
-        order receive CancelOrder(1)
+        orderActor receive Cancel(1)
       }
     }
   }

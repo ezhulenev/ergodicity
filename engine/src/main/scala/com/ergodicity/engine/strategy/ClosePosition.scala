@@ -8,7 +8,6 @@ import akka.util.duration._
 import akka.util.{Duration, Timeout}
 import com.ergodicity.core.PositionsTracking.GetPositions
 import com.ergodicity.core.PositionsTracking.Positions
-import com.ergodicity.core.order.FillOrder
 import com.ergodicity.core.order.OrderActor.OrderEvent
 import com.ergodicity.core.position.Position
 import com.ergodicity.core.session.InstrumentParameters.{OptionParameters, FutureParameters}
@@ -24,6 +23,7 @@ import com.ergodicity.engine.strategy.InstrumentWatchDog._
 import com.ergodicity.engine.strategy.Strategy.{Stop, Start}
 import scala.Some
 import scala.collection.{immutable, mutable}
+import com.ergodicity.core.order.Fill
 
 object CloseAllPositions {
 
@@ -106,7 +106,7 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   }
 
   when(ClosingPositions) {
-    case Event(OrderEvent(order, FillOrder(price, amount)), remaining) if (executions.values.find(_.order == order).isDefined) =>
+    case Event(OrderEvent(order, Fill(amount, _, _)), remaining) if (executions.values.find(_.order == order).isDefined) =>
       val executionReport = executions.values.find(_.order == order).get
       val updated = remaining.fill(executionReport.security, amount)
 

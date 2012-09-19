@@ -146,6 +146,9 @@ private[session] trait FutureParametersHandling {
     case Event(params@FutureParameters(_, _), Some(old)) if (old != params) =>
       notifySubscribers(params)
       stay() using Some(params)
+
+    case Event(params@FutureParameters(_, _), Some(old)) if (old == params) =>
+      stay()
   }
 }
 
@@ -159,5 +162,8 @@ private[session] trait OptionParametersHandling {
     case Event(params@OptionParameters(_), Some(old)) if (old != params) =>
       notifySubscribers(params)
       stay() using Some(params)
+
+    case Event(params@OptionParameters(_), Some(old)) if (old == params) =>
+      stay()
   }
 }
