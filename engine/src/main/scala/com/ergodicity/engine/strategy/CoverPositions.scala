@@ -18,37 +18,37 @@ import com.ergodicity.engine.service.Trading.Buy
 import com.ergodicity.engine.service.Trading.OrderExecution
 import com.ergodicity.engine.service.Trading.Sell
 import com.ergodicity.engine.service.{Trading, Portfolio}
-import com.ergodicity.engine.strategy.CloseAllPositionsState.RemainingPositions
+import com.ergodicity.engine.strategy.CoverPositionsState.RemainingPositions
 import com.ergodicity.engine.strategy.InstrumentWatchDog._
 import com.ergodicity.engine.strategy.Strategy.{Stop, Start}
 import scala.Some
 import scala.collection.{immutable, mutable}
 import com.ergodicity.core.order.Fill
+import com.ergodicity.engine.strategy.CoverPositions.CoverAll
 
-object CloseAllPositions {
-
-  implicit case object CloseAllPositions extends StrategyId
+object CoverAllPositions {
+  implicit case object CoverAllPositions extends StrategyId
 
   def apply() = new StrategiesFactory {
 
     def strategies = (strategy _ :: Nil)
 
-    def strategy(engine: StrategyEngine) = Props(new CloseAllPositions(engine))
+    def strategy(engine: StrategyEngine) = Props(new CoverPositions(engine) with CoverAll)
   }
 }
 
-sealed trait CloseAllPositionsState
+sealed trait CoverPositionsState
 
-object CloseAllPositionsState {
+object CoverPositionsState {
 
-  case object Ready extends CloseAllPositionsState
+  case object Ready extends CoverPositionsState
 
-  case object ClosingPositions extends CloseAllPositionsState
+  case object CoveringPositions extends CoverPositionsState
 
-  case object PositionsClosed extends CloseAllPositionsState
+  case object PositionsCovered extends CoverPositionsState
 
   case class RemainingPositions(positions: immutable.Map[Security, Position] = Map()) {
-    def closedAll = positions.values.foldLeft(true)((b, a) => b && a == Position.flat)
+    def coveredAll = positions.values.foldLeft(true)((b, a) => b && a == Position.flat)
 
     def fill(security: Security, amount: Int) = copy(positions = positions.transform {
       case (s, Position(pos)) if (s == security) =>
@@ -62,9 +62,23 @@ object CloseAllPositionsState {
 
 }
 
-class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) extends Strategy with Actor with LoggingFSM[CloseAllPositionsState, RemainingPositions] with InstrumentWatcher {
+object CoverPositions {
+  trait CoverAll {
+    def cover(position: Position) = position.dir != com.ergodicity.core.position.Flat
+  }
 
-  import CloseAllPositionsState._
+  trait CoverShort {
+    def cover(position: Position) = position.dir != com.ergodicity.core.position.Short
+  }
+
+  trait CoverLong {
+    def cover(position: Position) = position.dir != com.ergodicity.core.position.Long
+  }
+}
+
+abstract class CoverPositions(val engine: StrategyEngine)(implicit id: StrategyId) extends Strategy with Actor with LoggingFSM[CoverPositionsState, RemainingPositions] with InstrumentWatcher {
+
+  import CoverPositionsState._
 
   val portfolio = engine.services(Portfolio.Portfolio)
   val trading = engine.services(Trading.Trading)
@@ -76,7 +90,7 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
 
   implicit val executionContext = context.system
 
-  // Positions that we are going to close
+  // Positions that we are going to cover
   val positions: Map[Security, Position] = getOpenedPositions(5.seconds)
 
   // Catched instruments
@@ -87,8 +101,8 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   val executions = mutable.Map[Security, OrderExecution]()
 
   override def preStart() {
-    log.info("Started CloseAllPositions")
-    log.debug("Going to close positions = " + positions)
+    log.info("Started CoverPositions")
+    log.debug("Going to cover positions = " + positions)
     engine.reportReady(positions)
   }
 
@@ -96,27 +110,27 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
 
   when(Ready) {
     case Event(Start, _) if (positions nonEmpty) =>
-      log.info("Start strategy. Positions to close = " + positions)
+      log.info("Start strategy. Positions to cover = " + positions)
       positions.keys foreach watchInstrument
-      goto(ClosingPositions)
+      goto(CoveringPositions)
 
     case Event(Start, _) if (positions isEmpty) =>
-      log.info("Start strategy. No open positions to close")
-      goto(PositionsClosed)
+      log.info("Start strategy. No open positions to cover")
+      goto(PositionsCovered)
   }
 
-  when(ClosingPositions) {
+  when(CoveringPositions) {
     case Event(OrderEvent(order, Fill(amount, _, _)), remaining) if (executions.values.find(_.order == order).isDefined) =>
       val executionReport = executions.values.find(_.order == order).get
       val updated = remaining.fill(executionReport.security, amount)
 
-      if (updated.closedAll)
-        goto(PositionsClosed)
+      if (updated.coveredAll)
+        goto(PositionsCovered)
       else
         stay() using updated
   }
 
-  when(PositionsClosed) {
+  when(PositionsCovered) {
     case Event(Stop, _) => stop(FSM.Shutdown)
   }
 
@@ -127,12 +141,12 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
 
     case Event(CatchedState(security, state), _) =>
       states(security) = state
-      tryClose(security)
+      tryCover(security)
       stay()
 
     case Event(CatchedParameters(security, params), _) =>
       parameters(security) = params
-      tryClose(security)
+      tryCover(security)
       stay()
 
     case Event(execution: OrderExecution, _) =>
@@ -142,10 +156,10 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
   }
 
   onTransition {
-    case _ -> PositionsClosed => log.info("Initial positions closed")
+    case _ -> PositionsCovered => log.info("Initial positions covered")
   }
 
-  private def tryClose(security: Security) {
+  private def tryCover(security: Security) {
     import scalaz.Scalaz._
 
     def sellPrice(parameters: InstrumentParameters) = parameters match {
@@ -177,6 +191,8 @@ class CloseAllPositions(val engine: StrategyEngine)(implicit id: StrategyId) ext
 
   private def getOpenedPositions(atMost: Duration): Map[Security, Position] = {
     val future = (portfolio ? GetPositions).mapTo[Positions]
-    Await.result(future, atMost).positions.filterNot(_._2.dir == position.Flat)
+    Await.result(future, atMost).positions.filter(tuple => cover(tuple._2))
   }
+
+  def cover(position: Position): Boolean
 }

@@ -17,7 +17,7 @@ import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import service.Portfolio
 import session.SessionActor.AssignedContents
-import strategy.{CloseAllPositions, StrategyId, StrategiesFactory}
+import strategy.{CoverAllPositions, StrategyId, StrategiesFactory}
 
 class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -82,7 +82,7 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
       implicit val services = mock(classOf[Services])
       Mockito.when(services.apply(Portfolio.Portfolio)).thenReturn(portfolio)
 
-      val engine = TestFSMRef(new StrategyEngineActor(CloseAllPositions()), "StrategyEngine")
+      val engine = TestFSMRef(new StrategyEngineActor(CoverAllPositions()), "StrategyEngine")
 
       // Prepare strategies
       engine ! SubscribeTransitionCallBack(self)
@@ -114,7 +114,7 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
       val reconciliationFailed = new CountDownLatch(1)
 
       val guardian = TestActorRef(new Actor {
-        val engine = context.actorOf(Props(new StrategyEngineActor(CloseAllPositions() & testFactory(system.deadLetters))), "StrategyEngine")
+        val engine = context.actorOf(Props(new StrategyEngineActor(CoverAllPositions() & testFactory(system.deadLetters))), "StrategyEngine")
         override def supervisorStrategy() = OneForOneStrategy() {
           case r: ReconciliationFailed =>
             reconciliationFailed.countDown()

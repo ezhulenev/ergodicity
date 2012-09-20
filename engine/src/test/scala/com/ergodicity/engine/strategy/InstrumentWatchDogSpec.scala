@@ -56,6 +56,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
         case _ => false
       })
 
+      watchdog.stop()
     }
 
     "fail watching instument that is not assigned" in {
@@ -76,6 +77,8 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
 
       watch(guard.underlyingActor.watchdog)
       expectMsg(Terminated(guard.underlyingActor.watchdog))
+
+      guard.stop()
     }
 
     "catch new instrument on session reassigned" in {
@@ -90,6 +93,8 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
       val newSession = OngoingSession(newId, buildSessionActor(newId))
       watchdog ! OngoingSessionTransition(oldSession, newSession)
       expectMsgType[Catched]
+
+      watchdog.stop()
     }
 
     "fail on catched instrument terminated" in {
@@ -111,6 +116,8 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
 
       watch(guard.underlyingActor.watchdog)
       expectMsg(Terminated(guard.underlyingActor.watchdog))
+
+      guard.stop()
     }
 
     "notify on catched instrument states" in {
@@ -127,8 +134,9 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
 
       watchdog ! Transition(catched.instrument.instrumentActor, InstrumentState.Assigned, InstrumentState.Online)
       expectMsg(CatchedState(security, InstrumentState.Online))
-    }
 
+      watchdog.stop()
+    }
   }
 
   private def buildSessionActor(id: SessionId) = {

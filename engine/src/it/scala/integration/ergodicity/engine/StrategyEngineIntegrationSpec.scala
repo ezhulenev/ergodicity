@@ -15,7 +15,7 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener, Publisher => CGPublisher}
-import com.ergodicity.engine.strategy.CloseAllPositions
+import strategy.{CoverAllPositions, CoverPositions}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import com.ergodicity.cgate.config.CGateConfig
 import com.ergodicity.cgate.config.FortsMessages
@@ -84,7 +84,7 @@ class StrategyEngineIntegrationSpec extends TestKit(ActorSystem("StrategyEngineI
       val underlyingServices = services.underlyingActor
 
 
-      val strategyEngine = TestActorRef(new StrategyEngineActor(CloseAllPositions())(underlyingServices), "StrategyEngine")
+      val strategyEngine = TestActorRef(new StrategyEngineActor(CoverAllPositions())(underlyingServices), "StrategyEngine")
 
       services ! StartServices
 

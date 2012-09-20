@@ -25,6 +25,7 @@ import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import session.InstrumentParameters.{FutureParameters, Limits}
+import com.ergodicity.engine.strategy.CoverPositions.CoverAll
 
 class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -33,7 +34,7 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
     system.shutdown()
   }
 
-  implicit val id = CloseAllPositions.CloseAllPositions
+  implicit val id = CoverAllPositions.CoverAllPositions
 
   val sessionId = SessionId(100, 100)
 
@@ -82,14 +83,14 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(instrumentDataService)
 
       // Build strategy
-      val strategy = TestActorRef(new CloseAllPositions(engine), "CloseAllPositions")
+      val strategy = TestActorRef(new CoverPositions(engine) with CoverAll, "CoverPositions")
       val underlying = strategy.underlyingActor
 
       assert(underlying.positions.size == 2)
       assert(underlying.positions(futureContract1) == Position(1))
       assert(underlying.positions(futureContract2) == Position(-3))
 
-      verify(engine).reportReady(Map[Security, Position](futureContract1 -> Position(1), futureContract2 -> Position(-3)))(CloseAllPositions.CloseAllPositions)
+      verify(engine).reportReady(Map[Security, Position](futureContract1 -> Position(1), futureContract2 -> Position(-3)))(CoverAllPositions.CoverAllPositions)
 
       strategy.stop()
     }
@@ -124,10 +125,10 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(instrumentDataService)
 
       // Build strategy
-      val strategy = TestFSMRef(new CloseAllPositions(engine), "CloseAllPositions")
+      val strategy = TestFSMRef(new CoverPositions(engine) with CoverAll, "CoverPositions")
 
       strategy ! Start
-      assert(strategy.stateName == CloseAllPositionsState.ClosingPositions)
+      assert(strategy.stateName == CoverPositionsState.CoveringPositions)
 
       // Expect buying messages
       trading.expectMsgAllOf(Sell(futureContract1, 1, 90), Buy(futureContract2, 3, 1200))
@@ -141,8 +142,8 @@ class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec",
       when("orders filled")
       strategy ! OrderEvent(order1, Fill(1, 0, None))
       strategy ! OrderEvent(order2, Fill(3, 0, None))
-      then("should go to PositionsClosed state")
-      assert(strategy.stateName == CloseAllPositionsState.PositionsClosed)
+      then("should go to PositionsCovered state")
+      assert(strategy.stateName == CoverPositionsState.PositionsCovered)
 
       strategy.stop()
     }
