@@ -68,7 +68,9 @@ class OrderBooksTracking(OrdLogStream: ActorRef) extends Actor with FSM[OrderBoo
     case Event(Snapshots(fut, opt), Void) =>
       fut.actions ++ opt.actions foreach {
         case (sessionId, isin, orderId, action) =>
-          dispatchSessionAction(sessionId, StickyAction(assigned ? isin, OrderAction(orderId, action)))
+          log.info("Session id = " + sessionId)
+          assigned ? isin map (security => dispatchSessionAction(sessionId, StickyAction(security, OrderAction(orderId, action))))
+
       }
       goto(Synchronizing) using RevisionConstraints(fut.revision, opt.revision)
 
@@ -77,22 +79,23 @@ class OrderBooksTracking(OrdLogStream: ActorRef) extends Actor with FSM[OrderBoo
 
   when(Synchronizing) {
     case Event(OrderLog(revision, sessionId, isin, action), constraints@RevisionConstraints(fut, opt)) =>
-      val security = assigned ? isin
-      val accept = security match {
-        case _: FutureContract => revision > fut
-        case _: OptionContract => revision > opt
-      }
+      assigned ? isin map (security => {
+        val accept = security match {
+          case _: FutureContract => revision > fut
+          case _: OptionContract => revision > opt
+        }
 
-      if (accept) {
-        dispatchSessionAction(sessionId, StickyAction(security, action))
-      }
+        if (accept) {
+          dispatchSessionAction(sessionId, StickyAction(security, action))
+        }
+      })
 
       if (revision > constraints.max) goto(Online) using Void else stay()
   }
 
   when(Online) {
     case Event(OrderLog(_, sessionId, isin, action), Void) =>
-      dispatchSessionAction(sessionId, StickyAction(assigned ? isin, action))
+      assigned ? isin map (security => dispatchSessionAction(sessionId, StickyAction(security, action)))
       stay()
   }
 
@@ -103,6 +106,7 @@ class OrderBooksTracking(OrdLogStream: ActorRef) extends Actor with FSM[OrderBoo
       stay()
 
     case Event(AssignedContents(contents), _) =>
+      log.info("Assigned contents; Size = " + contents.size)
       assigned = AssignedContents(contents ++ assigned.contents)
       stay()
   }

@@ -8,10 +8,12 @@ import akka.util.Timeout
 import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.scheme.FutInfo
 import scala.Some
-import com.ergodicity.core.{Security, SessionId, IsinId, Isin}
+import com.ergodicity.core.{Security, SessionId, IsinId}
 import collection.immutable
 import com.ergodicity.core.SessionsTracking.{OptSessContents, FutSessContents}
 
+
+class InstrumentNotAssigned(id: Any) extends RuntimeException("No such instument assigned: " + id)
 
 object Session {
   def from(rec: FutInfo.session) = Session(
@@ -32,9 +34,6 @@ object SessionActor {
 
   class IllegalLifeCycleEvent(msg: String, event: Any) extends RuntimeException(msg)
 
-  class InstrumentNotAssigned(id: Any) extends RuntimeException("No such instument assigned: " + id)
-
-
   // Actions
 
   case object GetState
@@ -49,7 +48,7 @@ object SessionActor {
       id => contents.find(_.id == id)
     }
 
-    def ?(id: IsinId) = findByIdMemo(id).getOrElse(throw new InstrumentNotAssigned(id))
+    def ?(id: IsinId) = findByIdMemo(id)
   }
 
   case class GetInstrument(security: Security)

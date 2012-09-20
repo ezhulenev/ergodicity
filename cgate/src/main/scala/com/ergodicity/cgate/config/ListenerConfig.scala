@@ -45,11 +45,13 @@ object Replication {
 
   }
 
-  case class ReplicationParams(mode: ReplicationMode, tables: Option[Set[String]] = None, state: Option[ReplState] = None) extends ListenerOpenParams {
+  case class ReplicationParams(mode: ReplicationMode, revisions: Map[String, Long] = Map(), state: Option[ReplState] = None) extends ListenerOpenParams {
     private val modeParam = "mode=" + mode.name
     val config = {
       var conf = modeParam
-      if (tables.isDefined) conf = conf + ";table=" + tables.get.mkString(",")
+      revisions.foreach {
+        case (table, revision) => conf = conf + ";rev." + table + "=" + revision
+      }
       if (state.isDefined) conf = conf + ";replstate=" + state.get
       conf
     }

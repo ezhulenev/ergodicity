@@ -17,6 +17,7 @@ import com.ergodicity.core.Market.Futures
 import com.ergodicity.core.OrderType.ImmediateOrCancel
 import com.ergodicity.core.SessionsTracking.{OngoingSessionTransition, OngoingSession, SubscribeOngoingSessions}
 import com.ergodicity.core.broker.{Cancelled, OrderId, ReplySubscriber, Broker}
+import com.ergodicity.core.broker.Protocol._
 import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef, DropSession, GetSessionOrdersTracking}
 import com.ergodicity.core.order.{Order, OrdersTracking}
 import com.ergodicity.core.{Security, FutureContract, SessionId}

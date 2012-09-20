@@ -12,6 +12,7 @@ import position.PositionActor.{GetCurrentPosition, CurrentPosition, UpdatePositi
 import akka.pattern.ask
 import akka.pattern.pipe
 import akka.util.Timeout
+import session.InstrumentNotAssigned
 import session.SessionActor.AssignedContents
 import scala.Some
 import com.ergodicity.cgate.StreamEvent.{StreamData, ClearDeleted, TnCommit, TnBegin}
@@ -72,13 +73,13 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       stay()
 
     case Event(PositionDiscarded(id), assigned) =>
-      val security = assigned ? id
+      val security = assigned ? id getOrElse (throw new InstrumentNotAssigned(id))
       log.debug("Position discarded; Security = "+security)
       positions.find(_._1 == security) foreach (_._2 ! UpdatePosition(Position.flat, PositionDynamics.empty))
       stay()
 
     case Event(PositionUpdated(id, position, dynamics), assigned) =>
-      val security = assigned ? id
+      val security = assigned ? id getOrElse (throw new InstrumentNotAssigned(id))
       log.debug("Position updated; Security = "+security)
       val positionActor = positions.getOrElseUpdate(security, createPosition(security))
       positionActor ! UpdatePosition(position, dynamics)

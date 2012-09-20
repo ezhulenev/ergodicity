@@ -4,7 +4,7 @@ import java.io.File
 import integration._
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import akka.actor.{Cancellable, Actor, Props, ActorSystem}
+import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.util.duration._
 import com.ergodicity.cgate.Connection.StartMessageProcessing
@@ -16,7 +16,6 @@ import akka.event.Logging
 import java.util.concurrent.TimeUnit
 import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
 import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
-import com.ergodicity.cgate.StreamEvent.{TnBegin, StreamData}
 
 class DataStreamIntegrationSpec extends TestKit(ActorSystem("DataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -58,7 +57,7 @@ class DataStreamIntegrationSpec extends TestKit(ActorSystem("DataStreamIntegrati
         protected def receive = {
           case Transition(_, _, Active) =>
             // Open Listener in Combined mode
-            listener ! Listener.Open(ReplicationParams(ReplicationMode.Combined, tables = Some(Set("orders_log"))))
+            listener ! Listener.Open(ReplicationParams(ReplicationMode.Combined))
 
             // Process messages
             connection ! StartMessageProcessing(500.millis)
