@@ -27,7 +27,7 @@ import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import session.InstrumentParameters.{FutureParameters, Limits}
 import com.ergodicity.engine.strategy.CoverPositions.CoverAll
 
-class CloseAllPositionsSpec extends TestKit(ActorSystem("CloseAllPositionsSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
+class CoverAllPositionsSpec extends TestKit(ActorSystem("CoverAllPositionsSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   override def afterAll() {
