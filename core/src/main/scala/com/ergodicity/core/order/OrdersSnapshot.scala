@@ -26,10 +26,11 @@ object OrdersSnapshotActor {
 
   case object GetOrdersSnapshot
 
-  case class OrdersSnapshot(revision: Long, moment: DateTime, actions: Seq[(Int, IsinId, Long, Action)])
+  case class OrdersSnapshot(revision: Long, moment: DateTime, orders: Seq[(Order, Option[Fill])])
+
 }
 
-class OrdersSnapshotActor(OrderBookStream: ActorRef) extends Actor with LoggingFSM[SnapshotState, (Option[Long], Option[DateTime], Seq[(Int, IsinId, Long, Action)])] {
+class OrdersSnapshotActor(OrderBookStream: ActorRef) extends Actor with LoggingFSM[SnapshotState, (Option[Long], Option[DateTime], Seq[(Order, Option[Fill])])] {
 
   override def preStart() {
     OrderBookStream ! SubscribeStreamEvents(self)
@@ -40,23 +41,38 @@ class OrdersSnapshotActor(OrderBookStream: ActorRef) extends Actor with LoggingF
 
   startWith(Loading, (None, None, Seq()))
 
-  when(Loading) {
-    case Event(StreamData(OrdBook.orders.TABLE_INDEX, data), (rev, moment, actions)) =>
-      val record = implicitly[Reads[OrdBook.orders]] apply data
-      val sessionId = record.get_sess_id()
-      val isin = IsinId(record.get_isin_id())
-      val orderId = record.get_id_ord()
-      val action = (sessionId, isin, orderId, Action(record))
-      stay() using (rev, moment, actions :+ action)
+  private def toOrder(record: OrdBook.orders) = Order(record.get_id_ord(),
+    record.get_sess_id(),
+    IsinId(record.get_isin_id()),
+    mapOrderType(record.get_status()),
+    mapOrderDirection(record.get_dir()),
+    record.get_price(),
+    record.get_init_amount()
+  )
 
-    case Event(StreamData(OrdBook.info.TABLE_INDEX, data), (_, _, actions)) =>
+  private def toAction(record: OrdBook.orders) = record.get_action() match {
+    case 1 => None
+    case 2 => Some(Fill(record.get_amount(), record.get_amount_rest(), Some(record.get_id_deal(), record.get_deal_price())))
+    case err => throw new IllegalArgumentException("Illegal order action = " + err)
+  }
+
+  when(Loading) {
+    case Event(StreamData(OrdBook.orders.TABLE_INDEX, data), (rev, moment, orders)) =>
+      val record = implicitly[Reads[OrdBook.orders]] apply data
+
+      val order = toOrder(record)
+      val action = toAction(record)
+
+      stay() using(rev, moment, orders :+(order, action))
+
+    case Event(StreamData(OrdBook.info.TABLE_INDEX, data), (_, _, orders)) =>
       val record = implicitly[Reads[OrdBook.info]] apply data
       val revision = Some(record.get_logRev())
       val moment = Some(new DateTime(record.get_moment()))
-      stay() using(revision, moment, actions)
+      stay() using(revision, moment, orders)
 
-    case Event(Transition(OrderBookStream, DataStreamState.Opened, DataStreamState.Closed), (Some(rev), Some(moment), actions)) =>
-      pending foreach (_ ! OrdersSnapshot(rev, moment, actions))
+    case Event(Transition(OrderBookStream, DataStreamState.Opened, DataStreamState.Closed), (Some(rev), Some(moment), orders)) =>
+      pending foreach (_ ! OrdersSnapshot(rev, moment, orders))
       goto(Loaded)
 
     case Event(GetOrdersSnapshot, _) =>
@@ -65,8 +81,8 @@ class OrdersSnapshotActor(OrderBookStream: ActorRef) extends Actor with LoggingF
   }
 
   when(Loaded) {
-    case Event(GetOrdersSnapshot, (Some(rev), Some(moment), actions)) =>
-      sender ! OrdersSnapshot(rev, moment, actions)
+    case Event(GetOrdersSnapshot, (Some(rev), Some(moment), orders)) =>
+      sender ! OrdersSnapshot(rev, moment, orders)
       stay()
 
     case Event(GetOrdersSnapshot, state) => stop(Failure("Illegal state = " + state))

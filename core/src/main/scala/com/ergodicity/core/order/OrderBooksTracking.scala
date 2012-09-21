@@ -66,11 +66,15 @@ class OrderBooksTracking(OrdLogStream: ActorRef) extends Actor with FSM[OrderBoo
 
   when(WaitingSnapshots) {
     case Event(Snapshots(fut, opt), Void) =>
-      fut.actions ++ opt.actions foreach {
-        case (sessionId, isin, orderId, action) =>
-          log.info("Session id = " + sessionId)
-          assigned ? isin map (security => dispatchSessionAction(sessionId, StickyAction(security, OrderAction(orderId, action))))
-
+      fut.orders ++ opt.orders foreach {
+        case (order, fill) =>
+          val sessionId = order.sessionId
+          val isin = order.isin
+          assigned ? isin map {
+            case security =>
+              dispatchSessionAction(sessionId, StickyAction(security, OrderAction(order.id, Create(order))))
+              fill foreach (fill => dispatchSessionAction(sessionId, StickyAction(security, OrderAction(order.id, fill))))
+          }
       }
       goto(Synchronizing) using RevisionConstraints(fut.revision, opt.revision)
 

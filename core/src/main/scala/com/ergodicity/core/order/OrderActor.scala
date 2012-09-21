@@ -27,7 +27,7 @@ object OrderActor {
 
   case class OrderEvent(order: Order, action: Action)
 
-  case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
+  case class IllegalLifeCycleEvent(msg: String, event: Any) extends RuntimeException(msg)
 
 }
 

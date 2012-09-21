@@ -97,4 +97,24 @@ object ReplicationScheme {
   trait PosReplication {
     def posReplication: Replication
   }
+
+  trait FutOrdersReplication {
+    def futOrdersReplication: Replication
+  }
+
+  trait OptOrdersReplication {
+    def optOrdersReplication: Replication
+  }
+
+  trait FutOrderBookReplication {
+    def futOrderbookReplication: Replication
+  }
+
+  trait OptOrderBookReplication {
+    def optOrderbookReplication: Replication
+  }
+
+  trait OrdLogReplication {
+    def ordLogReplication: Replication
+  }
 }

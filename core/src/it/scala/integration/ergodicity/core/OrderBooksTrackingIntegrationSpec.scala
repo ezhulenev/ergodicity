@@ -104,7 +104,7 @@ class OrderBooksTrackingIntegrationSpec extends TestKit(ActorSystem("OrderBooksT
               val opt = (optionsSnapshot ? GetOrdersSnapshot).mapTo[OrdersSnapshot]
 
               (fut zip opt).map(tuple => Snapshots(tuple._1, tuple._2)) onSuccess {case snapshots@Snapshots(f, o) =>
-                log.info("Got snapshots; Futures = "+f.actions.size+"; Options = "+o.actions.size)
+                log.info("Got snapshots; Futures = "+f.orders.size+"; Options = "+o.orders.size)
                 orderBooks ! snapshots
                 val params = ReplicationParams(ReplicationMode.Combined, Map("orders_log" -> scala.math.min(f.revision, o.revision)))
                 log.info("Params = "+params())

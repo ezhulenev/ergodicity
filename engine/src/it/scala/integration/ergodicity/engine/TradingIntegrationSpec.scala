@@ -10,7 +10,7 @@ import akka.util.duration._
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.config.{FortsMessages, CGateConfig, Replication}
 import com.ergodicity.core.{IsinId, Isin, ShortIsin, FutureContract}
-import com.ergodicity.engine.ReplicationScheme.{PosReplication, OptInfoReplication, FutInfoReplication}
+import com.ergodicity.engine.ReplicationScheme._
 import com.ergodicity.engine.Services.StartServices
 import com.ergodicity.engine.service.Trading.{Sell, OrderExecution, Buy}
 import com.ergodicity.engine.service._
@@ -21,6 +21,16 @@ import java.util.concurrent.TimeUnit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener, Publisher => CGPublisher}
 import akka.dispatch.Await
+import scala.Left
+import akka.actor.FSM.Transition
+import com.ergodicity.engine.service.Trading.Buy
+import com.ergodicity.engine.service.Trading.Sell
+import com.ergodicity.cgate.config.CGateConfig
+import scala.Right
+import com.ergodicity.core.FutureContract
+import com.ergodicity.cgate.config.FortsMessages
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
+import akka.actor.FSM.SubscribeTransitionCallBack
 
 class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -50,12 +60,16 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
     val underlyingTradingConnection = new CGConnection(PublisherConnection())
   }
 
-  trait Replication extends FutInfoReplication with OptInfoReplication with PosReplication {
+  trait Replication extends FutInfoReplication with OptInfoReplication with PosReplication with FutOrdersReplication with OptOrdersReplication {
     val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/OptInfo.ini"), "CustReplScheme")
 
     val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/FutInfo.ini"), "CustReplScheme")
 
     val posReplication = Replication("FORTS_POS_REPL", new File("cgate/scheme/Pos.ini"), "CustReplScheme")
+
+    val futOrdersReplication = Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/FutOrders.ini"), "CustReplScheme")
+
+    val optOrdersReplication = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptOrders.ini"), "CustReplScheme")
   }
 
   trait Listener extends UnderlyingListener {

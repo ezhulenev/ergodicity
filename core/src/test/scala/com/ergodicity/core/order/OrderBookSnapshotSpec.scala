@@ -63,7 +63,7 @@ class OrderBookSnapshotSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
 
       val ordersSnapshot = Await.result((snapshot ? GetOrdersSnapshot).mapTo[OrdersSnapshot], 1.second)
       assert(ordersSnapshot.revision == 100)
-      assert(ordersSnapshot.actions.size == 1)
+      assert(ordersSnapshot.orders.size == 1)
     }
 
     "return snapshot after loaded" in {
@@ -78,7 +78,7 @@ class OrderBookSnapshotSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
 
       val ordersSnapshot = receiveOne(100.millis).asInstanceOf[OrdersSnapshot]
       assert(ordersSnapshot.revision == 100)
-      assert(ordersSnapshot.actions.size == 1)
+      assert(ordersSnapshot.orders.size == 1)
     }
   }
 }

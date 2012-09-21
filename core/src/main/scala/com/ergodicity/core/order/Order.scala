@@ -30,12 +30,6 @@ object Action {
     case _ => throw new IllegalArgumentException("Illegal 'OptOrder.orders_log' action: " + record.get_action())
   }
 
-  def apply(record: OrdBook.orders) = record.get_action() match {
-    case 1 => Create(record)
-    case 2 => Fill(record.get_amount(), record.get_amount_rest(), None)
-    case _ => throw new IllegalArgumentException("Illegal 'OrdBook.orders' action: " + record.get_action())
-  }
-
   def apply(record: OrdLog.orders_log) = record.get_action() match {
     case 0 => Cancel(record.get_amount())
     case 1 => Create(record)

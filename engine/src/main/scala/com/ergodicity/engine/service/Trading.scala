@@ -27,10 +27,10 @@ import com.ergodicity.engine.service.TradingService.SetOngoingSessionOrdersTrack
 import com.ergodicity.engine.service.TradingState.TradingStates
 import com.ergodicity.engine.underlying._
 import com.ergodicity.engine.{Services, Engine}
-import java.io.File
 import ru.micexrts.cgate.{Publisher => CGPublisher, Connection => CGConnection}
 import scala.Some
 import com.ergodicity.core.order.OrderActor.SubscribeOrderEvents
+import com.ergodicity.engine.ReplicationScheme.{OptOrdersReplication, FutOrdersReplication}
 
 object Trading {
 
@@ -63,11 +63,12 @@ trait Trading {
 
   import Trading._
 
-  def engine: Engine with UnderlyingListener with UnderlyingConnection with UnderlyingTradingConnections with UnderlyingPublisher
+  def engine: Engine with UnderlyingListener with UnderlyingConnection with UnderlyingTradingConnections with UnderlyingPublisher with FutOrdersReplication with OptOrdersReplication
 
   lazy val creator = new TradingService(
     engine.listenerFactory, engine.publisherName, engine.brokerCode,
-    engine.underlyingPublisher, engine.underlyingTradingConnection, engine.underlyingConnection
+    engine.underlyingPublisher, engine.underlyingTradingConnection, engine.underlyingConnection,
+    engine.futOrdersReplication, engine.optOrdersReplication
   )
   register(Props(creator), dependOn = InstrumentData.InstrumentData :: Nil)
 }
@@ -99,7 +100,9 @@ protected[service] class TradingService(listener: ListenerFactory,
                                         brokerCode: String,
                                         underlyingPublisher: CGPublisher,
                                         tradingConnection: CGConnection,
-                                        replicationConnection: CGConnection)
+                                        replicationConnection: CGConnection,
+                                        futOrdersReplication: Replication,
+                                        optOrdersReplication: Replication)
                                        (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[TradingState, TradingStates] with Service {
 
   import TradingState._
@@ -124,12 +127,10 @@ protected[service] class TradingService(listener: ListenerFactory,
   val OrdersTracking = context.actorOf(Props(new OrdersTracking(FutOrdersStream, OptOrdersStream)), "OrdersTracking")
 
   // Orders tracking listeners
-  private[this] val futListenerConfig = Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/FutOrders.ini"), "CustReplScheme")
-  private[this] val underlyingFutListener = listener(replicationConnection, futListenerConfig(), new DataStreamSubscriber(FutOrdersStream))
+  private[this] val underlyingFutListener = listener(replicationConnection, futOrdersReplication(), new DataStreamSubscriber(FutOrdersStream))
   private[this] val futListener = context.actorOf(Props(new Listener(underlyingFutListener)).withDispatcher(Engine.ReplicationDispatcher), "FutOrdersListener")
 
-  private[this] val optListenerConfig = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptOrders.ini"), "CustReplScheme")
-  private[this] val underlyingOptListener = listener(replicationConnection, optListenerConfig(), new DataStreamSubscriber(OptOrdersStream))
+  private[this] val underlyingOptListener = listener(replicationConnection, optOrdersReplication(), new DataStreamSubscriber(OptOrdersStream))
   private[this] val optListener = context.actorOf(Props(new Listener(underlyingOptListener)).withDispatcher(Engine.ReplicationDispatcher), "OptOrdersListener")
 
   // Current session orders tracker

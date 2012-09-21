@@ -67,11 +67,11 @@ class OrdersSnapshotIntegrationSpec extends TestKit(ActorSystem("OrdersSnapshotI
 
       // Log received snapshots
       (futuresSnapshot ? GetOrdersSnapshot).mapTo[OrdersSnapshot] onSuccess {case futures =>
-        log.info("Futures snapshot = "+futures.revision+", moment = "+futures.moment+", size = "+futures.actions.size)
+        log.info("Futures snapshot = "+futures.revision+", moment = "+futures.moment+", size = "+futures.orders.size)
       }
 
       (optionsSnapshot ? GetOrdersSnapshot).mapTo[OrdersSnapshot] onSuccess {case options =>
-        log.info("Options snapshot = "+options.revision+", moment = "+options.moment+", size = "+options.actions.size)
+        log.info("Options snapshot = "+options.revision+", moment = "+options.moment+", size = "+options.orders.size)
       }
 
       // On connection Activated open listeners etc
