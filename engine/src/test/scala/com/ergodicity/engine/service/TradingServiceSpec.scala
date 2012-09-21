@@ -147,7 +147,7 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
       given("Trading service in started state")
       val service = TestFSMRef(new TradingService(listenerFactory, publisherName, brokerCode, publisher, repliesConnection, replicationConnection, futReplication, optReplication) {
         override val TradingBroker = broker
-        ordersTracker = tracker
+        override val OrdersTracking = tracker
       }, "TradingService")
       service.setState(TradingState.Started)
 

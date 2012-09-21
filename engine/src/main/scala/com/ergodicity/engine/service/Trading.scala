@@ -15,15 +15,14 @@ import com.ergodicity.cgate.config.Replies.RepliesParams
 import com.ergodicity.cgate.config.{Replication, Replies}
 import com.ergodicity.core.Market.Futures
 import com.ergodicity.core.OrderType.ImmediateOrCancel
-import com.ergodicity.core.SessionsTracking.{OngoingSessionTransition, OngoingSession, SubscribeOngoingSessions}
+import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
 import com.ergodicity.core.broker.{Cancelled, OrderId, ReplySubscriber, Broker}
 import com.ergodicity.core.broker.Protocol._
-import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef, DropSession, GetSessionOrdersTracking}
+import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef}
 import com.ergodicity.core.order.{Order, OrdersTracking}
-import com.ergodicity.core.{Security, FutureContract, SessionId}
+import com.ergodicity.core.{Security, FutureContract}
 import com.ergodicity.engine.service.Service.{Stop, Start}
 import com.ergodicity.engine.service.Trading.{Sell, OrderExecution, Buy}
-import com.ergodicity.engine.service.TradingService.SetOngoingSessionOrdersTracker
 import com.ergodicity.engine.service.TradingState.TradingStates
 import com.ergodicity.engine.underlying._
 import com.ergodicity.engine.{Services, Engine}
@@ -89,12 +88,6 @@ protected[service] object TradingState {
 
 }
 
-protected[service] object TradingService {
-
-  case class SetOngoingSessionOrdersTracker(sessionId: SessionId, ref: ActorRef)
-
-}
-
 protected[service] class TradingService(listener: ListenerFactory,
                                         publisherName: String,
                                         brokerCode: String,
@@ -133,12 +126,9 @@ protected[service] class TradingService(listener: ListenerFactory,
   private[this] val underlyingOptListener = listener(replicationConnection, optOrdersReplication(), new DataStreamSubscriber(OptOrdersStream))
   private[this] val optListener = context.actorOf(Props(new Listener(underlyingOptListener)).withDispatcher(Engine.ReplicationDispatcher), "OptOrdersListener")
 
-  // Current session orders tracker
-  var ordersTracker: ActorRef = context.system.deadLetters
-
   override def preStart() {
     log.info("Start " + id + " service")
-    instrumentData ! SubscribeOngoingSessions(self)
+    instrumentData ! SubscribeOngoingSessions(OrdersTracking)
   }
 
   startWith(Idle, TradingStates())
@@ -186,13 +176,13 @@ protected[service] class TradingService(listener: ListenerFactory,
 
     case Event(Buy(security@FutureContract(_, isin, _, _), amount, price), _) =>
       val orderId = (TradingBroker ? Broker.Buy[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
-      val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
+      val orderRef = orderId flatMap (id => (OrdersTracking ? GetOrder(id.id)).mapTo[OrderRef])
       orderRef map (order => new OrderExecution(security, order.order, order.ref)(TradingBroker)) pipeTo sender
       stay()
 
     case Event(Sell(security@FutureContract(_, isin, _, _), amount, price), _) =>
       val orderId = (TradingBroker ? Broker.Sell[Futures](isin, amount, price, ImmediateOrCancel)).mapTo[OrderId]
-      val orderRef = orderId flatMap (id => (ordersTracker ? GetOrder(id.id)).mapTo[OrderRef])
+      val orderRef = orderId flatMap (id => (OrdersTracking ? GetOrder(id.id)).mapTo[OrderRef])
       orderRef map (order => new OrderExecution(security, order.order, order.ref)(TradingBroker)) pipeTo sender
       stay()
 
@@ -211,22 +201,6 @@ protected[service] class TradingService(listener: ListenerFactory,
       // Open replies listener when publisher already started
       replyListener ! Listener.Open(RepliesParams)
       serviceStarted
-  }
-
-  whenUnhandled {
-    case Event(OngoingSession(sessionId, ref), _) =>
-      (OrdersTracking ? GetSessionOrdersTracking(sessionId.fut)).mapTo[ActorRef] map (SetOngoingSessionOrdersTracker(sessionId, _)) pipeTo self
-      stay()
-
-    case Event(OngoingSessionTransition(from, OngoingSession(sessionId, ref)), _) =>
-      OrdersTracking ! DropSession(from.id.fut)
-      (OrdersTracking ? GetSessionOrdersTracking(sessionId.fut)).mapTo[ActorRef] map (SetOngoingSessionOrdersTracker(sessionId, _)) pipeTo self
-      stay()
-
-    case Event(SetOngoingSessionOrdersTracker(sessionId, ref), _) =>
-      log.debug("Set session orders tracker for " + sessionId + "; ref = " + ref)
-      ordersTracker = ref
-      stay()
   }
 
   private def shutDown(states: TradingStates) = states match {
