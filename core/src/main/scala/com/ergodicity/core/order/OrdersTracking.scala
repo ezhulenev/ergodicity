@@ -9,48 +9,98 @@ import com.ergodicity.cgate.StreamEvent._
 import com.ergodicity.cgate.scheme.{FutOrder, OptOrder}
 import com.ergodicity.cgate.{Protocol, WhenUnhandled, Reads}
 import com.ergodicity.core.order.OrdersTracking._
+import com.ergodicity.core.SessionsTracking.{OngoingSessionTransition, OngoingSession}
+import com.ergodicity.core.SessionId
+
+class OrdersTrackingException(message: String) extends RuntimeException(message)
+
+sealed trait OrdersTrackingState
+
+object OrdersTrackingState {
+
+  case object CatchingOngoingSession extends OrdersTrackingState
+
+  case object Tracking extends OrdersTrackingState
+
+}
 
 object OrdersTracking {
-
-  case class GetSessionOrdersTracking(sessionId: Int)
 
   case class GetOrder(id: Long)
 
   case class OrderRef(order: Order, ref: ActorRef)
 
-  case class DropSession(sessionId: Int)
-
   case class IllegalEvent(event: Any) extends IllegalArgumentException
 
   case class OrderLog(sessionId: Int, action: OrderAction)
+
 }
 
-class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends Actor with ActorLogging with WhenUnhandled {
+class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends Actor with LoggingFSM[OrdersTrackingState, Option[OngoingSession]] {
 
+  import OrdersTrackingState._
   import OrdersTracking._
 
   implicit val timeout = util.Timeout(1.second)
-
-  val sessions = mutable.Map[Int, ActorRef]()
 
   // Dispatch Futures and Options orders
   val futuresDispatcher = context.actorOf(Props(new FutureOrdersDispatcher(self, FutTradeStream)(Protocol.ReadsFutOrders)), "FutureOrdersDispatcher")
   val optionsDispatcher = context.actorOf(Props(new OptionOrdersDispatcher(self, OptTradeStream)(Protocol.ReadsOptOrders)), "OptionOrdersDispatcher")
 
-  protected def receive = trackingHandler orElse whenUnhandled
+  protected[order] val orders = mutable.Map[Long, (Order, ActorRef)]()
+  private[this] val pendingOrders = mutable.Map[Long, ActorRef]()
 
-  private def trackingHandler: Receive = {
-    case OrderLog(sessionId, action@OrderAction(_, _)) =>
-      lazy val actor = context.actorOf(Props(new SessionOrdersTracking(sessionId)), sessionId.toString)
-      sessions.getOrElseUpdate(sessionId, actor) ! action
+  startWith(CatchingOngoingSession, None)
 
-    case GetSessionOrdersTracking(sessionId) =>
-      lazy val actor = context.actorOf(Props(new SessionOrdersTracking(sessionId)), sessionId.toString)
-      sender ! sessions.getOrElseUpdate(sessionId, actor)
+  when(CatchingOngoingSession, stateTimeout = 40.seconds) {
+    case Event(session: OngoingSession, None) => goto(Tracking) using Some(session)
 
-    case DropSession(sessionId) if (sessions.contains(sessionId)) =>
-      log.info("Drop session: " + sessionId)
-      sessions.remove(sessionId) foreach (_ ! Kill)
+    case Event(FSM.StateTimeout, None) => throw new OrdersTrackingException("Time out with receiving OngoingSession")
+  }
+
+  when(Tracking) {
+    case Event(OngoingSessionTransition(from, to), _) =>
+      log.info("Drop all orders from previous session = " + from)
+      log.info("Switch to new session = " + to)
+      // Remove all previous orders
+      orders.values foreach (tuple => tuple._2 ! PoisonPill)
+      orders.clear()
+      pendingOrders.clear()
+      stay() using Some(to)
+
+    case Event(OrderLog(sessionId, action), Some(OngoingSession(SessionId(fut, opt), _))) if (sessionId == fut || sessionId == opt) =>
+      act(action)
+      stay()
+  }
+
+  whenUnhandled {
+    case Event(GetOrder(id), _) =>
+      if (orders contains id)
+        sender ! OrderRef(orders(id)._1, orders(id)._2)
+      else
+        pendingOrders(id) = sender
+      stay()
+  }
+
+  initialize
+
+  private def act(action: OrderAction) {
+    action match {
+      case OrderAction(orderId, Create(order)) =>
+        log.debug("Create new order, id = " + order.id)
+        val orderActor = context.actorOf(Props(new OrderActor(order)), order.id.toString)
+        orders(order.id) = (order, orderActor)
+        pendingOrders.get(order.id) foreach (_ ! OrderRef(order, orderActor))
+        pendingOrders.remove(order.id)
+
+      case OrderAction(orderId, cancel@Cancel(amount)) =>
+        log.debug("Cancel order, id = " + orderId)
+        orders(orderId)._2 ! cancel
+
+      case OrderAction(orderId, fill@Fill(amount, rest, deal)) =>
+        log.debug("Fill order, id = {}, amount = {}, rest = {}, deal = {}", orderId, amount, rest, deal)
+        orders(orderId)._2 ! fill
+    }
   }
 }
 
@@ -92,45 +142,6 @@ class OptionOrdersDispatcher(ordersTracking: ActorRef, stream: ActorRef)(implici
       if (record.get_replAct() != 0) {
         throw new IllegalEvent(e)
       }
-      ordersTracking ! OrderLog(record.get_sess_id(),  OrderAction(record.get_id_ord(), Action(record)))
-
-  }
-}
-
-
-class SessionOrdersTracking(sessionId: Int) extends Actor with ActorLogging with WhenUnhandled {
-  protected[order] val orders = mutable.Map[Long, (Order, ActorRef)]()
-
-  private[this] val pendingOrders = mutable.Map[Long, ActorRef]()
-
-  protected def receive = getOrder orElse handleCreateOrder orElse handleDeleteOrder orElse handleFillOrder orElse whenUnhandled
-
-  private def getOrder: Receive = {
-    case GetOrder(id) =>
-      if (orders contains id)
-        sender ! OrderRef(orders(id)._1, orders(id)._2)
-      else
-        pendingOrders(id) = sender
-  }
-
-  private def handleCreateOrder: Receive = {
-    case OrderAction(orderId, Create(order)) =>
-      log.debug("Create new order, id = " + order.id)
-      val orderActor = context.actorOf(Props(new OrderActor(order)), order.id.toString)
-      orders(order.id) = (order, orderActor)
-      pendingOrders.get(order.id) map (_ ! OrderRef(order, orderActor))
-      pendingOrders.remove(order.id)
-  }
-
-  private def handleDeleteOrder: Receive = {
-    case OrderAction(orderId, cancel@Cancel(amount)) =>
-      log.debug("Cancel order, id = " + orderId)
-      orders(orderId)._2 ! cancel
-  }
-
-  private def handleFillOrder: Receive = {
-    case OrderAction(orderId, fill@Fill(amount, rest, deal)) =>
-      log.debug("Fill order, id = {}, amount = {}, rest = {}, deal = {}", orderId, amount, rest, deal)
-      orders(orderId)._2 ! fill
+      ordersTracking ! OrderLog(record.get_sess_id(), OrderAction(record.get_id_ord(), Action(record)))
   }
 }
