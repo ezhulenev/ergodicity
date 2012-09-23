@@ -101,8 +101,8 @@ class CoverAllPositionsSpec extends TestKit(ActorSystem("CoverAllPositionsSpec",
 
       val orderActor1 = TestProbe()
       val orderActor2 = TestProbe()
-      val order1 = Order(1, sessionId.fut, isinId1, null, null, null, 1)
-      val order2 = Order(2, sessionId.fut, isinId2, null, null, null, 3)
+      val order1 = Order(1, sessionId.fut, isinId1, null, null, 1, 1)
+      val order2 = Order(2, sessionId.fut, isinId2, null, null, 3, 1)
 
       trading.setAutoPilot(new AutoPilot {
         def run(sender: ActorRef, msg: Any) = msg match {

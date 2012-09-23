@@ -87,14 +87,14 @@ class OrdersTracking(FutTradeStream: ActorRef, OptTradeStream: ActorRef) extends
   private def act(action: OrderAction) {
     action match {
       case OrderAction(orderId, Create(order)) =>
-        log.debug("Create new order, id = " + order.id)
+        log.debug("Create new order, id = {}",  order.id)
         val orderActor = context.actorOf(Props(new OrderActor(order)), order.id.toString)
         orders(order.id) = (order, orderActor)
         pendingOrders.get(order.id) foreach (_ ! OrderRef(order, orderActor))
         pendingOrders.remove(order.id)
 
       case OrderAction(orderId, cancel@Cancel(amount)) =>
-        log.debug("Cancel order, id = " + orderId)
+        log.debug("Cancel order, id = {}", orderId)
         orders(orderId)._2 ! cancel
 
       case OrderAction(orderId, fill@Fill(amount, rest, deal)) =>

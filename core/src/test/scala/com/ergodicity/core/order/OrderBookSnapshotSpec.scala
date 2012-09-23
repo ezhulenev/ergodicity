@@ -29,6 +29,8 @@ class OrderBookSnapshotSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
   val Order = {
     val buff = ByteBuffer.allocate(1000)
     val order = new OrdBook.orders(buff)
+    order.set_replID(1000)
+    order.set_replAct(0)
     order.set_action(1)
     order.set_sess_id(100)
     order.set_status(4157)
@@ -63,7 +65,7 @@ class OrderBookSnapshotSpec extends TestKit(ActorSystem("OrdersDispatchersSpec",
 
       val ordersSnapshot = Await.result((snapshot ? GetOrdersSnapshot).mapTo[OrdersSnapshot], 1.second)
       assert(ordersSnapshot.revision == 100)
-      assert(ordersSnapshot.orders.size == 1)
+      assert(ordersSnapshot.orders.size == 1, "Actual size = "+ordersSnapshot.orders.size)
     }
 
     "return snapshot after loaded" in {

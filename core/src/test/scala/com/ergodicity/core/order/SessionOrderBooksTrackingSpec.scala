@@ -25,14 +25,14 @@ class SessionOrderBooksTrackingSpec extends TestKit(ActorSystem("SessionOrderBoo
   "SessionOrderBooksTracking" must {
     "create order book on request" in {
       val tracking = TestActorRef(new SessionOrderBooksTracking(sessionId), "SessionOrderBooksTracking")
-      tracking ! StickyAction(security, OrderAction(orderId, Create(Order(orderId, sessionId, isinId, OrderType.GoodTillCancelled, OrderDirection.Buy, 100, 1))))
+      tracking ! StickyAction(security, OrderAction(orderId, Create(Order(orderId, sessionId, isinId, OrderDirection.Buy, 100, 1, 1))))
       assert(tracking.underlyingActor.orderBooks.size == 1, "Actual size = " + tracking.underlyingActor.orderBooks.size)
     }
 
     "pass through all acction to OrderBook actor" in {
       val tracking = TestActorRef(new SessionOrderBooksTracking(sessionId), "SessionOrderBooksTracking")
       tracking.underlyingActor.orderBooks(security) = self
-      val action = OrderAction(orderId, Create(Order(orderId, sessionId, isinId, OrderType.GoodTillCancelled, OrderDirection.Buy, 100, 1)))
+      val action = OrderAction(orderId, Create(Order(orderId, sessionId, isinId, OrderDirection.Buy, 100, 1, 1)))
       tracking ! StickyAction(security, action)
       expectMsg(action)
     }

@@ -5,9 +5,9 @@ import akka.event.Logging
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import com.ergodicity.core.IsinId
 import com.ergodicity.core.OrderDirection._
-import com.ergodicity.core.OrderType._
 import com.ergodicity.core.order.OrderActor.{OrderEvent, SubscribeOrderEvents, IllegalOrderEvent}
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
+import com.ergodicity.core.OrderType.{ImmediateOrCancel, GoodTillCancelled}
 
 
 class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", com.ergodicity.core.AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
@@ -17,9 +17,25 @@ class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", com.ergodicit
     system.shutdown()
   }
 
-  val order = Order(100, 100, IsinId(111), GoodTillCancelled, Buy, BigDecimal(100), 1)
+  val order = Order(100, 100, IsinId(111), Buy, BigDecimal(100), 1, 1)
 
   "Order" must {
+    "select order type base on status" in {
+      val order1 = Order(100, 100, IsinId(111), Buy, BigDecimal(100), 1, 1)
+      assert(order1.orderType == GoodTillCancelled)
+      assert(order1.noSystem == false)
+
+      val order2 = Order(100, 100, IsinId(111), Buy, BigDecimal(100), 1, 2)
+      assert(order2.orderType == ImmediateOrCancel)
+      assert(order2.noSystem == false)
+
+      val order3 = Order(100, 100, IsinId(111), Buy, BigDecimal(100), 1, 5) // status 5 = bits 0x01 & 0x04
+      assert(order3.orderType == GoodTillCancelled)
+      assert(order3.noSystem == true)
+    }
+  }
+
+  "Order actor" must {
     "create new order in New state" in {
       val orderActor = TestFSMRef(new OrderActor(order), "TestOrder")
       val underlying = orderActor.underlyingActor.asInstanceOf[OrderActor]
@@ -72,7 +88,7 @@ class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", com.ergodicit
     "fail to fill more then rest amount" in {
       val orderActor = TestFSMRef(new OrderActor(order), "TestOrder")
 
-      intercept[IllegalArgumentException] {
+      intercept[IllegalOrderEvent] {
         orderActor.receive(Fill(100, 1, None))
       }
     }

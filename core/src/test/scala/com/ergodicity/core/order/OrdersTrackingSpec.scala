@@ -90,7 +90,7 @@ class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", Confi
       val underlying = ordersTracking.underlyingActor.asInstanceOf[OrdersTracking]
 
       ordersTracking.setState(OrdersTrackingState.Tracking, Some(OngoingSession(SessionId(100, 100), self)))
-      ordersTracking ! OrderLog(100, OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1))))
+      ordersTracking ! OrderLog(100, OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), OrderDirection.Buy, 123, 1, 1))))
       assert(underlying.orders.size == 1)
     }
 
@@ -102,7 +102,7 @@ class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", Confi
 
       ordersTracking.setState(OrdersTrackingState.Tracking, Some(OngoingSession(SessionId(100, 100), self)))
 
-      ordersTracking ! OrderLog(100, OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1))))
+      ordersTracking ! OrderLog(100, OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), OrderDirection.Buy, 123, 1, 1))))
 
       val order = underlying.orders(orderId)
       order._2 ! SubscribeTransitionCallBack(self)
@@ -121,7 +121,7 @@ class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", Confi
 
       ordersTracking.setState(OrdersTrackingState.Tracking, Some(OngoingSession(SessionId(100, 100), self)))
 
-      ordersTracking ! OrderLog(100, OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 3))))
+      ordersTracking ! OrderLog(100, OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), OrderDirection.Buy, 123, 3, 1))))
 
       val order = underlying.orders(orderId)
       order._2 ! SubscribeTransitionCallBack(self)
@@ -140,7 +140,7 @@ class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", Confi
 
       ordersTracking.setState(OrdersTrackingState.Tracking, Some(OngoingSession(SessionId(100, 100), self)))
 
-      ordersTracking ! OrderLog(100, OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1))))
+      ordersTracking ! OrderLog(100, OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), OrderDirection.Buy, 123, 1, 1))))
       ordersTracking ! GetOrder(orderId)
       val reply = receiveOne(100.millis)
       assert(reply match {
@@ -157,7 +157,7 @@ class OrdersTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", Confi
       ordersTracking.setState(OrdersTrackingState.Tracking, Some(OngoingSession(SessionId(100, 100), self)))
 
       ordersTracking ! GetOrder(orderId)
-      ordersTracking ! OrderLog(100, OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1))))
+      ordersTracking ! OrderLog(100, OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), OrderDirection.Buy, 123, 1, 1))))
       val reply = receiveOne(100.millis)
       assert(reply match {
         case OrderRef(o, ref) => log.info("Got order = " + o +", ref = "+ref); true

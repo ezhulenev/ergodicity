@@ -44,10 +44,10 @@ class OrdersSnapshotActor(OrderBookStream: ActorRef) extends Actor with LoggingF
   private def toOrder(record: OrdBook.orders) = Order(record.get_id_ord(),
     record.get_sess_id(),
     IsinId(record.get_isin_id()),
-    mapOrderType(record.get_status()),
-    mapOrderDirection(record.get_dir()),
+    direction(record.get_dir()),
     record.get_price(),
-    record.get_init_amount()
+    record.get_init_amount(),
+    record.get_status()
   )
 
   private def toAction(record: OrdBook.orders): Seq[Fill] = record.get_action() match {

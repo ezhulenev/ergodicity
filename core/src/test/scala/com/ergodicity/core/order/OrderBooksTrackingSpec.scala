@@ -4,7 +4,6 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.util.duration._
-import akka.pattern.ask
 import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
 import com.ergodicity.core.AkkaConfigurations._
 import com.ergodicity.core._
@@ -56,7 +55,7 @@ class OrderBooksTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", C
       val underlying = tracking.underlyingActor.asInstanceOf[OrderBooksTracking]
       expectMsg(SubscribeStreamEvents(tracking.underlyingActor.asInstanceOf[OrderBooksTracking].dispatcher))
 
-      val futuresSnapshot = OrdersSnapshot(100, moment, (Order(1, sessionId, isinId1, OrderType.GoodTillCancelled, OrderDirection.Buy, 100, 1), Seq()) :: Nil)
+      val futuresSnapshot = OrdersSnapshot(100, moment, (Order(1, sessionId, isinId1, OrderDirection.Buy, 100, 1, 1), Seq()) :: Nil)
       val optionsSnapshot = OrdersSnapshot(110, moment, Nil)
 
       tracking ! assignedContents
@@ -75,7 +74,7 @@ class OrderBooksTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", C
       val underlying = tracking.underlyingActor.asInstanceOf[OrderBooksTracking]
       expectMsg(SubscribeStreamEvents(tracking.underlyingActor.asInstanceOf[OrderBooksTracking].dispatcher))
 
-      val futuresSnapshot = OrdersSnapshot(100, moment, (Order(1, sessionId, isinId1, OrderType.GoodTillCancelled, OrderDirection.Buy, 100, 1), Seq(Fill(1, 0, None))) :: Nil)
+      val futuresSnapshot = OrdersSnapshot(100, moment, (Order(1, sessionId, isinId1, OrderDirection.Buy, 100, 1, 1), Seq(Fill(1, 0, None))) :: Nil)
       val optionsSnapshot = OrdersSnapshot(110, moment, Nil)
 
       tracking ! assignedContents

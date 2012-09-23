@@ -6,7 +6,6 @@ import akka.actor.FSM.SubscribeTransitionCallBack
 import akka.actor.FSM.Transition
 import akka.event.Logging
 import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
-import com.ergodicity.core.OrderType.GoodTillCancelled
 import com.ergodicity.core._
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 
@@ -24,7 +23,7 @@ class OrderBookActorSpec extends TestKit(ActorSystem("OrderBookActorSpec", com.e
     "create new order" in {
       val orders = TestActorRef(new OrderBookActor(security), "OrderBookActor")
       val underlying = orders.underlyingActor
-      orders ! OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1)))
+      orders ! OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), OrderDirection.Buy, 123, 1, 1)))
       assert(underlying.orders.size == 1)
     }
 
@@ -32,7 +31,7 @@ class OrderBookActorSpec extends TestKit(ActorSystem("OrderBookActorSpec", com.e
       val orders = TestActorRef(new OrderBookActor(security), "OrderBookActor")
       val underlying = orders.underlyingActor
 
-      orders ! OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 1)))
+      orders ! OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), OrderDirection.Buy, 123, 1, 1)))
 
       val order = underlying.orders(orderId)
       order ! SubscribeTransitionCallBack(self)
@@ -47,7 +46,7 @@ class OrderBookActorSpec extends TestKit(ActorSystem("OrderBookActorSpec", com.e
       val orders = TestActorRef(new OrderBookActor(security), "OrderBookActor")
       val underlying = orders.underlyingActor
 
-      orders ! OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), GoodTillCancelled, OrderDirection.Buy, 123, 3)))
+      orders ! OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), OrderDirection.Buy, 123, 3, 1)))
 
       val order = underlying.orders(orderId)
       order ! SubscribeTransitionCallBack(self)

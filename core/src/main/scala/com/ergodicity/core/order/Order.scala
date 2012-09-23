@@ -1,9 +1,17 @@
 package com.ergodicity.core.order
 
 import com.ergodicity.core.{OrderDirection, OrderType, IsinId}
-import com.ergodicity.cgate.scheme.{OrdLog, OrdBook, OptOrder, FutOrder}
+import com.ergodicity.cgate.scheme.{OrdLog, OptOrder, FutOrder}
 
-case class Order(id: Long, sessionId: Int, isin: IsinId, orderType: OrderType, direction: OrderDirection, price: BigDecimal, amount: Int)
+case class Order(id: Long, sessionId: Int, isin: IsinId, direction: OrderDirection, price: BigDecimal, amount: Int, private val status: Int) {
+  def orderType = status match {
+    case t if ((t & 0x01) > 0) => OrderType.GoodTillCancelled
+    case t if ((t & 0x02) > 0) => OrderType.ImmediateOrCancel
+    case t => throw new IllegalArgumentException("Illegal order type: " + t)
+  }
+
+  def noSystem = (status & 0x04) > 0
+}
 
 case class OrderAction(orderId: Long, action: Action)
 
