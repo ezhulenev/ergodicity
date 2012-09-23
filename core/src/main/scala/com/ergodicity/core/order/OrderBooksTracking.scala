@@ -4,7 +4,7 @@ import akka.actor._
 import collection.mutable
 import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
 import com.ergodicity.cgate.Protocol._
-import com.ergodicity.cgate.StreamEvent.StreamData
+import com.ergodicity.cgate.StreamEvent.{TnCommit, TnBegin, StreamData}
 import com.ergodicity.cgate.scheme.OrdLog
 import com.ergodicity.cgate.{Reads, WhenUnhandled}
 import com.ergodicity.core.FutureContract
@@ -13,6 +13,9 @@ import com.ergodicity.core.order.OrderBooksTracking._
 import com.ergodicity.core.order.OrdersSnapshotActor.OrdersSnapshot
 import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.core.{Security, IsinId}
+import com.ergodicity.core.order.OrderActor.IllegalOrderEvent
+import com.ergodicity.core.order.OrderBooksTracking.IllegalLifeCycleEvent
+import akka.actor.SupervisorStrategy.Stop
 
 object OrderBooksTracking {
 
@@ -126,6 +129,11 @@ class OrderBooksTracking(OrdLogStream: ActorRef) extends Actor with FSM[OrderBoo
 class SessionOrderBooksTracking(sessionId: Int) extends Actor with ActorLogging with WhenUnhandled {
   val orderBooks = mutable.Map[Security, ActorRef]()
 
+
+  override def supervisorStrategy() = OneForOneStrategy() {
+    case e: IllegalOrderEvent => Stop
+  }
+
   protected def receive = dispatchOrders orElse whenUnhandled
 
   private def dispatchOrders: Receive = {
@@ -144,6 +152,9 @@ class OrderLogDispatcher(tracking: ActorRef, OrdLogStream: ActorRef) extends Act
   protected def receive = receiveOrders orElse whenUnhandled
 
   private def receiveOrders: Receive = {
+    case TnBegin =>
+    case TnCommit =>
+
     case StreamData(OrdLog.orders_log.TABLE_INDEX, data) =>
       val record = implicitly[Reads[OrdLog.orders_log]] apply data
       val revision = record.get_replRev()

@@ -105,10 +105,16 @@ class OrderBooksTrackingIntegrationSpec extends TestKit(ActorSystem("OrderBooksT
 
               (fut zip opt).map(tuple => Snapshots(tuple._1, tuple._2)) onSuccess {case snapshots@Snapshots(f, o) =>
                 log.info("Got snapshots; Futures = "+f.orders.size+"; Options = "+o.orders.size)
+
+                /*(f.orders ++ o.orders).groupBy(_._1.id) foreach {
+                  case (orderId, seq) =>
+                  System.out.println("Order id = "+orderId+", seq  = "+seq)
+                }*/
+
                 orderBooks ! snapshots
                 val params = ReplicationParams(ReplicationMode.Combined, Map("orders_log" -> scala.math.min(f.revision, o.revision)))
                 log.info("Params = "+params())
-                // ordLogListener ! Listener.Open(params)
+                ordLogListener ! Listener.Open(params)
               }
             }
 

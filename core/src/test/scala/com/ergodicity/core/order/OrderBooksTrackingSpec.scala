@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.util.duration._
+import akka.pattern.ask
 import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
 import com.ergodicity.core.AkkaConfigurations._
 import com.ergodicity.core._
@@ -14,7 +15,8 @@ import com.ergodicity.core.session.SessionActor.AssignedContents
 import org.joda.time.DateTime
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
+import akka.actor.FSM.{CurrentState, SubscribeTransitionCallBack}
+import akka.util.Timeout
 
 class OrderBooksTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -22,6 +24,8 @@ class OrderBooksTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", C
   override def afterAll() {
     system.shutdown()
   }
+
+  implicit val timeout = Timeout(1.second)
 
   val sessionId = 100
 
@@ -52,7 +56,7 @@ class OrderBooksTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", C
       val underlying = tracking.underlyingActor.asInstanceOf[OrderBooksTracking]
       expectMsg(SubscribeStreamEvents(tracking.underlyingActor.asInstanceOf[OrderBooksTracking].dispatcher))
 
-      val futuresSnapshot = OrdersSnapshot(100, moment, (Order(1, sessionId, isinId1, OrderType.GoodTillCancelled, OrderDirection.Buy, 100, 1), None) :: Nil)
+      val futuresSnapshot = OrdersSnapshot(100, moment, (Order(1, sessionId, isinId1, OrderType.GoodTillCancelled, OrderDirection.Buy, 100, 1), Seq()) :: Nil)
       val optionsSnapshot = OrdersSnapshot(110, moment, Nil)
 
       tracking ! assignedContents
@@ -60,6 +64,10 @@ class OrderBooksTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", C
 
       assert(underlying.sessions.size == 1)
       assert(tracking.stateName == OrderBooksState.Synchronizing)
+
+      tracking.stop()
+
+      Thread.sleep(100)
     }
 
     "consume orders snapshots with Fill action" in {
@@ -67,7 +75,7 @@ class OrderBooksTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", C
       val underlying = tracking.underlyingActor.asInstanceOf[OrderBooksTracking]
       expectMsg(SubscribeStreamEvents(tracking.underlyingActor.asInstanceOf[OrderBooksTracking].dispatcher))
 
-      val futuresSnapshot = OrdersSnapshot(100, moment, (Order(1, sessionId, isinId1, OrderType.GoodTillCancelled, OrderDirection.Buy, 100, 1), Some(Fill(1, 0, None))) :: Nil)
+      val futuresSnapshot = OrdersSnapshot(100, moment, (Order(1, sessionId, isinId1, OrderType.GoodTillCancelled, OrderDirection.Buy, 100, 1), Seq(Fill(1, 0, None))) :: Nil)
       val optionsSnapshot = OrdersSnapshot(110, moment, Nil)
 
       tracking ! assignedContents
@@ -76,9 +84,11 @@ class OrderBooksTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", C
       assert(underlying.sessions.size == 1)
       assert(tracking.stateName == OrderBooksState.Synchronizing)
 
+      Thread.sleep(100)
+
       val orderActor = system.actorFor(underlying.sessions(sessionId).path + "/" + isin1.toActorName+"/1")
       orderActor ! SubscribeTransitionCallBack(self)
-      expectMsgAnyOf(CurrentState(orderActor, OrderState.Filled), Transition(orderActor, OrderState.Active, OrderState.Filled))
+      expectMsg(CurrentState(orderActor, OrderState.Filled))
     }
 
     "discard orders with smaller revision" in {

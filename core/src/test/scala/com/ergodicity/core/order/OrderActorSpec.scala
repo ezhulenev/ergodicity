@@ -6,7 +6,7 @@ import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import com.ergodicity.core.IsinId
 import com.ergodicity.core.OrderDirection._
 import com.ergodicity.core.OrderType._
-import com.ergodicity.core.order.OrderActor.{OrderEvent, SubscribeOrderEvents, IllegalLifeCycleEvent}
+import com.ergodicity.core.order.OrderActor.{OrderEvent, SubscribeOrderEvents, IllegalOrderEvent}
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 
 
@@ -88,7 +88,7 @@ class OrderActorSpec extends TestKit(ActorSystem("OrderActorSpec", com.ergodicit
       orderActor ! Cancel(1)
       assert(orderActor.stateName == OrderState.Cancelled)
 
-      intercept[IllegalLifeCycleEvent] {
+      intercept[IllegalOrderEvent] {
         orderActor receive Cancel(1)
       }
     }

@@ -1,7 +1,7 @@
 package com.ergodicity.core.order
 
 import akka.actor.{ActorRef, FSM, Actor}
-import com.ergodicity.core.order.OrderActor.{OrderEvent, SubscribeOrderEvents, IllegalLifeCycleEvent}
+import com.ergodicity.core.order.OrderActor.{OrderEvent, SubscribeOrderEvents, IllegalOrderEvent}
 
 sealed trait OrderState
 
@@ -27,15 +27,13 @@ object OrderActor {
 
   case class OrderEvent(order: Order, action: Action)
 
-  case class IllegalLifeCycleEvent(msg: String, event: Any) extends RuntimeException(msg)
+  class IllegalOrderEvent(msg: String, event: Any) extends RuntimeException(msg)
 
 }
 
 class OrderActor(val order: Order) extends Actor with FSM[OrderState, Trace] {
 
   import OrderState._
-
-  log.debug("Create order = " + order)
 
   var subscribers = Set[ActorRef]()
 
@@ -45,7 +43,7 @@ class OrderActor(val order: Order) extends Actor with FSM[OrderState, Trace] {
     case Event(fill@Fill(amount, rest, _), Trace(restAmount, actions)) =>
       dispatch(fill)
       if (restAmount - amount != rest)
-        throw new IllegalLifeCycleEvent("Rest amounts doesn't match; Rest = " + (restAmount - amount) + ", expected = " + rest, fill)
+        throw new IllegalOrderEvent("Rest amounts doesn't match; Rest = " + (restAmount - amount) + ", expected = " + rest, fill)
 
       if (restAmount - amount == 0)
         goto(Filled) using Trace(0, actions :+ fill)
@@ -53,11 +51,11 @@ class OrderActor(val order: Order) extends Actor with FSM[OrderState, Trace] {
   }
 
   when(Filled) {
-    case Event(e@Fill(_, _, _), _) => throw new IllegalLifeCycleEvent("Order already Filled", e)
+    case Event(e@Fill(_, _, _), _) => throw new IllegalOrderEvent("Order already Filled", e)
   }
 
   when(Cancelled) {
-    case e => throw new IllegalLifeCycleEvent("Order already Cancelled", e)
+    case e => throw new IllegalOrderEvent("Order already Cancelled", e)
   }
 
   whenUnhandled {

@@ -6,13 +6,13 @@ object AkkaIntegrationConfigurations {
   val ConfigWithDetailedLogging = ConfigFactory.parseString("""
     akka.actor.debug {
       receive = off
-      lifecycle = on
+      lifecycle = off
       fsm = off
     }
 
     akka {
-      event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
-      # event-handlers = ["akka.event.Logging$DefaultLogger"]
+      # event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
+      event-handlers = ["akka.event.Logging$DefaultLogger"]
       loglevel = "DEBUG"
     }
 

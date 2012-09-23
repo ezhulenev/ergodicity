@@ -46,7 +46,7 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
     val underlyingTradingConnection = new CGConnection(PublisherConnection())
   }
 
-  trait Replication extends FutInfoReplication with OptInfoReplication with PosReplication with FutOrdersReplication with OptOrdersReplication {
+  trait Replication extends FutInfoReplication with OptInfoReplication with PosReplication with FutOrdersReplication with OptOrdersReplication with OrdLogReplication with FutOrderBookReplication with OptOrderBookReplication {
     val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/OptInfo.ini"), "CustReplScheme")
 
     val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/FutInfo.ini"), "CustReplScheme")
@@ -56,6 +56,12 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
     val futOrdersReplication = Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/FutOrders.ini"), "CustReplScheme")
 
     val optOrdersReplication = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptOrders.ini"), "CustReplScheme")
+
+    val futOrderbookReplication = Replication("FORTS_FUTORDERBOOK_REPL", new File("cgate/scheme/Orderbook.ini"), "CustReplScheme")
+
+    val optOrderbookReplication = Replication("FORTS_OPTORDERBOOK_REPL", new File("cgate/scheme/Orderbook.ini"), "CustReplScheme")
+
+    val ordLogReplication = Replication("FORTS_ORDLOG_REPL", new File("cgate/scheme/OrdLog.ini"), "CustReplScheme")
   }
 
   trait Listener extends UnderlyingListener {
@@ -74,7 +80,7 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
 
   class IntegrationEngine extends Engine with Connections with Replication with Listener with Publisher
 
-  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection with TradingConnection with InstrumentData with Portfolio with Trading
+  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection /*with TradingConnection*/ with InstrumentData /*with Portfolio with Trading */with MarketData
 
   "Services" must {
     "start all registered services" in {
