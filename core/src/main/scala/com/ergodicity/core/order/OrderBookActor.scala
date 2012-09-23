@@ -18,7 +18,7 @@ class OrderBookActor(security: Security) extends Actor with ActorLogging with Wh
 
   private def handleCreateOrder: Receive = {
     case OrderAction(orderId, Create(order)) =>
-      log.debug("Create new order, id = {}, noSystem = ", orderId, order.noSystem)
+      log.debug("Create new order, id = {}, noSystem = {}", orderId, order.noSystem)
       val orderActor = context.actorOf(Props(new OrderActor(order)), orderId.toString)
       orders(order.id) = orderActor
   }
