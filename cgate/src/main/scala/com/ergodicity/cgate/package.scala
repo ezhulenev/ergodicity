@@ -5,7 +5,6 @@ package object cgate {
 
   case class Signs(signs: Long) {
 
-
     def eveningSession = (signs & 0x01) > 0
 
     def optionType = if ((signs & 0x02) == 1) Margin else Premium
@@ -30,6 +29,4 @@ package object cgate {
 
     case object Premium extends Type
   }
-
-
 }

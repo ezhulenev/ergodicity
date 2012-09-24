@@ -70,7 +70,7 @@ class OrderBooksTracking(OrdLogStream: ActorRef) extends Actor with FSM[OrderBoo
   when(WaitingSnapshots) {
     case Event(Snapshots(fut, opt), Void) =>
       fut.orders ++ opt.orders foreach {
-        case (order, fill) =>
+        case (order, fill) if (order.noSystem == false) =>
           val sessionId = order.sessionId
           val isin = order.isin
           assigned ? isin map {

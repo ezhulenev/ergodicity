@@ -11,8 +11,10 @@ object AkkaIntegrationConfigurations {
     }
 
     akka {
-      # event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
-      event-handlers = ["akka.event.Logging$DefaultLogger"]
+      log-config-on-start = off
+
+      event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
+      #event-handlers = ["akka.event.Logging$DefaultLogger"]
       loglevel = "DEBUG"
     }
 

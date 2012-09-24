@@ -1,6 +1,6 @@
 package com.ergodicity.core.order
 
-import akka.actor.ActorSystem
+import akka.actor.{Terminated, ActorSystem}
 import akka.event.Logging
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import akka.util.duration._
@@ -86,8 +86,8 @@ class OrderBooksTrackingSpec extends TestKit(ActorSystem("OrdersTrackingSpec", C
       Thread.sleep(100)
 
       val orderActor = system.actorFor(underlying.sessions(sessionId).path + "/" + isin1.toActorName+"/1")
-      orderActor ! SubscribeTransitionCallBack(self)
-      expectMsg(CurrentState(orderActor, OrderState.Filled))
+      watch(orderActor)
+      expectMsg(Terminated(orderActor))
     }
 
     "discard orders with smaller revision" in {

@@ -1,6 +1,6 @@
 package com.ergodicity.core.order
 
-import akka.actor.ActorSystem
+import akka.actor.{Terminated, ActorSystem}
 import akka.actor.FSM.CurrentState
 import akka.actor.FSM.SubscribeTransitionCallBack
 import akka.actor.FSM.Transition
@@ -34,12 +34,14 @@ class OrderBookActorSpec extends TestKit(ActorSystem("OrderBookActorSpec", com.e
       orders ! OrderAction(orderId, Create(Order(orderId, 100, IsinId(100), OrderDirection.Buy, 123, 1, 1)))
 
       val order = underlying.orders(orderId)
+      watch(order)
       order ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(order, OrderState.Active))
 
       orders ! OrderAction(orderId, Cancel(1))
 
       expectMsg(Transition(order, OrderState.Active, OrderState.Cancelled))
+      expectMsg(Terminated(order))
     }
 
     "fill order" in {
