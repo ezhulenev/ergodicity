@@ -123,9 +123,7 @@ class MarketContentsCapture(FutInfoStream: ActorRef, OptInfoStream: ActorRef,
   initialize
 
   protected def handleStreamState(state: StreamStates): State = {
-    (state.futures <**> state.options) {
-      (_, _)
-    } match {
+    (state.futures <**> state.options)((_, _)) match {
       case Some((DataStreamState.Online, DataStreamState.Online)) => goto(Online) using Blank
       case _ => stay() using state
     }
