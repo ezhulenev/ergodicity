@@ -65,7 +65,7 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
     Thread.sleep(TimeUnit.SECONDS.toMillis(1))
 
     // Schedule periodic restarting
-    system.scheduler.schedule(2.minutes, 2.minutes, guardian, Restart)
+    system.scheduler.schedule(1.minutes, 1.minutes, guardian, Restart)
 
     guardian ! Capture
   }

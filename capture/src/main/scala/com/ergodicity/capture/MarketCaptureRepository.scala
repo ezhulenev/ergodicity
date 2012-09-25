@@ -52,15 +52,20 @@ trait ReplicationStateRepository {
 
   def setReplicationState(stream: String, state: String) {
     val r = new ReplicationState(stream, state)
-    replicationStates.insertOrUpdate(replicationStates.lookup(stream) getOrElse r)
+    // Hack: https://www.assembla.com/spaces/squeryl/tickets/55-keyedentity-with-def-id-refering-to-another-field-incorrectly-assumes-a-composite-key#/activity/ticket:55
+    val updated = update(replicationStates)(s =>
+      where(s.stream === stream)
+      set(s.state := state)
+    )
+    if (updated == 0) replicationStates.insert(r)
   }
 
   def reset(stream: String) {
-    replicationStates.delete(stream)
+    replicationStates.deleteWhere(s => s.stream === stream)
   }
 
   def replicationState(stream: String): Option[String] = {
     log.trace("Get replicationState; Stream = " + stream)
-    replicationStates.lookup(stream).map(_.state)
+    from(replicationStates)(s => where(s.stream === stream) select(s)).iterator.toStream.headOption.map(_.state)
   }
 }

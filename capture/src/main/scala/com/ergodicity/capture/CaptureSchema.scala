@@ -6,6 +6,7 @@ import org.squeryl.PrimitiveTypeMode._
 import org.squeryl.Schema
 import org.squeryl.dsl.CompositeKey2
 import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
+import org.squeryl.customtypes.StringField
 
 
 object Session {
@@ -188,9 +189,7 @@ class OptSessContents(val sess_id: Int,
 
 class ReplicationState(val stream: String,
                        @Column(length = 5000)
-                       val state: String) extends KeyedEntity[String] {
-  def id = stream
-}
+                       val state: String)
 
 object CaptureSchema extends Schema {
   val sessions = table[Session]("SESSION")
@@ -198,5 +197,5 @@ object CaptureSchema extends Schema {
   val optSessContents = table[OptSessContents]("OPT_SESS_CONTENTS")
   val replicationStates = table[ReplicationState]("REPLICATION_STATE")
 
-  on(replicationStates)(r => declare(r.stream is (unique)))
+  on(replicationStates)(r => declare(r.stream is (primaryKey)))
 }

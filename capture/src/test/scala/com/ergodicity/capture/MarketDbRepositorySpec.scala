@@ -49,12 +49,15 @@ class MarketDbRepositorySpec extends FlatSpec with BeforeAndAfterAll {
     }
   }
 
-  val State = "ReplicationStateValue#10000"
+  val State1 = "ReplicationStateValue#1"
+  val State2 = "ReplicationStateValue#2"
 
   "MarketCaptureRepository with ReplicationStateRepository" should "set, get and reset replication state" in {
     inTransaction {
-      repository.setReplicationState("Stream", State)
-      assert(repository.replicationState("Stream") == Some(State))
+      repository.setReplicationState("Stream", State1)
+      assert(repository.replicationState("Stream") == Some(State1))
+      repository.setReplicationState("Stream", State2)
+      assert(repository.replicationState("Stream") == Some(State2))
       repository.reset("Stream")
       assert(repository.replicationState("Stream") == None)
     }
