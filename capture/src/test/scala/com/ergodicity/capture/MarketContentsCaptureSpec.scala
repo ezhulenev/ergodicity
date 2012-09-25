@@ -3,21 +3,25 @@ package com.ergodicity.capture
 import org.mockito.Mockito._
 import org.scalatest.{WordSpec, BeforeAndAfterAll}
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
-import org.slf4j.{Logger, LoggerFactory}
+import org.slf4j.LoggerFactory
 import akka.actor.ActorSystem
-import com.ergodicity.core.session.SessionState
-import com.ergodicity.core.session.SessionState._
 import com.ergodicity.cgate.config.Replication
 import java.io.File
 import com.ergodicity.cgate.DataStream
-import java.nio.ByteBuffer
-import com.ergodicity.cgate.scheme.FutInfo
 import com.ergodicity.capture.Mocking._
-import com.mongodb.casbah.Imports._
+import org.squeryl.{Session => SQRLSession, SessionFactory}
+import org.squeryl.adapters.H2Adapter
+import org.squeryl.PrimitiveTypeMode._
+import com.ergodicity.capture.CaptureSchema._
 import com.ergodicity.capture.Repository.Snapshot
+import scala.Some
 
 class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketContentsCaptureSpec])
+
+  override protected def beforeAll() {
+    initialize()
+  }
 
   override def afterAll() {
     system.shutdown()
@@ -31,10 +35,7 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
     Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptTrades.ini"), "CustReplScheme")
   )
 
-  trait Repo extends SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository {
-    def log: Logger = null
-    def mongo: MongoDB = null
-  }
+  trait Repo extends MarketCaptureRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
 
   val repository = mock(classOf[Repo])
 
@@ -47,7 +48,7 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
       val capture = TestFSMRef(new MarketContentsCapture(FutInfoStream, OptInfoStream, repository), "MarketContentsCapture")
       val underlying = capture.underlyingActor.asInstanceOf[MarketContentsCapture]
 
-      val record = sessionRecord(1000, 1000, 12345, Assigned)
+      val record = Mocking.mockSession(1000, 1000)
       capture ! Snapshot(underlying.SessionsRepository, record :: Nil)
 
       verify(repository).saveSession(record)
@@ -91,24 +92,20 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
     }
   }
 
-  def sessionRecord(replID: Long, revId: Long, sessionId: Int, sessionState: SessionState) = {
-    import SessionState._
+  def initialize() {
+    println("Setting up data.")
+    Class.forName("org.h2.Driver")
+    SessionFactory.concreteFactory = Some(() =>
+      SQRLSession.create(
+        java.sql.DriverManager.getConnection("jdbc:h2:~/example", "sa", ""),
+        new H2Adapter)
+    )
 
-    val stateValue = sessionState match {
-      case Assigned => 0
-      case Online => 1
-      case Suspended => 2
-      case Canceled => 3
-      case Completed => 4
+    inTransaction {
+      drop
+      create
     }
-
-    val buff = ByteBuffer.allocate(1000)
-    val session = new FutInfo.session(buff)
-    session.set_replID(replID)
-    session.set_replRev(revId)
-    session.set_sess_id(sessionId)
-    session.set_state(stateValue)
-    session
   }
+
 
 }

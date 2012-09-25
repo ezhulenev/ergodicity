@@ -10,8 +10,7 @@ import java.io.File
 import ru.micexrts.cgate.{Connection => CGConnection, CGate, CGateException, Listener => CGListener}
 import com.ergodicity.capture.Mocking._
 import com.twitter.finagle.kestrel.Client
-import org.slf4j.{Logger, LoggerFactory}
-import com.mongodb.casbah.TypeImports._
+import org.slf4j.LoggerFactory
 import com.ergodicity.capture.MarketCapture.Capture
 import com.ergodicity.cgate.DataStream.DataStreamClosed
 import com.ergodicity.cgate.config.CGateConfig
@@ -22,7 +21,7 @@ import akka.actor.SupervisorStrategy.Stop
 import com.ergodicity.cgate.WhenUnhandled
 import com.ergodicity.cgate.StreamEvent.ReplState
 
-class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with WordSpec with BeforeAndAfterAll with ImplicitSender {
+class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketCaptureSpec])
 
   val Host = "localhost"
@@ -38,11 +37,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec", AkkaCon
     Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptTrades.ini"), "CustReplScheme")
   )
 
-  trait Repo extends ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository {
-    val log: Logger = null
-
-    val mongo: MongoDB = null
-  }
+  trait Repo extends MarketCaptureRepository with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
 
   override def beforeAll() {
     val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")

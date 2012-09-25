@@ -98,23 +98,32 @@ class MarketContentsCapture(FutInfoStream: ActorRef, OptInfoStream: ActorRef,
 
     // Handle session contents snapshots
     case Event(Snapshot(SessionsRepository, sessions), _) =>
-      sessions.asInstanceOf[Iterable[FutInfo.session]].foreach(repository.saveSession(_))
+      import org.squeryl.PrimitiveTypeMode._
+      inTransaction {
+        sessions.asInstanceOf[Iterable[FutInfo.session]].foreach(repository.saveSession(_))
+      }
       stay()
 
     case Event(Snapshot(FutSessContentsRepository, data), _) =>
-      val futures = data.asInstanceOf[Iterable[FutInfo.fut_sess_contents]].foldLeft(Map[Int, Security]()) {
-        case (m, r) =>
-          repository.saveSessionContents(r)
-          m + (r.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(r))
+      import org.squeryl.PrimitiveTypeMode._
+      val futures = inTransaction {
+        data.asInstanceOf[Iterable[FutInfo.fut_sess_contents]].foldLeft(Map[Int, Security]()) {
+          case (m, r) =>
+            repository.saveSessionContents(r)
+            m + (r.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(r))
+        }
       }
       subscribers.foreach(_ ! FuturesContents(futures))
       stay()
 
     case Event(Snapshot(OptSessContentsRepository, data), _) =>
-      val options = data.asInstanceOf[Iterable[OptInfo.opt_sess_contents]].foldLeft(Map[Int, Security]()) {
-        case (m, r) =>
-          repository.saveSessionContents(r)
-          m + (r.get_isin_id() -> com.ergodicity.core.session.Implicits.OptionInstrument.security(r))
+      import org.squeryl.PrimitiveTypeMode._
+      val options = inTransaction {
+        data.asInstanceOf[Iterable[OptInfo.opt_sess_contents]].foldLeft(Map[Int, Security]()) {
+          case (m, r) =>
+            repository.saveSessionContents(r)
+            m + (r.get_isin_id() -> com.ergodicity.core.session.Implicits.OptionInstrument.security(r))
+        }
       }
       subscribers.foreach(_ ! OptionsContents(options))
       stay()

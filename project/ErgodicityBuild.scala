@@ -164,7 +164,7 @@ object Dependency {
     val Casbah       = "2.4.1"
     val ScalaGraph   = "1.5.1"
     val Squeryl      = "0.9.5-2"
-    val H2           = "1.2.127"
+    val H2           = "1.3.168"
     val Postgres     = "8.4-701.jdbc4"
 
 

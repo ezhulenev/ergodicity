@@ -33,14 +33,15 @@ object CaptureEngine {
   }
 }
 
-class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig, scheme: ReplicationScheme, database: CaptureDatabase, kestrel: KestrelConfig) extends Service {
+class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig, scheme: ReplicationScheme, kestrel: KestrelConfig) extends Service {
   val log = LoggerFactory.getLogger(classOf[CaptureEngine])
 
   implicit val system = ActorSystem("CaptureEngine")
 
+  // Register service using Ostrich
   ServiceTracker.register(this)
 
-  private val repo = new MarketCaptureRepository(database) with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
+  private val repo = new MarketCaptureRepository with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
 
   private def conn = new CGConnection(connectionConfig())
 

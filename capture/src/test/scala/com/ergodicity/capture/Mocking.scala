@@ -5,6 +5,15 @@ import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
 
 object Mocking {
 
+  def mockSession(sessionId: Int, optSessionId: Int) = {
+    val buff = ByteBuffer.allocate(1000)
+    val session = new FutInfo.session(buff)
+    session.set_sess_id(sessionId)
+    session.set_opt_sess_id(optSessionId)
+    session
+  }
+
+
   def mockFuture(sessionId: Int, isinId: Int, isin: String, shortIsin: String, name: String, signs: Int, state: Int, multileg_type: Int = 0) = {
     val buffer = ByteBuffer.allocate(1000)
     val fut = new FutInfo.fut_sess_contents(buffer)

@@ -24,6 +24,7 @@ import com.ergodicity.cgate.Connection.StartMessageProcessing
 import com.ergodicity.cgate.scheme._
 import ru.micexrts.cgate.{CGateException, Listener => CGListener, Connection => CGConnection}
 import java.util.concurrent.TimeUnit
+import org.squeryl.PrimitiveTypeMode._
 import scalaz._
 import Scalaz._
 
@@ -265,9 +266,9 @@ class MarketCapture(val replication: ReplicationScheme,
       log.info("Begin capturing Market data")
       log.debug("Market contents size = " + stateData.asInstanceOf[Contents].contents.size)
 
-      val orderLogState = repository.replicationState(replication.ordLog.stream)
-      val futTradeState = repository.replicationState(replication.futTrade.stream)
-      val optTradeState = repository.replicationState(replication.optTrade.stream)
+      val (orderLogState, futTradeState, optTradeState) = inTransaction {
+        (repository.replicationState(replication.ordLog.stream), repository.replicationState(replication.futTrade.stream), repository.replicationState(replication.optTrade.stream))
+      }
 
       log.info("Initial stream revisions; OrderLog = " + orderLogState + "; FutDeal = " + futTradeState + "; OptDeal = " + optTradeState)
 

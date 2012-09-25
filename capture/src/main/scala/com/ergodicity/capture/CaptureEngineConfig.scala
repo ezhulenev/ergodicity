@@ -3,29 +3,12 @@ package com.ergodicity.capture
 import com.twitter.ostrich.admin.config.ServerConfig
 import org.slf4j.LoggerFactory
 import com.twitter.ostrich.admin.RuntimeEnvironment
-import com.mongodb.casbah.TypeImports._
-import com.mongodb.casbah.MongoConnection
 import java.net.{ConnectException, Socket}
 import com.twitter.finagle.kestrel.protocol.{Kestrel => KestrelProtocol}
 import com.twitter.finagle.builder.ClientBuilder
 import com.twitter.finagle.kestrel.Client
 import com.ergodicity.cgate.config.{CGateConfig, ConnectionConfig, Replication}
-
-sealed trait CaptureDatabase {
-  def apply(): MongoDB
-}
-
-case class MongoLocal(database: String) extends CaptureDatabase {
-  lazy val db = MongoConnection()(database)
-
-  def apply() = db
-}
-
-case class MongoRemote(address: String, database: String) extends CaptureDatabase {
-  lazy val db = MongoConnection(address)(database)
-
-  def apply() = db
-}
+import org.squeryl.{Session => SQRLSession, SessionFactory}
 
 case class ReplicationScheme(futInfo: Replication, optInfo: Replication, ordLog: Replication, futTrade: Replication, optTrade: Replication)
 
@@ -71,9 +54,12 @@ trait CaptureEngineConfig extends ServerConfig[CaptureEngine] {
 
   def replication: ReplicationScheme
 
-  def database: CaptureDatabase
+  def database: () => SQRLSession
 
   def kestrel: KestrelConfig
 
-  def apply(runtime: RuntimeEnvironment) = new CaptureEngine(cgateConfig, connectionConfig, replication, database, kestrel)
+  def apply(runtime: RuntimeEnvironment) = {
+    SessionFactory.concreteFactory = Some(database)
+    new CaptureEngine(cgateConfig, connectionConfig, replication, kestrel)
+  }
 }
