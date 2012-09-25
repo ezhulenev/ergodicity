@@ -51,7 +51,8 @@ trait ReplicationStateRepository {
   this: MarketCaptureRepository =>
 
   def setReplicationState(stream: String, state: String) {
-    replicationStates.insertOrUpdate(new ReplicationState(stream, state))
+    val r = new ReplicationState(stream, state)
+    replicationStates.insertOrUpdate(replicationStates.lookup(stream) getOrElse r)
   }
 
   def reset(stream: String) {

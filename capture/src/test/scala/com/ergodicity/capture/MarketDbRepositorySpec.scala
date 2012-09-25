@@ -65,7 +65,7 @@ class MarketDbRepositorySpec extends FlatSpec with BeforeAndAfterAll {
     Class.forName("org.h2.Driver")
     SessionFactory.concreteFactory = Some(() =>
       SQRLSession.create(
-        java.sql.DriverManager.getConnection("jdbc:h2:~/example", "sa", ""),
+        java.sql.DriverManager.getConnection("jdbc:h2:~/MarketDbRepositorySpec", "sa", ""),
         new H2Adapter)
     )
 

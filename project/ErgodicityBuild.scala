@@ -131,7 +131,7 @@ object ErgodicityBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val capture = Seq(sbinary, scalaz, finagleKestrel, marketDb, casbah, squeryl, h2Driver, postgresDriver, ostrich, scalaIO) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
+  val capture = Seq(sbinary, scalaz, finagleKestrel, marketDb, squeryl, h2Driver, postgresDriver, ostrich, scalaIO) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val quant = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
@@ -161,8 +161,6 @@ object Dependency {
     val ScalaTime    = "0.5"
     val Akka         = "2.0.3"
     val ScalaIO      = "0.4.1"
-    val Casbah       = "2.4.1"
-    val ScalaGraph   = "1.5.1"
     val Squeryl      = "0.9.5-2"
     val H2           = "1.3.168"
     val Postgres     = "8.4-701.jdbc4"
@@ -189,7 +187,6 @@ object Dependency {
   val akka                   = "com.typesafe.akka"                 % "akka-actor"             % V.Akka
   val akkaSlf4j              = "com.typesafe.akka"                 % "akka-slf4j"             % V.Akka
   val scalaIO                = "com.github.scala-incubator.io"    %% "scala-io-core"          % V.ScalaIO
-  val casbah                 = "org.mongodb"                      %% "casbah"                 % V.Casbah
   val squeryl                = "org.squeryl"                      %% "squeryl"                % V.Squeryl
   val h2Driver               = "com.h2database"                    % "h2"                     % V.H2
   val postgresDriver         = "postgresql"                        % "postgresql"             % V.Postgres

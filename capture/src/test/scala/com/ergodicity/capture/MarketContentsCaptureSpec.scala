@@ -97,7 +97,7 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
     Class.forName("org.h2.Driver")
     SessionFactory.concreteFactory = Some(() =>
       SQRLSession.create(
-        java.sql.DriverManager.getConnection("jdbc:h2:~/example", "sa", ""),
+        java.sql.DriverManager.getConnection("jdbc:h2:~/MarketContentsCaptureSpec", "sa", ""),
         new H2Adapter)
     )
 

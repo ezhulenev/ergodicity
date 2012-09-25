@@ -12,14 +12,20 @@ import com.ergodicity.capture.Mocking._
 import com.twitter.finagle.kestrel.Client
 import org.slf4j.LoggerFactory
 import com.ergodicity.capture.MarketCapture.Capture
-import com.ergodicity.cgate.DataStream.DataStreamClosed
+import akka.actor.SupervisorStrategy.Stop
+import com.ergodicity.cgate.WhenUnhandled
+import org.squeryl.{Session => SQRLSession, SessionFactory}
+import org.squeryl.adapters.H2Adapter
+import org.squeryl.PrimitiveTypeMode.inTransaction
+import com.ergodicity.capture.CaptureSchema._
 import com.ergodicity.cgate.config.CGateConfig
+import scala.Some
+import com.ergodicity.cgate.StreamEvent.ReplState
+import com.ergodicity.cgate.DataStream.DataStreamClosed
 import com.ergodicity.capture.CaptureData.Contents
 import akka.actor.Terminated
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import akka.actor.SupervisorStrategy.Stop
-import com.ergodicity.cgate.WhenUnhandled
-import com.ergodicity.cgate.StreamEvent.ReplState
+import akka.actor.AllForOneStrategy
 
 class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with WordSpec with BeforeAndAfterAll with ImplicitSender {
   val log = LoggerFactory.getLogger(classOf[MarketCaptureSpec])
@@ -42,6 +48,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
   override def beforeAll() {
     val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
     CGate.open(props())
+    initialize()
   }
 
   override def afterAll() {
@@ -219,5 +226,21 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
 
     lazy val underlyingOrdLogListener = mock(classOf[CGListener])
   }
+
+  def initialize() {
+    println("Setting up data.")
+    Class.forName("org.h2.Driver")
+    SessionFactory.concreteFactory = Some(() =>
+      SQRLSession.create(
+        java.sql.DriverManager.getConnection("jdbc:h2:~/MarketCaptureSpec", "sa", ""),
+        new H2Adapter)
+    )
+
+    inTransaction {
+      drop
+      create
+    }
+  }
+
 
 }

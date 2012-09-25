@@ -232,15 +232,21 @@ class MarketCapture(val replication: ReplicationScheme,
 
   when(CaptureState.ShuttingDown, stateTimeout = 30.seconds) {
     case Event(DataStreamClosed(FutTradeStream, rs@ReplState(state)), s: StreamStates) =>
-      repository.setReplicationState(replication.futTrade.stream, state)
+      inTransaction {
+        repository.setReplicationState(replication.futTrade.stream, state)
+      }
       handleStreamState(s.copy(futTrade = Some(rs)))
 
     case Event(DataStreamClosed(OptTradeStream, rs@ReplState(state)), s: StreamStates) =>
-      repository.setReplicationState(replication.optTrade.stream, state)
+      inTransaction {
+        repository.setReplicationState(replication.optTrade.stream, state)
+      }
       handleStreamState(s.copy(optTrade = Some(rs)))
 
     case Event(DataStreamClosed(OrdLogStream, rs@ReplState(state)), s: StreamStates) =>
-      repository.setReplicationState(replication.ordLog.stream, state)
+      inTransaction {
+        repository.setReplicationState(replication.ordLog.stream, state)
+      }
       handleStreamState(s.copy(ordLog = Some(rs)))
 
     case Event(Terminated(ref), _) if (ref == connection) =>

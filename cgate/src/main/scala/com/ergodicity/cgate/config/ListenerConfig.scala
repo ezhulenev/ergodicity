@@ -52,7 +52,7 @@ object Replication {
       revisions.foreach {
         case (table, revision) => conf = conf + ";rev." + table + "=" + revision
       }
-      if (state.isDefined) conf = conf + ";replstate=" + state.get
+      if (state.isDefined) conf = conf + ";replstate=" + state.get.state
       conf
     }
   }

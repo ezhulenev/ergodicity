@@ -1,5 +1,6 @@
 package com.ergodicity.capture
 
+import org.squeryl.annotations.Column
 import org.squeryl.KeyedEntity
 import org.squeryl.PrimitiveTypeMode._
 import org.squeryl.Schema
@@ -186,6 +187,7 @@ class OptSessContents(val sess_id: Int,
 }
 
 class ReplicationState(val stream: String,
+                       @Column(length = 5000)
                        val state: String) extends KeyedEntity[String] {
   def id = stream
 }
