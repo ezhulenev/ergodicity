@@ -30,7 +30,7 @@ create table "FUT_SESS_CONTENTS" (
     "limit_up" numeric(16,5) not null,
     "limit_down" numeric(16,5) not null,
     "old_kotir" numeric(16,5) not null,
-    "buy_deposit" numeric(16,2) not null
+    "buy_deposit" numeric(16,2) not null,
     "sell_deposit" numeric(16,2) not null,
     "roundto" integer not null,
     "min_step" numeric(16,5) not null,
@@ -58,8 +58,8 @@ create table "FUT_SESS_CONTENTS" (
 create table "OPT_SESS_CONTENTS" (
     "sess_id" integer not null,
     "isin_id" integer not null,
-    "isin_id" integer not null,
     "short_isin" varchar(128) not null,
+    "isin" varchar(128) not null,
     "name" varchar(128) not null,
     "code_vcb" varchar(128) not null,
     "fut_isin_id" integer not null,
@@ -87,9 +87,10 @@ create table "OPT_SESS_CONTENTS" (
   );
 
 create table "REPLICATION_STATE" (
-    "state" varchar(128) not null,
-    "stream" varchar(5000) not null
+    "stream" varchar(128) not null,
+    "state" varchar(5000) not null
   );
+
 -- indexes on REPLICATION_STATE
 create unique index "idx_REPLICATION_STATE_STREAM" on "REPLICATION_STATE" ("stream");
 -- composite key indexes :

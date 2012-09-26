@@ -55,7 +55,7 @@ trait ReplicationStateRepository {
     // Hack: https://www.assembla.com/spaces/squeryl/tickets/55-keyedentity-with-def-id-refering-to-another-field-incorrectly-assumes-a-composite-key#/activity/ticket:55
     val updated = update(replicationStates)(s =>
       where(s.stream === stream)
-      set(s.state := state)
+        set (s.state := state)
     )
     if (updated == 0) replicationStates.insert(r)
   }
@@ -66,6 +66,6 @@ trait ReplicationStateRepository {
 
   def replicationState(stream: String): Option[String] = {
     log.trace("Get replicationState; Stream = " + stream)
-    from(replicationStates)(s => where(s.stream === stream) select(s)).iterator.toStream.headOption.map(_.state)
+    from(replicationStates)(s => where(s.stream === stream) select (s)).iterator.toStream.headOption.map(_.state)
   }
 }

@@ -10,6 +10,7 @@ import com.ergodicity.capture.ReplicaExtractor._
 import com.ergodicity.capture.Repository.{Snapshot, SubscribeSnapshots}
 import scalaz._
 import Scalaz._
+import com.twitter.ostrich.stats.Stats
 
 case class SubscribeMarketContents(ref: ActorRef)
 
@@ -58,6 +59,7 @@ class MarketContentsCapture(FutInfoStream: ActorRef, OptInfoStream: ActorRef,
   OptSessContentsRepository ! SubscribeSnapshots(self)
 
   // Route stream events to repositories
+  val sessionRouter = context.actorOf(Props(new Router(FutInfoStream, Route(SessionsRepository).table(FutInfo.session.TABLE_INDEX) :: Nil)))
   val futuresRouter = context.actorOf(Props(new Router(FutInfoStream, Route(FutSessContentsRepository).table(FutInfo.fut_sess_contents.TABLE_INDEX) :: Nil)))
   val optionsRouter = context.actorOf(Props(new Router(OptInfoStream, Route(OptSessContentsRepository).table(OptInfo.opt_sess_contents.TABLE_INDEX) :: Nil)))
 
@@ -99,18 +101,22 @@ class MarketContentsCapture(FutInfoStream: ActorRef, OptInfoStream: ActorRef,
     // Handle session contents snapshots
     case Event(Snapshot(SessionsRepository, sessions), _) =>
       import org.squeryl.PrimitiveTypeMode._
-      inTransaction {
-        sessions.asInstanceOf[Iterable[FutInfo.session]].foreach(repository.saveSession(_))
+      Stats.time("save_sessions") {
+        inTransaction {
+          sessions.asInstanceOf[Iterable[FutInfo.session]].foreach(repository.saveSession(_))
+        }
       }
       stay()
 
     case Event(Snapshot(FutSessContentsRepository, data), _) =>
       import org.squeryl.PrimitiveTypeMode._
-      val futures = inTransaction {
-        data.asInstanceOf[Iterable[FutInfo.fut_sess_contents]].foldLeft(Map[Int, Security]()) {
-          case (m, r) =>
-            repository.saveSessionContents(r)
-            m + (r.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(r))
+      val futures = Stats.time("save_fut_sess_contents") {
+        inTransaction {
+          data.asInstanceOf[Iterable[FutInfo.fut_sess_contents]].foldLeft(Map[Int, Security]()) {
+            case (m, r) =>
+              repository.saveSessionContents(r)
+              m + (r.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(r))
+          }
         }
       }
       subscribers.foreach(_ ! FuturesContents(futures))
@@ -118,11 +124,13 @@ class MarketContentsCapture(FutInfoStream: ActorRef, OptInfoStream: ActorRef,
 
     case Event(Snapshot(OptSessContentsRepository, data), _) =>
       import org.squeryl.PrimitiveTypeMode._
-      val options = inTransaction {
-        data.asInstanceOf[Iterable[OptInfo.opt_sess_contents]].foldLeft(Map[Int, Security]()) {
-          case (m, r) =>
-            repository.saveSessionContents(r)
-            m + (r.get_isin_id() -> com.ergodicity.core.session.Implicits.OptionInstrument.security(r))
+      val options = Stats.time("save_opt_sess_contents") {
+        inTransaction {
+          data.asInstanceOf[Iterable[OptInfo.opt_sess_contents]].foldLeft(Map[Int, Security]()) {
+            case (m, r) =>
+              repository.saveSessionContents(r)
+              m + (r.get_isin_id() -> com.ergodicity.core.session.Implicits.OptionInstrument.security(r))
+          }
         }
       }
       subscribers.foreach(_ ! OptionsContents(options))

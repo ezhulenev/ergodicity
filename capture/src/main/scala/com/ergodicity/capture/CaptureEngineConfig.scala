@@ -54,12 +54,12 @@ trait CaptureEngineConfig extends ServerConfig[CaptureEngine] {
 
   def replication: ReplicationScheme
 
-  def database: () => SQRLSession
+  def sessionFactory: () => SQRLSession
 
   def kestrel: KestrelConfig
 
   def apply(runtime: RuntimeEnvironment) = {
-    SessionFactory.concreteFactory = Some(database)
+    SessionFactory.concreteFactory = Some(sessionFactory)
     new CaptureEngine(cgateConfig, connectionConfig, replication, kestrel)
   }
 }

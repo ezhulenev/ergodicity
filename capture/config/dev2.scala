@@ -26,12 +26,12 @@ new CaptureEngineConfig {
 
   val kestrel = Kestrel("ergodicity01", 22133, "trades", "orders", 30)
 
-  val database = () => SQRLSession.create(java.sql.DriverManager.getConnection("jdbc:h2:~/dev", "sa", ""), new H2Adapter {
+  val sessionFactory = () => SQRLSession.create(java.sql.DriverManager.getConnection("jdbc:h2:~/dev", "sa", ""), new H2Adapter {
     override def bigDecimalTypeDeclaration(precision: Int, scale: Int) = super.bigDecimalTypeDeclaration(20, 6)
   })
 
   override def apply(runtime: RuntimeEnvironment) = {
-    SessionFactory.concreteFactory = Some(database)
+    SessionFactory.concreteFactory = Some(sessionFactory)
     inTransaction {
       drop
       create

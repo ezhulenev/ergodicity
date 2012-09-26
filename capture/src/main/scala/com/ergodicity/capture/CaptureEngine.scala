@@ -65,7 +65,7 @@ class CaptureEngine(cgateConfig: CGateConfig, connectionConfig: ConnectionConfig
     Thread.sleep(TimeUnit.SECONDS.toMillis(1))
 
     // Schedule periodic restarting
-    system.scheduler.schedule(1.minutes, 1.minutes, guardian, Restart)
+    system.scheduler.schedule(60.minutes, 60.minutes, guardian, Restart)
 
     guardian ! Capture
   }
@@ -88,9 +88,13 @@ class Guardian(engine: CaptureEngine) extends Actor with FSM[GuardianState, Acto
 
   import engine._
 
+  case class CatchedException(e: Throwable)
+
   // Supervisor
   override val supervisorStrategy = AllForOneStrategy() {
-    case _: MarketCaptureException => Stop
+    case e: MarketCaptureException =>
+      self ! CatchedException(e)
+      Stop
   }
 
   // Create Market Capture system
@@ -105,6 +109,10 @@ class Guardian(engine: CaptureEngine) extends Actor with FSM[GuardianState, Acto
       System.exit(-1)
       stop(Failure("Market Capture unexpected terminated"))
 
+    case Event(CatchedException(e), _) =>
+      log.error("Catched exception from MarketCapture = "+e)
+      stay()
+
     case Event(Restart, mc) =>
       log.info("Restart Market Capture")
       mc ! ShutDown
@@ -112,6 +120,12 @@ class Guardian(engine: CaptureEngine) extends Actor with FSM[GuardianState, Acto
   }
 
   when(Restarting) {
+    case Event(CatchedException(e), _) =>
+      log.error("Failure during MarketCapture shut down = "+e)
+      system.shutdown()
+      System.exit(-1)
+      stop(Failure("Failure during MarketCapture shut down = " + e))
+
     case Event(Terminated(ref), mc) if (ref == mc) =>
       // Let connection to be closed
       Thread.sleep(TimeUnit.SECONDS.toMillis(10))

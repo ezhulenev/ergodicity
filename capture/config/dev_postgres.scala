@@ -1,11 +1,8 @@
 import com.ergodicity.capture._
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.config.{CGateConfig, Replication}
-import com.twitter.ostrich.admin.RuntimeEnvironment
 import org.squeryl.{Session => SQRLSession, _}
-import adapters.H2Adapter
-import PrimitiveTypeMode._
-import CaptureSchema._
+import adapters.PostgreSqlAdapter
 import java.io.File
 
 new CaptureEngineConfig {
@@ -25,16 +22,7 @@ new CaptureEngineConfig {
 
   val kestrel = Kestrel("localhost", 22133, "trades", "orders", 30)
 
-  val sessionFactory = () => SQRLSession.create(java.sql.DriverManager.getConnection("jdbc:h2:~/dev", "sa", ""), new H2Adapter {
-    override def bigDecimalTypeDeclaration(precision: Int, scale: Int) = super.bigDecimalTypeDeclaration(20, 6)
-  })
+  Class.forName("org.postgresql.Driver")
 
-  override def apply(runtime: RuntimeEnvironment) = {
-    SessionFactory.concreteFactory = Some(sessionFactory)
-    inTransaction {
-      drop
-      create
-    }
-    new CaptureEngine(cgateConfig, connectionConfig, replication, kestrel)
-  }
+  val sessionFactory = () => SQRLSession.create(java.sql.DriverManager.getConnection("jdbc:postgresql://localhost:5432/capture-dev", "ezhulenev", ""), new PostgreSqlAdapter)
 }
