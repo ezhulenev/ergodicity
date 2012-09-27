@@ -135,7 +135,7 @@ object Dependencies {
 
   val quant = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
-  val engine = Seq(scalaz) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
+  val engine = Seq(commonsMath) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val core = Seq(scalaz, jodaTime, jodaConvert, scalaTime) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
@@ -164,6 +164,7 @@ object Dependency {
     val Squeryl      = "0.9.5-2"
     val H2           = "1.3.168"
     val Postgres     = "8.4-701.jdbc4"
+    val CommonsMath  = "3.0"
 
 
     // Twitter dependencies
@@ -190,6 +191,8 @@ object Dependency {
   val squeryl                = "org.squeryl"                      %% "squeryl"                % V.Squeryl
   val h2Driver               = "com.h2database"                    % "h2"                     % V.H2
   val postgresDriver         = "postgresql"                        % "postgresql"             % V.Postgres
+  val commonsMath            = "org.apache.commons"                % "commons-math3"          % V.CommonsMath
+
 
   // Provided
 
