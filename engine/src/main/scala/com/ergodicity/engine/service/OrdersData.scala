@@ -20,53 +20,48 @@ import com.ergodicity.core.order.OrdersSnapshotActor.{OrdersSnapshot, GetOrdersS
 import com.ergodicity.core.order.OrderBooksTracking.Snapshots
 import com.ergodicity.core.session.SessionActor.{AssignedContents, GetAssignedContents}
 import akka.actor.FSM.{UnsubscribeTransitionCallBack, Transition, CurrentState, SubscribeTransitionCallBack}
+import com.ergodicity.core.trade.TradesTracking
 
-object MarketData {
+object OrdersData {
 
-  implicit case object MarketData extends ServiceId
+  implicit case object OrdersData extends ServiceId
 
 }
 
-trait MarketData {
+trait OrdersData {
   this: Services =>
 
-  import MarketData._
+  import OrdersData._
 
-  def engine: Engine with UnderlyingConnection with UnderlyingListener with OrdLogReplication with FutOrderBookReplication with OptOrderBookReplication with FutTradesReplication with OptTradesReplication
+  def engine: Engine with UnderlyingConnection with UnderlyingListener with OrdLogReplication with FutOrderBookReplication with OptOrderBookReplication
 
-  lazy val creator = new MarketDataService(engine.listenerFactory,
-    engine.underlyingConnection,
-    engine.futOrderbookReplication, engine.optOrderbookReplication,
-    engine.ordLogReplication,
-    engine.futTradesReplication, engine.optTradesReplication
-  )
+  lazy val creator = new OrdersDataService(engine.listenerFactory, engine.underlyingConnection, engine.futOrderbookReplication, engine.optOrderbookReplication, engine.ordLogReplication)
   register(Props(creator), dependOn = InstrumentData.InstrumentData :: Nil)
 }
 
-protected[service] sealed trait MarketDataState
+protected[service] sealed trait OrdersDataState
 
-object MarketDataState {
+object OrdersDataState {
 
-  case object Idle extends MarketDataState
+  case object Idle extends OrdersDataState
 
-  case object AssigningInstruments extends MarketDataState
+  case object AssigningInstruments extends OrdersDataState
 
-  case object WaitingSnapshots extends MarketDataState
+  case object WaitingSnapshots extends OrdersDataState
 
-  case object StartingOrderBooks extends MarketDataState
+  case object StartingOrderBooks extends OrdersDataState
 
-  case object Started extends MarketDataState
+  case object Started extends OrdersDataState
 
-  case object Stopping extends MarketDataState
+  case object Stopping extends OrdersDataState
 
 }
 
-protected[service] class MarketDataService(listener: ListenerFactory, underlyingConnection: CGConnection,
-                                           futOrderBookReplication: Replication, optOrderBookReplication: Replication, ordLogReplication: Replication,
-                                           futTradeReplication: Replication, optTradeReplication: Replication)
-                                          (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[MarketDataState, Unit] with Service {
+protected[service] class OrdersDataService(listener: ListenerFactory, underlyingConnection: CGConnection,
+                                           futOrderBookReplication: Replication, optOrderBookReplication: Replication, ordLogReplication: Replication)
+                                          (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[OrdersDataState, Unit] with Service {
 
-  import MarketDataState._
+  import OrdersDataState._
 
   implicit val timeout = Timeout(30.second)
 
@@ -97,17 +92,6 @@ protected[service] class MarketDataService(listener: ListenerFactory, underlying
   // OrderBooks
   val OrderBooks = context.actorOf(Props(new OrderBooksTracking(OrdLogStream)), "OrderBooks")
 
-  // Trades streams
-  val FutTradeStream = context.actorOf(Props(new DataStream), "FutTradeStream")
-  val OptTradeStream = context.actorOf(Props(new DataStream), "OptTradeStream")
-
-  // Trades listeners
-  private[this] val underlyingFutTradeListener = listener(underlyingConnection, futTradeReplication(), new DataStreamSubscriber(FutTradeStream))
-  private[this] val futTradeListener = context.actorOf(Props(new Listener(underlyingFutTradeListener)).withDispatcher(Engine.ReplicationDispatcher), "FutTradeListener")
-
-  private[this] val underlyingOptTradeListener = listener(underlyingConnection, optTradeReplication(), new DataStreamSubscriber(OptTradeStream))
-  private[this] val optTradeListener = context.actorOf(Props(new Listener(underlyingOptTradeListener)).withDispatcher(Engine.ReplicationDispatcher), "OptTradeListener")
-
   override def preStart() {
     log.info("Start " + id + " service")
   }
@@ -126,7 +110,7 @@ protected[service] class MarketDataService(listener: ListenerFactory, underlying
       stay()
 
     case Event(assigned: AssignedContents, _) =>
-      // Forward assigned contents to OrderBooks
+      // Forward assigned contents to OrderBooks & TradesTracking
       OrderBooks ! assigned
 
       // Open orderbook snapshots

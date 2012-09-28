@@ -18,14 +18,14 @@ import akka.testkit.TestActor.AutoPilot
 import com.ergodicity.core.order.OrdersSnapshotActor.{OrdersSnapshot, GetOrdersSnapshot}
 import org.joda.time.DateTime
 
-class MarketDataServiceSpec  extends TestKit(ActorSystem("MarketDataServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
+class OrdersDataServiceSpec  extends TestKit(ActorSystem("OrdersDataServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   override def afterAll() {
     system.shutdown()
   }
 
-  implicit val Id = MarketData.MarketData
+  implicit val Id = OrdersData.OrdersData
 
   val listenerFactory = new ListenerFactory {
     def apply(connection: CGConnection, config: String, subscriber: ISubscriber) = mock(classOf[CGListener])
@@ -36,21 +36,19 @@ class MarketDataServiceSpec  extends TestKit(ActorSystem("MarketDataServiceSpec"
     val futOrderBookReplication = mock(classOf[Replication])
     val optOrderBookReplication = mock(classOf[Replication])
     val ordLogReplication = mock(classOf[Replication])
-    val futTradeReplication = mock(classOf[Replication])
-    val optTradeReplication = mock(classOf[Replication])
 
     Mockito.when(services.apply(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
 
-    TestFSMRef(new MarketDataService(listenerFactory, underlyingConnection, futOrderBookReplication, optOrderBookReplication, ordLogReplication, futTradeReplication, optTradeReplication) {
+    TestFSMRef(new OrdersDataService(listenerFactory, underlyingConnection, futOrderBookReplication, optOrderBookReplication, ordLogReplication) {
       override val FuturesSnapshot = futuresSnapshot
       override val OptionsSnapshot = optionsSnapshot
-    }, "MarketData")
+    }, "OrdersData")
   }
 
-  "MarketData Service" must {
+  "OrdersData Service" must {
     "initialized in Idle state" in {
       val service = createService()
-      assert(service.stateName == MarketDataState.Idle)
+      assert(service.stateName == OrdersDataState.Idle)
     }
 
     "start service" in {
@@ -69,12 +67,12 @@ class MarketDataServiceSpec  extends TestKit(ActorSystem("MarketDataServiceSpec"
       optionsSnapshot.setAutoPilot(emptyOrdersSnapshot)
 
       val service = createService(services, futuresSnapshot.ref, optionsSnapshot.ref)
-      val underlying = service.underlyingActor.asInstanceOf[MarketDataService]
+      val underlying = service.underlyingActor.asInstanceOf[OrdersDataService]
 
       when("receive start message")
       service ! Start
       then("should wait for ongoing session & assigned contents")
-      assert(service.stateName == MarketDataState.AssigningInstruments)
+      assert(service.stateName == OrdersDataState.AssigningInstruments)
 
       when("got assigned contents")
       service ! AssignedContents(Set())
@@ -87,13 +85,13 @@ class MarketDataServiceSpec  extends TestKit(ActorSystem("MarketDataServiceSpec"
 
       when("receive snapshots")
       then("should go to StartingOrderBooks state")
-      assert(service.stateName == MarketDataState.StartingOrderBooks)
+      assert(service.stateName == OrdersDataState.StartingOrderBooks)
 
       then("OrdLog stream goes online")
       service ! Transition(underlying.OrdLogStream, DataStreamState.Opened, DataStreamState.Online)
 
       then("service shoud be started")
-      assert(service.stateName == MarketDataState.Started)
+      assert(service.stateName == OrdersDataState.Started)
       and("Service Manager should be notified")
       verify(services).serviceStarted(Id)
     }
@@ -101,13 +99,13 @@ class MarketDataServiceSpec  extends TestKit(ActorSystem("MarketDataServiceSpec"
     "stop service" in {
       val services = mock(classOf[Services])
       val service = createService(services)
-      service.setState(MarketDataState.Started)
-      val underlying = service.underlyingActor.asInstanceOf[MarketDataService]
+      service.setState(OrdersDataState.Started)
+      val underlying = service.underlyingActor.asInstanceOf[OrdersDataService]
 
       when("receive Stop message")
       service ! Stop
       then("should go to Stopping state")
-      assert(service.stateName == MarketDataState.Stopping)
+      assert(service.stateName == OrdersDataState.Stopping)
 
       when("OrdLog stream closed")
       service ! Transition(underlying.OrdLogStream, DataStreamState.Online, DataStreamState.Closed)

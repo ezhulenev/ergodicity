@@ -84,7 +84,7 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
 
   class IntegrationEngine extends Engine with Connections with Replication with Listener with Publisher
 
-  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection /*with TradingConnection*/ with InstrumentData /*with Portfolio with Trading */with MarketData
+  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection /*with TradingConnection*/ with InstrumentData /*with Portfolio with Trading */with OrdersData
 
   "Services" must {
     "start all registered services" in {
