@@ -49,6 +49,7 @@ class TradesTracking(FutTrade: ActorRef, OptTrade: ActorRef) extends Actor with 
       stay()
 
     case Event(trade@Trade(_, _, isin, _, _, _, _), assigned) =>
+      log.debug("Trade = "+trade)
       val security = assigned ? isin
       security.flatMap(subscribers.get(_)) foreach (_.foreach(_ ! trade))
       stay()
