@@ -8,7 +8,7 @@ import akka.util.Timeout
 import java.util.concurrent.TimeUnit
 import com.ergodicity.cgate.scheme.FutInfo
 import scala.Some
-import com.ergodicity.core.{Security, SessionId, IsinId}
+import com.ergodicity.core.{Isin, Security, SessionId, IsinId}
 import collection.immutable
 import com.ergodicity.core.SessionsTracking.{OptSessContents, FutSessContents}
 
@@ -48,7 +48,13 @@ object SessionActor {
       id => contents.find(_.id == id)
     }
 
+    val findByIsinMemo = immutableHashMapMemo[Isin, Option[Security]] {
+      isin => contents.find(_.isin == isin)
+    }
+
     def ?(id: IsinId) = findByIdMemo(id)
+
+    def ?(isin: Isin) = findByIsinMemo(isin)
   }
 
   case class GetInstrument(security: Security)
