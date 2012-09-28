@@ -52,7 +52,6 @@ class CaptureSchemaSpec extends FlatSpec with BeforeAndAfterAll {
     inTransaction {
       drop
       create
-      printDdl
     }
   }
 }

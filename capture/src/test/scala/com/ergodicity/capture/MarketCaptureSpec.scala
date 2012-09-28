@@ -179,6 +179,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
       verify(repository).setReplicationState("FORTS_OPTTRADE_REPL", "OptTradeState")
       verify(repository).setReplicationState("FORTS_ORDLOG_REPL", "OrdLogState")
 
+      Thread.sleep(100)
       verify(conn).close()
       verify(conn).dispose()
     }

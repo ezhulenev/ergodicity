@@ -106,6 +106,14 @@ object ReplicationScheme {
     def optOrdersReplication: Replication
   }
 
+  trait FutTradesReplication {
+    def futTradesReplication: Replication
+  }
+
+  trait OptTradesReplication {
+    def optTradesReplication: Replication
+  }
+
   trait FutOrderBookReplication {
     def futOrderbookReplication: Replication
   }

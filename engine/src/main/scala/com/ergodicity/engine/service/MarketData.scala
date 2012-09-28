@@ -32,9 +32,14 @@ trait MarketData {
 
   import MarketData._
 
-  def engine: Engine with UnderlyingConnection with UnderlyingListener with OrdLogReplication with FutOrderBookReplication with OptOrderBookReplication
+  def engine: Engine with UnderlyingConnection with UnderlyingListener with OrdLogReplication with FutOrderBookReplication with OptOrderBookReplication with FutTradesReplication with OptTradesReplication
 
-  lazy val creator = new MarketDataService(engine.listenerFactory, engine.underlyingConnection, engine.futOrderbookReplication, engine.optOrderbookReplication, engine.ordLogReplication)
+  lazy val creator = new MarketDataService(engine.listenerFactory,
+    engine.underlyingConnection,
+    engine.futOrderbookReplication, engine.optOrderbookReplication,
+    engine.ordLogReplication,
+    engine.futTradesReplication, engine.optTradesReplication
+  )
   register(Props(creator), dependOn = InstrumentData.InstrumentData :: Nil)
 }
 
@@ -57,7 +62,8 @@ object MarketDataState {
 }
 
 protected[service] class MarketDataService(listener: ListenerFactory, underlyingConnection: CGConnection,
-                                           futOrderBookReplication: Replication, optOrderBookReplication: Replication, ordLogReplication: Replication)
+                                           futOrderBookReplication: Replication, optOrderBookReplication: Replication, ordLogReplication: Replication,
+                                           futTradeReplication: Replication, optTradeReplication: Replication)
                                           (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[MarketDataState, Unit] with Service {
 
   import MarketDataState._
@@ -66,10 +72,8 @@ protected[service] class MarketDataService(listener: ListenerFactory, underlying
 
   private[this] val instrumentData = services(InstrumentData.InstrumentData)
 
-  // Orders books
+  // Orders streams
   val OrdLogStream = context.actorOf(Props(new DataStream), "OrdLogStream")
-
-  val OrderBooks = context.actorOf(Props(new OrderBooksTracking(OrdLogStream)), "OrderBooks")
 
   // Order Log listener
   private[this] val underlyingOrdLogListener = listener(underlyingConnection, ordLogReplication(), new DataStreamSubscriber(OrdLogStream))
@@ -89,6 +93,20 @@ protected[service] class MarketDataService(listener: ListenerFactory, underlying
   // OrderBook snapshots
   val FuturesSnapshot = context.actorOf(Props(new OrdersSnapshotActor(FutOrderBookStream)), "FuturesSnapshot")
   val OptionsSnapshot = context.actorOf(Props(new OrdersSnapshotActor(OptOrderBookStream)), "OptionsSnapshot")
+
+  // OrderBooks
+  val OrderBooks = context.actorOf(Props(new OrderBooksTracking(OrdLogStream)), "OrderBooks")
+
+  // Trades streams
+  val FutTradeStream = context.actorOf(Props(new DataStream), "FutTradeStream")
+  val OptTradeStream = context.actorOf(Props(new DataStream), "OptTradeStream")
+
+  // Trades listeners
+  private[this] val underlyingFutTradeListener = listener(underlyingConnection, futTradeReplication(), new DataStreamSubscriber(FutTradeStream))
+  private[this] val futTradeListener = context.actorOf(Props(new Listener(underlyingFutTradeListener)).withDispatcher(Engine.ReplicationDispatcher), "FutTradeListener")
+
+  private[this] val underlyingOptTradeListener = listener(underlyingConnection, optTradeReplication(), new DataStreamSubscriber(OptTradeStream))
+  private[this] val optTradeListener = context.actorOf(Props(new Listener(underlyingOptTradeListener)).withDispatcher(Engine.ReplicationDispatcher), "OptTradeListener")
 
   override def preStart() {
     log.info("Start " + id + " service")

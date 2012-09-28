@@ -36,10 +36,12 @@ class MarketDataServiceSpec  extends TestKit(ActorSystem("MarketDataServiceSpec"
     val futOrderBookReplication = mock(classOf[Replication])
     val optOrderBookReplication = mock(classOf[Replication])
     val ordLogReplication = mock(classOf[Replication])
+    val futTradeReplication = mock(classOf[Replication])
+    val optTradeReplication = mock(classOf[Replication])
 
     Mockito.when(services.apply(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
 
-    TestFSMRef(new MarketDataService(listenerFactory, underlyingConnection, futOrderBookReplication, optOrderBookReplication, ordLogReplication) {
+    TestFSMRef(new MarketDataService(listenerFactory, underlyingConnection, futOrderBookReplication, optOrderBookReplication, ordLogReplication, futTradeReplication, optTradeReplication) {
       override val FuturesSnapshot = futuresSnapshot
       override val OptionsSnapshot = optionsSnapshot
     }, "MarketData")

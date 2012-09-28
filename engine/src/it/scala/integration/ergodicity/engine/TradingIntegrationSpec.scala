@@ -60,7 +60,7 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
     val underlyingTradingConnection = new CGConnection(PublisherConnection())
   }
 
-  trait Replication extends FutInfoReplication with OptInfoReplication with PosReplication with FutOrdersReplication with OptOrdersReplication {
+  trait Replication extends FutInfoReplication with OptInfoReplication with PosReplication with FutOrdersReplication with OptOrdersReplication with FutTradesReplication with OptTradesReplication {
     val optInfoReplication = Replication("FORTS_OPTINFO_REPL", new File("cgate/scheme/OptInfo.ini"), "CustReplScheme")
 
     val futInfoReplication = Replication("FORTS_FUTINFO_REPL", new File("cgate/scheme/FutInfo.ini"), "CustReplScheme")
@@ -70,6 +70,10 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
     val futOrdersReplication = Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/FutOrders.ini"), "CustReplScheme")
 
     val optOrdersReplication = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptOrders.ini"), "CustReplScheme")
+
+    val futTradesReplication = Replication("FORTS_FUTTRADE_REPL", new File("cgate/scheme/FutTrades.ini"), "CustReplScheme")
+
+    val optTradesReplication = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptTrades.ini"), "CustReplScheme")
   }
 
   trait Listener extends UnderlyingListener {
