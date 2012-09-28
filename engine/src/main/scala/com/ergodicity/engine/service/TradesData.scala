@@ -19,9 +19,12 @@ import com.ergodicity.core.session.SessionActor.{AssignedContents, GetAssignedCo
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Online
 import com.ergodicity.cgate.config.Replication.ReplicationParams
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
+import com.ergodicity.core.trade.TradesTracking.SubscribeTrades
 
 object TradesData {
+
   implicit case object TradesData extends ServiceId
+
 }
 
 trait TradesData {
@@ -54,7 +57,7 @@ object TradesDataState {
 }
 
 protected[service] class TradesDataService(listener: ListenerFactory, underlyingConnection: CGConnection, futTradeReplication: Replication, optTradeReplication: Replication)
-                                         (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[TradesDataState, StreamStates] with Service {
+                                          (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[TradesDataState, StreamStates] with Service {
 
   import TradesDataState._
   import services._
@@ -145,6 +148,10 @@ protected[service] class TradesDataService(listener: ListenerFactory, underlying
 
     case Event(assigned: AssignedContents, _) =>
       Trades ! assigned
+      stay()
+
+    case Event(subscribe: SubscribeTrades, _) =>
+      Trades ! subscribe
       stay()
   }
 
