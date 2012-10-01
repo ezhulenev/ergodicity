@@ -4,9 +4,11 @@ import com.ergodicity.core.Isin
 import com.ergodicity.engine.StrategyEngine
 import akka.actor._
 import com.ergodicity.engine.strategy.TrendFollowing.Trend
-import akka.util.Duration
-import org.joda.time.DateTime
-import com.ergodicity.engine.strategy.PriceSlopeCalculator.TimeSeries
+import org.joda.time.{Duration, DateTime}
+import com.ergodicity.engine.strategy.PriceRegression.{Point}
+import com.ergodicity.core.trade.Trade
+import org.scala_tools.time.Implicits._
+import org.apache.commons.math3.stat.regression.SimpleRegression
 
 object TrendFollowing {
 
@@ -41,17 +43,31 @@ class TrendFollowingStrategy(val engine: StrategyEngine)(implicit id: StrategyId
   initialize
 }
 
-object PriceSlopeCalculator {
+object PriceRegression {
+
   case class Point(time: DateTime, value: Double)
 
-  case class TimeSeries(price: Seq[Point], slope: Seq[Point])
-
-  case class Slope(price: Double, slope: Double)
+  case class Slope(primary: Double, secondary: Double)
 }
 
 
-class PriceSlopeCalculator(price: Duration, slope: Duration) extends Actor with ActorLogging {
-  var timeSeries = TimeSeries(Seq(), Seq())
+class PriceRegression(primaryDuration: Duration, secondaryDuration: Duration) extends Actor with ActorLogging {
+  var primaryTimeSeries = Seq[Point]()
+  var secondaryTimeSeries = Seq[Point]()
 
-  protected def receive = null
+  protected def receive = {
+    case Trade(_, _, _, price, _, time, _) =>
+      primaryTimeSeries = Point(time, price.toDouble) +: primaryTimeSeries.takeWhile(_.time < (time + primaryDuration))
+
+
+  }
+
+  def primaryRegression = {
+    val regression = new SimpleRegression(false)
+    val start = primaryTimeSeries.headOption
+
+    primaryTimeSeries.reverse.foreach(point => primaryRegression.addData(point.time.getMillis - start, point.value))
+  }
+
+
 }
