@@ -7,7 +7,7 @@ import akka.util.duration._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import com.ergodicity.core.trade.Trade
 import org.joda.time.{DurationFieldType, DateTime}
-import com.ergodicity.engine.strategy.PriceRegression.{Slope, PriceTrend}
+import com.ergodicity.engine.strategy.PriceRegression.PriceSlope
 import com.ergodicity.core.IsinId
 import org.apache.commons.math3.stat.StatUtils
 
@@ -28,16 +28,18 @@ class TrendFollowingSpec extends TestKit(ActorSystem("TrendFollowingSpec", com.e
       val regression = TestActorRef(new PriceRegressionActor(self)(1.minute, 1.minute), "PriceRegression")
 
       regression ! Trade(1, 1, IsinId(1), 100, 1, start, SystemTrade)
-      expectMsg(PriceTrend(None, None))
+      val slope = receiveOne(100.millis).asInstanceOf[PriceSlope]
+      assert(slope.primary.isNaN)
+      assert(slope.secondary.isNaN)
     }
 
     "calculate regression matching in window" in {
       val regression = TestActorRef(new PriceRegressionActor(self)(1.minute, 1.minute), "PriceRegression")
 
       regression ! Trade(1, 1, IsinId(1), 100, 1, start, SystemTrade)
-      regression ! Trade(1, 1, IsinId(1), 100, 1, start.withFieldAdded(DurationFieldType.seconds(), 10), SystemTrade)
-      regression ! Trade(1, 1, IsinId(1), 500, 1, start.withFieldAdded(DurationFieldType.seconds(), 20), SystemTrade)
-      regression ! Trade(1, 1, IsinId(1), 500, 1, start.withFieldAdded(DurationFieldType.seconds(), 30), SystemTrade)
+      regression ! Trade(1, 1, IsinId(1), 110, 1, start.withFieldAdded(DurationFieldType.seconds(), 10), SystemTrade)
+      //regression ! Trade(1, 1, IsinId(1), 500, 1, start.withFieldAdded(DurationFieldType.seconds(), 20), SystemTrade)
+      //regression ! Trade(1, 1, IsinId(1), 500, 1, start.withFieldAdded(DurationFieldType.seconds(), 30), SystemTrade)
 
       receiveWhile(1.second) {
         case r => log.info("regression = " + r)

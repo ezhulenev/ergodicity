@@ -8,9 +8,9 @@ import org.joda.time.DateTime
 import com.ergodicity.engine.strategy.PriceRegression.TimeSeries
 import com.ergodicity.core.trade.Trade
 import org.apache.commons.math3.stat.regression.SimpleRegression
-import akka.util.duration._
-import akka.util.Duration
 import org.apache.commons.math3.stat.StatUtils
+import akka.util.Duration
+import akka.util.duration._
 
 object TrendFollowing {
 
@@ -47,15 +47,13 @@ class TrendFollowingStrategy(val engine: StrategyEngine)(implicit id: StrategyId
 
 object PriceRegression {
 
-  case class PricePoint(time: DateTime, value: Double)
+  case class RawData(time: DateTime, value: Double)
 
-  case class DataPoint(x: Double, y: Double)
+  case class NormalizedData(x: Double, y: Double)
 
-  case class TimeSeries(primary: Seq[PricePoint], secondary: Seq[PricePoint])
+  case class TimeSeries(primary: Seq[RawData], secondary: Seq[RawData])
 
-  case class PriceTrend(primary: Option[Slope], secondary: Option[Slope])
-
-  case class Slope(value: Double, stdErr: Double, confidenceInterval: Double)
+  case class PriceSlope(primary: Double, secondary: Double)
 
 }
 
@@ -70,35 +68,29 @@ class PriceRegressionActor(reportTo: ActorRef)(primaryDuration: Duration = 1.min
 
   when(Computing) {
     case Event(Trade(_, _, _, price, _, time, _), TimeSeries(primary, secondary)) =>
-        val adjustedPrimary = primary.takeWhile(_.time.getMillis > (time.getMillis - primaryDuration.toMillis)) :+ PricePoint(time, price.toDouble)
-        val primarySlope = slope(normalized(adjustedPrimary))
+      val adjustedPrimary = primary.dropWhile(_.time.getMillis < (time.getMillis - primaryDuration.toMillis)) :+ RawData(time, price.toDouble)
+      val primarySlope = slope(adjustedPrimary)
+      val adjustedSecondary = (secondary.dropWhile(_.time.getMillis < (time.getMillis - secondaryDuration.toMillis)) :+ RawData(time, primarySlope)).filterNot(_.value == Double.NaN)
+      val secondarySlope = slope(adjustedSecondary)
 
-        val adjustedSecondary = primarySlope
-          .map(slope => secondary.takeWhile(_.time.getMillis > (time.getMillis - secondaryDuration.toMillis)) :+ PricePoint(time, slope.value))
-          .getOrElse(secondary.takeWhile(_.time.getMillis > (time.getMillis - secondaryDuration.toMillis)))
-        val secondarySlope = slope(normalized(adjustedSecondary))
+      reportTo ! PriceSlope(primarySlope, secondarySlope)
 
-        reportTo ! PriceTrend(primarySlope, secondarySlope)
-
-        stay() using TimeSeries(adjustedPrimary, adjustedSecondary)
-      stay()
+      stay() using TimeSeries(adjustedPrimary, adjustedSecondary)
   }
 
   initialize
 
-  def slope(data: Seq[DataPoint]): Option[Slope] = {
-    if (data.size < 3) return None
-
+  def slope(data: Seq[RawData]): Double = {
     val regression = new SimpleRegression(false)
-    data.foreach(point => regression.addData(point.x, point.y))
-    Some(Slope(regression.getSlope, regression.getSlopeStdErr, regression.getSlopeConfidenceInterval))
+    normalized(data) foreach (point => regression.addData(point.x, point.y))
+    regression.getSlope
   }
 
-  def normalized(data: Seq[PricePoint]): Seq[DataPoint] = {
+  def normalized(data: Seq[RawData]): Seq[NormalizedData] = {
     val normalizedTime = StatUtils.normalize(data.map(_.time.getMillis.toDouble).toArray)
     val normalizedValued = StatUtils.normalize(data.map(_.value).toArray)
     normalizedTime zip normalizedValued map {
-      case (t, v) => DataPoint(t, v)
+      case (t, v) => NormalizedData(t, v)
     }
   }
 }
