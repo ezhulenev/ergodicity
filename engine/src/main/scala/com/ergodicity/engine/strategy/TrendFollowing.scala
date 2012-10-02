@@ -4,11 +4,13 @@ import com.ergodicity.core.Isin
 import com.ergodicity.engine.StrategyEngine
 import akka.actor._
 import com.ergodicity.engine.strategy.TrendFollowing.Trend
-import org.joda.time.{Duration, DateTime}
-import com.ergodicity.engine.strategy.PriceRegression.{Point}
+import org.joda.time.DateTime
+import com.ergodicity.engine.strategy.PriceRegression.TimeSeries
 import com.ergodicity.core.trade.Trade
-import org.scala_tools.time.Implicits._
 import org.apache.commons.math3.stat.regression.SimpleRegression
+import akka.util.duration._
+import akka.util.Duration
+import org.apache.commons.math3.stat.StatUtils
 
 object TrendFollowing {
 
@@ -45,29 +47,58 @@ class TrendFollowingStrategy(val engine: StrategyEngine)(implicit id: StrategyId
 
 object PriceRegression {
 
-  case class Point(time: DateTime, value: Double)
+  case class PricePoint(time: DateTime, value: Double)
 
-  case class Slope(primary: Double, secondary: Double)
+  case class DataPoint(x: Double, y: Double)
+
+  case class TimeSeries(primary: Seq[PricePoint], secondary: Seq[PricePoint])
+
+  case class PriceTrend(primary: Option[Slope], secondary: Option[Slope])
+
+  case class Slope(value: Double, stdErr: Double, confidenceInterval: Double)
+
 }
 
 
-class PriceRegression(primaryDuration: Duration, secondaryDuration: Duration) extends Actor with ActorLogging {
-  var primaryTimeSeries = Seq[Point]()
-  var secondaryTimeSeries = Seq[Point]()
+class PriceRegressionActor(reportTo: ActorRef)(primaryDuration: Duration = 1.minute, secondaryDuration: Duration = 1.minute) extends Actor with FSM[Any, TimeSeries] {
 
-  protected def receive = {
-    case Trade(_, _, _, price, _, time, _) =>
-      primaryTimeSeries = Point(time, price.toDouble) +: primaryTimeSeries.takeWhile(_.time < (time + primaryDuration))
+  import PriceRegression._
 
+  case object Computing
 
+  startWith(Computing, TimeSeries(Nil, Nil))
+
+  when(Computing) {
+    case Event(Trade(_, _, _, price, _, time, _), TimeSeries(primary, secondary)) =>
+        val adjustedPrimary = primary.takeWhile(_.time.getMillis > (time.getMillis - primaryDuration.toMillis)) :+ PricePoint(time, price.toDouble)
+        val primarySlope = slope(normalized(adjustedPrimary))
+
+        val adjustedSecondary = primarySlope
+          .map(slope => secondary.takeWhile(_.time.getMillis > (time.getMillis - secondaryDuration.toMillis)) :+ PricePoint(time, slope.value))
+          .getOrElse(secondary.takeWhile(_.time.getMillis > (time.getMillis - secondaryDuration.toMillis)))
+        val secondarySlope = slope(normalized(adjustedSecondary))
+
+        reportTo ! PriceTrend(primarySlope, secondarySlope)
+
+        stay() using TimeSeries(adjustedPrimary, adjustedSecondary)
+      stay()
   }
 
-  def primaryRegression = {
+  initialize
+
+  def slope(data: Seq[DataPoint]): Option[Slope] = {
+    if (data.size < 3) return None
+
     val regression = new SimpleRegression(false)
-    val start = primaryTimeSeries.headOption
-
-    primaryTimeSeries.reverse.foreach(point => primaryRegression.addData(point.time.getMillis - start, point.value))
+    data.foreach(point => regression.addData(point.x, point.y))
+    Some(Slope(regression.getSlope, regression.getSlopeStdErr, regression.getSlopeConfidenceInterval))
   }
 
-
+  def normalized(data: Seq[PricePoint]): Seq[DataPoint] = {
+    val normalizedTime = StatUtils.normalize(data.map(_.time.getMillis.toDouble).toArray)
+    val normalizedValued = StatUtils.normalize(data.map(_.value).toArray)
+    normalizedTime zip normalizedValued map {
+      case (t, v) => DataPoint(t, v)
+    }
+  }
 }
