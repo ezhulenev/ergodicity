@@ -9,9 +9,8 @@ import com.ergodicity.core.trade.Trade
 import org.joda.time.{DurationFieldType, DateTime}
 import com.ergodicity.engine.strategy.PriceRegression.PriceSlope
 import com.ergodicity.core.IsinId
-import org.apache.commons.math3.stat.StatUtils
 
-class TrendFollowingSpec extends TestKit(ActorSystem("TrendFollowingSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
+class TrendFollowingSpec extends TestKit(ActorSystem("TrendFollowing", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   override def afterAll() {
@@ -25,7 +24,7 @@ class TrendFollowingSpec extends TestKit(ActorSystem("TrendFollowingSpec", com.e
 
   "PriceRegressionActor" must {
     "return empty regression if insufficiend data available" in {
-      val regression = TestActorRef(new PriceRegressionActor(self)(1.minute, 1.minute), "PriceRegression")
+      val regression = TestActorRef(new PriceRegression(self)(1.minute, 1.minute), "PriceRegression")
 
       regression ! Trade(1, 1, IsinId(1), 100, 1, start, SystemTrade)
       val slope = receiveOne(100.millis).asInstanceOf[PriceSlope]
@@ -34,22 +33,33 @@ class TrendFollowingSpec extends TestKit(ActorSystem("TrendFollowingSpec", com.e
     }
 
     "calculate regression matching in window" in {
-      val regression = TestActorRef(new PriceRegressionActor(self)(1.minute, 1.minute), "PriceRegression")
+      val regression = TestActorRef(new PriceRegression(self)(1.minute, 1.minute), "PriceRegression")
 
       regression ! Trade(1, 1, IsinId(1), 100, 1, start, SystemTrade)
       regression ! Trade(1, 1, IsinId(1), 110, 1, start.withFieldAdded(DurationFieldType.seconds(), 10), SystemTrade)
-      //regression ! Trade(1, 1, IsinId(1), 500, 1, start.withFieldAdded(DurationFieldType.seconds(), 20), SystemTrade)
-      //regression ! Trade(1, 1, IsinId(1), 500, 1, start.withFieldAdded(DurationFieldType.seconds(), 30), SystemTrade)
+      regression ! Trade(1, 1, IsinId(1), 500, 1, start.withFieldAdded(DurationFieldType.seconds(), 20), SystemTrade)
+      regression ! Trade(1, 1, IsinId(1), 500, 1, start.withFieldAdded(DurationFieldType.seconds(), 30), SystemTrade)
+      regression ! Trade(1, 1, IsinId(1), 50, 1, start.withFieldAdded(DurationFieldType.seconds(), 40), SystemTrade)
 
       receiveWhile(1.second) {
         case r => log.info("regression = " + r)
       }
     }
 
-    "normilize" in {
-      log.info("100 = " + StatUtils.normalize(Array(100.0, 110.0, 100)).toSeq)
-      log.info("100 = " + StatUtils.normalize(Array(100.0, 100.0, 100)).toSeq)
-      log.info("100000 = " + StatUtils.normalize(Array(-100000.0, -100010.0, -100020)).toSeq)
+    "discard outdated trades" in {
+      val regression = TestFSMRef(new PriceRegression(self)(1.minute, 1.minute), "PriceRegression")
+
+      regression ! Trade(1, 1, IsinId(1), 100, 1, start, SystemTrade)
+      regression ! Trade(1, 1, IsinId(1), 150, 1, start.withFieldAdded(DurationFieldType.seconds(), 50), SystemTrade)
+      assert(regression.stateData.primary.size == 2)
+      log.info("Primary data = " + regression.stateData.primary)
+      regression ! Trade(1, 1, IsinId(1), 120, 1, start.withFieldAdded(DurationFieldType.seconds(), 70), SystemTrade)
+      assert(regression.stateData.primary.size == 2)
+      log.info("Primary data = " + regression.stateData.primary)
+
+      receiveWhile(1.second) {
+        case r => log.info("regression = " + r)
+      }
     }
   }
 }

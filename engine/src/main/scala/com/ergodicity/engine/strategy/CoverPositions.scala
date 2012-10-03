@@ -27,13 +27,13 @@ import com.ergodicity.core.order.Fill
 import com.ergodicity.engine.strategy.CoverPositions.CoverAll
 
 object CoverAllPositions {
+
   implicit case object CoverAllPositions extends StrategyId
 
-  def apply() = new StrategiesFactory {
-
-    def strategies = (strategy _ :: Nil)
-
-    def strategy(engine: StrategyEngine) = Props(new CoverPositions(engine) with CoverAll)
+  def apply() = new SingleStrategyFactory {
+    val strategy = new StrategyBuilder(CoverAllPositions) {
+      def props(implicit engine: StrategyEngine) = Props(new CoverPositions with CoverAll)
+    }
   }
 }
 
@@ -63,6 +63,7 @@ object CoverPositionsState {
 }
 
 object CoverPositions {
+
   trait CoverAll {
     def cover(position: Position) = position.dir != com.ergodicity.core.position.Flat
   }
@@ -74,9 +75,10 @@ object CoverPositions {
   trait CoverLong {
     def cover(position: Position) = position.dir != com.ergodicity.core.position.Long
   }
+
 }
 
-abstract class CoverPositions(val engine: StrategyEngine)(implicit id: StrategyId) extends Strategy with Actor with LoggingFSM[CoverPositionsState, RemainingPositions] with InstrumentWatcher {
+abstract class CoverPositions(implicit id: StrategyId, val engine: StrategyEngine) extends Strategy with Actor with LoggingFSM[CoverPositionsState, RemainingPositions] with InstrumentWatcher {
 
   import CoverPositionsState._
 
@@ -175,7 +177,7 @@ abstract class CoverPositions(val engine: StrategyEngine)(implicit id: StrategyI
     val p = parameters get security
     val s = states get security
 
-    val tuple = (p |@| s) ((_, _))
+    val tuple = (p |@| s)((_, _))
 
     tuple match {
       case Some((params, InstrumentState.Online)) if (positions(security).dir == position.Long) =>

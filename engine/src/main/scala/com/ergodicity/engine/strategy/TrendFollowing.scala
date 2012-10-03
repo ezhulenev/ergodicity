@@ -3,62 +3,66 @@ package com.ergodicity.engine.strategy
 import com.ergodicity.core.Isin
 import com.ergodicity.engine.StrategyEngine
 import akka.actor._
-import com.ergodicity.engine.strategy.TrendFollowing.Trend
 import org.joda.time.DateTime
-import com.ergodicity.engine.strategy.PriceRegression.TimeSeries
 import com.ergodicity.core.trade.Trade
 import org.apache.commons.math3.stat.regression.SimpleRegression
 import org.apache.commons.math3.stat.StatUtils
 import akka.util.Duration
 import akka.util.duration._
+import com.ergodicity.engine.strategy.PriceRegression.TimeSeries
 
 object TrendFollowing {
 
   case class TrendFollowing(isin: Isin) extends StrategyId
 
-  sealed trait Trend
-
-  case object Bullish extends Trend
-
-  case object Bearish extends Trend
-
-  case object Flat extends Trend
-
-  def apply(isin: Isin) = new StrategiesFactory {
-
+  def apply(isin: Isin) = new SingleStrategyFactory {
     implicit val id = TrendFollowing(isin)
 
-    def strategies = enrichProps(strategy _) :: Nil
-
-    def strategy(engine: StrategyEngine) = Props(new Actor {
-      protected def receive = null
-    })
+    val strategy = new StrategyBuilder(id) {
+      def props(implicit engine: StrategyEngine) = Props(new Actor {
+        protected def receive = null
+      })
+    }
   }
 }
 
-class TrendFollowingStrategy(val engine: StrategyEngine)(implicit id: StrategyId) extends Actor with LoggingFSM[Trend, Unit] with Strategy {
+sealed trait TrendFollowingState
 
-  import TrendFollowing._
+object TrendFollowingState {
 
-  startWith(Flat, ())
+  case object WarmingUp extends TrendFollowingState
+
+  case object Parity extends TrendFollowingState
+
+  case object Bullish extends TrendFollowingState
+
+  case object Bearish extends TrendFollowingState
+
+}
+
+class TrendFollowingStrategy(implicit id: StrategyId, val engine: StrategyEngine) extends Actor with LoggingFSM[TrendFollowingState, Unit] with Strategy {
+
+  import TrendFollowingState._
+
+  startWith(WarmingUp, ())
 
   initialize
 }
 
 object PriceRegression {
 
-  case class RawData(time: DateTime, value: Double)
+  private[PriceRegression] case class RawData(time: DateTime, value: Double)
 
-  case class NormalizedData(x: Double, y: Double)
+  private[PriceRegression] case class NormalizedData(x: Double, y: Double)
 
   case class TimeSeries(primary: Seq[RawData], secondary: Seq[RawData])
 
-  case class PriceSlope(primary: Double, secondary: Double)
+  case class PriceSlope(time: DateTime, primary: Double, secondary: Double)
 
 }
 
 
-class PriceRegressionActor(reportTo: ActorRef)(primaryDuration: Duration = 1.minute, secondaryDuration: Duration = 1.minute) extends Actor with FSM[Any, TimeSeries] {
+class PriceRegression(reportTo: ActorRef)(primaryDuration: Duration = 1.minute, secondaryDuration: Duration = 1.minute) extends Actor with FSM[Any, TimeSeries] {
 
   import PriceRegression._
 
@@ -73,7 +77,7 @@ class PriceRegressionActor(reportTo: ActorRef)(primaryDuration: Duration = 1.min
       val adjustedSecondary = (secondary.dropWhile(_.time.getMillis < (time.getMillis - secondaryDuration.toMillis)) :+ RawData(time, primarySlope)).filterNot(_.value == Double.NaN)
       val secondarySlope = slope(adjustedSecondary)
 
-      reportTo ! PriceSlope(primarySlope, secondarySlope)
+      reportTo ! PriceSlope(time, primarySlope, secondarySlope)
 
       stay() using TimeSeries(adjustedPrimary, adjustedSecondary)
   }

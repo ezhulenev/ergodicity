@@ -23,10 +23,11 @@ trait StrategiesFactory {
   def &(other: StrategiesFactory) = new StrategiesFactory {
     def strategies = factory.strategies ++ other.strategies
   }
+}
 
-  implicit def enrichProps(builder: StrategyEngine => Props)(implicit id: StrategyId) = new StrategyBuilder(id) {
-    def props(implicit engine: StrategyEngine) = builder(engine)
-  }
+trait SingleStrategyFactory extends StrategiesFactory {
+  override def strategies = strategy :: Nil
+  def strategy: StrategyBuilder
 }
 
 

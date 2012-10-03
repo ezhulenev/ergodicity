@@ -17,7 +17,7 @@ import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import service.Portfolio
 import session.SessionActor.AssignedContents
-import strategy.{CoverAllPositions, StrategyId, StrategiesFactory}
+import strategy.{StrategyBuilder, CoverAllPositions, StrategyId, StrategiesFactory}
 
 class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -38,7 +38,9 @@ class StrategyEngineActorSpec extends TestKit(ActorSystem("StrategyEngineActorSp
       protected def receive = null
     }
 
-    def strategies = ((_: StrategyEngine) => Props(new TestStrategy())) :: Nil
+    def strategies = new StrategyBuilder(TestStrategy) {
+      def props(implicit engine: StrategyEngine) = Props(new TestStrategy())
+    } :: Nil
   }
 
   implicit val services = mock(classOf[Services])

@@ -75,7 +75,7 @@ class CoverAllPositionsSpec extends TestKit(ActorSystem("CoverAllPositionsSpec",
   "Close All Positions" must {
     "load all current positions" in {
       // Prepare mock for engine and services
-      val engine = mock(classOf[StrategyEngine])
+      implicit val engine = mock(classOf[StrategyEngine])
       val services = mock(classOf[Services])
       Mockito.when(engine.services).thenReturn(services)
       Mockito.when(services.apply(Trading.Trading)).thenReturn(system.deadLetters)
@@ -83,7 +83,7 @@ class CoverAllPositionsSpec extends TestKit(ActorSystem("CoverAllPositionsSpec",
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(instrumentDataService)
 
       // Build strategy
-      val strategy = TestActorRef(new CoverPositions(engine) with CoverAll, "CoverPositions")
+      val strategy = TestActorRef(new CoverPositions with CoverAll, "CoverPositions")
       val underlying = strategy.underlyingActor
 
       assert(underlying.positions.size == 2)
@@ -117,7 +117,7 @@ class CoverAllPositionsSpec extends TestKit(ActorSystem("CoverAllPositionsSpec",
       })
 
       // Prepare mock for engine and services
-      val engine = mock(classOf[StrategyEngine])
+      implicit val engine = mock(classOf[StrategyEngine])
       val services = mock(classOf[Services])
       Mockito.when(engine.services).thenReturn(services)
       Mockito.when(services.apply(Trading.Trading)).thenReturn(trading.ref)
@@ -125,7 +125,7 @@ class CoverAllPositionsSpec extends TestKit(ActorSystem("CoverAllPositionsSpec",
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(instrumentDataService)
 
       // Build strategy
-      val strategy = TestFSMRef(new CoverPositions(engine) with CoverAll, "CoverPositions")
+      val strategy = TestFSMRef(new CoverPositions with CoverAll, "CoverPositions")
 
       strategy ! Start
       assert(strategy.stateName == CoverPositionsState.CoveringPositions)
