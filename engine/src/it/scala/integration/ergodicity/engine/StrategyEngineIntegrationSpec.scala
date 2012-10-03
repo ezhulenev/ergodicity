@@ -14,13 +14,14 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener, Publisher => CGPublisher}
-import strategy.CoverAllPositions
+import strategy.{TrendFollowing, CoverAllPositions}
 import com.ergodicity.engine.StrategyEngine.{StartStrategies, PrepareStrategies}
 import akka.actor.FSM.Transition
 import com.ergodicity.cgate.config.CGateConfig
 import com.ergodicity.cgate.config.FortsMessages
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import akka.actor.FSM.SubscribeTransitionCallBack
+import com.ergodicity.core.Isin
 
 class StrategyEngineIntegrationSpec extends TestKit(ActorSystem("StrategyEngineIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -82,7 +83,7 @@ class StrategyEngineIntegrationSpec extends TestKit(ActorSystem("StrategyEngineI
 
   class IntegrationEngine extends Engine with Connections with Replication with Listener with Publisher
 
-  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection with TradingConnection with InstrumentData with Portfolio with Trading
+  class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection with TradingConnection with InstrumentData with Portfolio with Trading with TradesData
 
   "Strategy Engine" must {
     "run registered strategies" in {
@@ -92,7 +93,8 @@ class StrategyEngineIntegrationSpec extends TestKit(ActorSystem("StrategyEngineI
       val underlyingServices = services.underlyingActor
 
 
-      val strategyEngine = TestActorRef(new StrategyEngineActor(CoverAllPositions())(underlyingServices), "StrategyEngine")
+      val strategies = CoverAllPositions() & TrendFollowing(Isin("RTS-12.12"))
+      val strategyEngine = TestActorRef(new StrategyEngineActor(strategies)(underlyingServices), "StrategyEngine")
 
       services ! StartServices
 

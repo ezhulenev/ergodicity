@@ -158,7 +158,7 @@ abstract class CoverPositions(implicit id: StrategyId, val engine: StrategyEngin
   }
 
   onTransition {
-    case _ -> PositionsCovered => log.info("Initial positions covered")
+    case _ -> PositionsCovered => log.info("Positions covered")
   }
 
   private def tryCover(security: Security) {

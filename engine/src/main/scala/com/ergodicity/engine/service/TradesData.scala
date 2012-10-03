@@ -34,7 +34,7 @@ trait TradesData {
 
   def engine: Engine with UnderlyingConnection with UnderlyingListener with FutTradesReplication with OptTradesReplication
 
-  lazy val creator = new TradesDataService(engine.listenerFactory, engine.underlyingConnection, engine.futTradesReplication, engine.optTradesReplication)
+  private[this] lazy val creator = new TradesDataService(engine.listenerFactory, engine.underlyingConnection, engine.futTradesReplication, engine.optTradesReplication)
   register(Props(creator), dependOn = InstrumentData.InstrumentData :: Nil)
 }
 

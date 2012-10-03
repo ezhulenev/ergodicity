@@ -136,7 +136,7 @@ class StrategyEngineActor(factory: StrategiesFactory = StrategiesFactory.empty)
 
   when(Idle) {
     case Event(PrepareStrategies, Void) =>
-      log.info("Preparing strategies = " + strategies.keys)
+      log.info("Prepare strategies")
       factory.strategies foreach start
       goto(Preparing) using AwaitingReadiness(strategies.keys)
   }

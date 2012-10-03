@@ -64,7 +64,7 @@ trait Trading {
 
   def engine: Engine with UnderlyingListener with UnderlyingConnection with UnderlyingTradingConnections with UnderlyingPublisher with FutOrdersReplication with OptOrdersReplication
 
-  lazy val creator = new TradingService(
+  private[this] lazy val creator = new TradingService(
     engine.listenerFactory, engine.publisherName, engine.brokerCode,
     engine.underlyingPublisher, engine.underlyingTradingConnection, engine.underlyingConnection,
     engine.futOrdersReplication, engine.optOrdersReplication

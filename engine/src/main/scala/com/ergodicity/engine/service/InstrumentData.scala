@@ -16,6 +16,7 @@ import com.ergodicity.engine.underlying.{ListenerFactory, UnderlyingListener, Un
 import com.ergodicity.engine.{Engine, Services}
 import ru.micexrts.cgate.{Connection => CGConnection}
 import scala.Some
+import com.ergodicity.core.session.SessionActor.GetAssignedContents
 
 object InstrumentData {
 

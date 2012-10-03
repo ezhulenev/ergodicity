@@ -1,27 +1,34 @@
 package com.ergodicity.engine.strategy
 
-import com.ergodicity.core.Isin
+import com.ergodicity.core.{Security, Isin}
 import com.ergodicity.engine.StrategyEngine
 import akka.actor._
+import akka.pattern.ask
 import org.joda.time.DateTime
 import com.ergodicity.core.trade.Trade
 import org.apache.commons.math3.stat.regression.SimpleRegression
 import org.apache.commons.math3.stat.StatUtils
-import akka.util.Duration
+import akka.util.{Timeout, Duration}
 import akka.util.duration._
-import com.ergodicity.engine.strategy.PriceRegression.TimeSeries
+import com.ergodicity.engine.strategy.PriceRegression.{PriceSlope, TimeSeries}
+import com.ergodicity.engine.service.{InstrumentData, TradesData}
+import com.ergodicity.core.trade.TradesTracking.SubscribeTrades
+import com.ergodicity.core.session.SessionActor.{AssignedContents, GetAssignedContents}
+import akka.dispatch.Await
+import com.ergodicity.core.session.InstrumentNotAssigned
+import com.ergodicity.engine.strategy.Strategy.Start
 
 object TrendFollowing {
 
-  case class TrendFollowing(isin: Isin) extends StrategyId
+  case class TrendFollowing(isin: Isin) extends StrategyId {
+    override def toString = "TrendFollowing:" + isin.toActorName
+  }
 
-  def apply(isin: Isin) = new SingleStrategyFactory {
+  def apply(isin: Isin, primaryDuration: Duration = 1.minute, secondaryDuration: Duration = 1.minute) = new SingleStrategyFactory {
     implicit val id = TrendFollowing(isin)
 
     val strategy = new StrategyBuilder(id) {
-      def props(implicit engine: StrategyEngine) = Props(new Actor {
-        protected def receive = null
-      })
+      def props(implicit engine: StrategyEngine) = Props(new TrendFollowingStrategy(isin, primaryDuration, secondaryDuration)(id, engine))
     }
   }
 }
@@ -29,6 +36,8 @@ object TrendFollowing {
 sealed trait TrendFollowingState
 
 object TrendFollowingState {
+
+  case object Ready extends TrendFollowingState
 
   case object WarmingUp extends TrendFollowingState
 
@@ -38,15 +47,51 @@ object TrendFollowingState {
 
   case object Bearish extends TrendFollowingState
 
+  case object Stopping extends TrendFollowingState
+
 }
 
-class TrendFollowingStrategy(implicit id: StrategyId, val engine: StrategyEngine) extends Actor with LoggingFSM[TrendFollowingState, Unit] with Strategy {
+class TrendFollowingStrategy(isin: Isin, primaryDuration: Duration, secondaryDuration: Duration)(implicit id: StrategyId, val engine: StrategyEngine) extends Actor with LoggingFSM[TrendFollowingState, Unit] with Strategy {
 
   import TrendFollowingState._
 
-  startWith(WarmingUp, ())
+  implicit val timeout = Timeout(1.second)
+
+  val tradesData = engine.services(TradesData.TradesData)
+  val instrumentData = engine.services(InstrumentData.InstrumentData)
+
+  val security = getSecurity(5.seconds)
+
+  val priceRegression = context.actorOf(Props(new PriceRegression(self)(primaryDuration, secondaryDuration)), "PriceRegression")
+
+  override def preStart() {
+    log.info("Trend following for security = " + security)
+    engine.reportReady(Map())
+  }
+
+  startWith(Ready, ())
+
+  when(Ready) {
+    case Event(Start, _) =>
+      log.info("Start {} strategy", id)
+      tradesData ! SubscribeTrades(priceRegression, security)
+      goto(WarmingUp)
+  }
+
+
+  when(WarmingUp) {
+    case Event(slope: PriceSlope, _) =>
+      log.info("Slope = {}", slope)
+      stay()
+  }
 
   initialize
+
+  private def getSecurity(atMost: Duration): Security = {
+    val future = (instrumentData ? GetAssignedContents).mapTo[AssignedContents]
+    Await.result(future, atMost) ? isin getOrElse (throw new InstrumentNotAssigned(isin))
+  }
+
 }
 
 object PriceRegression {
