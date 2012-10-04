@@ -37,14 +37,14 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
   "InstrumentWatchDog" must {
     "subscribe for ongoing session" in {
       val instrumentData = TestProbe()
-      val watchdog = TestFSMRef(new InstrumentWatchDog(security, instrumentData.ref), "InstrumentWatchDog")
+      val watchdog = TestFSMRef(new InstrumentWatchDog(isin, instrumentData.ref), "InstrumentWatchDog")
 
       instrumentData.expectMsg(SubscribeOngoingSessions(watchdog))
     }
 
     "catch instument" in {
       val instrumentData = TestProbe()
-      val watchdog = TestFSMRef(new InstrumentWatchDog(security, instrumentData.ref), "InstrumentWatchDog")
+      val watchdog = TestFSMRef(new InstrumentWatchDog(isin, instrumentData.ref), "InstrumentWatchDog")
 
       watchdog ! OngoingSession(sessionId, buildSessionActor(sessionId))
 
@@ -63,8 +63,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
       val instrumentData = TestProbe()
 
       val guard = TestActorRef(new Actor {
-        val nonAssignedSecurity = FutureContract(IsinId(1), Isin("BadIsin"), ShortIsin(""), "Future contract")
-        val watchdog = context.actorOf(Props(new InstrumentWatchDog(nonAssignedSecurity, instrumentData.ref)(config.copy(reportTo = system.deadLetters))), "InstrumentWatchDog")
+        val watchdog = context.actorOf(Props(new InstrumentWatchDog(Isin("NotAssignedIsin"), instrumentData.ref)(config.copy(reportTo = system.deadLetters))), "InstrumentWatchDog")
         watchdog ! OngoingSession(sessionId, buildSessionActor(sessionId))
 
 
@@ -83,7 +82,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
 
     "catch new instrument on session reassigned" in {
       val instrumentData = TestProbe()
-      val watchdog = TestFSMRef(new InstrumentWatchDog(security, instrumentData.ref), "InstrumentWatchDog")
+      val watchdog = TestFSMRef(new InstrumentWatchDog(isin, instrumentData.ref), "InstrumentWatchDog")
 
       val oldSession = OngoingSession(sessionId, buildSessionActor(sessionId))
       watchdog ! oldSession
@@ -101,7 +100,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
       val instrumentData = TestProbe()
 
       val guard = TestActorRef(new Actor {
-        val watchdog = context.actorOf(Props(new InstrumentWatchDog(security, instrumentData.ref)), "InstrumentWatchDog")
+        val watchdog = context.actorOf(Props(new InstrumentWatchDog(isin, instrumentData.ref)), "InstrumentWatchDog")
         watchdog ! OngoingSession(sessionId, buildSessionActor(sessionId))
 
         val catched = receiveOne(100.millis).asInstanceOf[Catched]
@@ -122,7 +121,7 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
 
     "notify on catched instrument states" in {
       val instrumentData = TestProbe()
-      val watchdog = TestFSMRef(new InstrumentWatchDog(security, instrumentData.ref)(config.copy(notifyOnState = true)), "InstrumentWatchDog")
+      val watchdog = TestFSMRef(new InstrumentWatchDog(isin, instrumentData.ref)(config.copy(notifyOnState = true)), "InstrumentWatchDog")
 
       watchdog ! OngoingSession(sessionId, buildSessionActor(sessionId))
 

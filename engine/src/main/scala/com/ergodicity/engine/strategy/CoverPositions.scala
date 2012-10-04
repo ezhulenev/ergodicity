@@ -113,7 +113,7 @@ abstract class CoverPositions(implicit id: StrategyId, val engine: StrategyEngin
   when(Ready) {
     case Event(Start, _) if (positions nonEmpty) =>
       log.info("Start strategy. Positions to cover = " + positions)
-      positions.keys foreach watchInstrument
+      positions.keys.map(_.isin) foreach watchInstrument
       goto(CoveringPositions)
 
     case Event(Start, _) if (positions isEmpty) =>

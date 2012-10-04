@@ -9,7 +9,7 @@ import akka.pattern.ask
 import akka.pattern.pipe
 import akka.util.Timeout
 import akka.util.duration._
-import com.ergodicity.core.SessionId
+import com.ergodicity.core.{Isin, SessionId, Security}
 import com.ergodicity.core.SessionsTracking.OngoingSession
 import com.ergodicity.core.SessionsTracking.OngoingSessionTransition
 import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
@@ -17,7 +17,6 @@ import com.ergodicity.core.session.{InstrumentParameters, InstrumentUpdated, Ins
 import com.ergodicity.core.session.InstrumentActor.SubscribeInstrumentCallback
 import com.ergodicity.core.session.InstrumentActor.UnsubscribeInstrumentCallback
 import com.ergodicity.core.session.SessionActor.{InstrumentRef, AssignedContents, GetAssignedContents, GetInstrument}
-import com.ergodicity.core.Security
 import com.ergodicity.engine.service.InstrumentData.{InstrumentData => InstrumentDataId}
 import com.ergodicity.engine.strategy.InstrumentWatchDog._
 import com.ergodicity.engine.strategy.InstrumentWatchDogState.{Watching, Catching}
@@ -28,8 +27,8 @@ trait InstrumentWatcher {
 
   val instrumentData = engine.services.service(InstrumentDataId)
 
-  def watchInstrument(security: Security)(implicit config: WatchDogConfig) {
-    context.actorOf(Props(new InstrumentWatchDog(security, instrumentData)), "WatchDog-" + security.isin.toActorName)
+  def watchInstrument(isin: Isin)(implicit config: WatchDogConfig) {
+    context.actorOf(Props(new InstrumentWatchDog(isin, instrumentData)), "WatchDog-" + isin.toActorName)
   }
 
 }
@@ -61,7 +60,7 @@ object InstrumentWatchDog {
 }
 
 
-class InstrumentWatchDog(security: Security, instrumentData: ActorRef)(implicit config: WatchDogConfig) extends Actor with LoggingFSM[InstrumentWatchDogState, Option[InstrumentRef]] {
+class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: WatchDogConfig) extends Actor with LoggingFSM[InstrumentWatchDogState, Option[InstrumentRef]] {
 
   import config._
 
@@ -75,7 +74,7 @@ class InstrumentWatchDog(security: Security, instrumentData: ActorRef)(implicit 
 
   private def joinSession(id: SessionId, session: ActorRef) {
     val assigned = (session ? GetAssignedContents).mapTo[AssignedContents]
-    val sec = assigned.map(_.contents.find(_ == security).getOrElse(throw new InstrumentWatcherException("Can't find security = " + security + ", assigned to session = " + id)))
+    val sec = assigned.map(_ ? isin getOrElse(throw new InstrumentWatcherException("Can't find security for isin = " + isin + ", assigned to session = " + id)))
     val instrument = sec.flatMap(s => (session ? GetInstrument(s)).mapTo[InstrumentRef])
     instrument pipeTo self
   }
@@ -86,8 +85,8 @@ class InstrumentWatchDog(security: Security, instrumentData: ActorRef)(implicit 
       joinSession(id, session)
       stay()
 
-    case Event(ref@InstrumentRef(session, s, instrumentActor), outdated) if (s == security) =>
-      log.info("Catched instrument for security = " + security + "; ref = " + ref)
+    case Event(ref@InstrumentRef(session, s, instrumentActor), outdated) if (s.isin == isin) =>
+      log.info("Catched instrument for isin = " + isin + "; ref = " + ref)
 
       // Unwatch outdated instrument
       outdated.foreach(old => context.unwatch(old.instrumentActor))
@@ -104,8 +103,8 @@ class InstrumentWatchDog(security: Security, instrumentData: ActorRef)(implicit 
       goto(Watching) using Some(ref)
 
     case Event(FSM.StateTimeout, _) =>
-      log.error("Catching instrument for security = {} timed out", security)
-      throw new InstrumentWatcherException("Catching instrument for security = " + security + " timed out")
+      log.error("Catching instrument for isin = {} timed out", isin)
+      throw new InstrumentWatcherException("Catching instrument for isin = " + isin + " timed out")
   }
 
   when(Watching) {
@@ -123,30 +122,30 @@ class InstrumentWatchDog(security: Security, instrumentData: ActorRef)(implicit 
     case Event(Terminated(ref), Some(InstrumentRef(_, _, catched))) if (ref == catched) =>
       throw new InstrumentWatcherException("Watched instrument unexpectedly terminated")
 
-    case Event(CurrentState(ref, state: InstrumentState), Some(InstrumentRef(_, _, catched))) if (ref == catched) =>
-      onStateCatched(state)
+    case Event(CurrentState(ref, state: InstrumentState), Some(InstrumentRef(_, security, catched))) if (ref == catched) =>
+      onStateCatched(security, state)
       stay()
 
-    case Event(Transition(ref, _, state: InstrumentState), Some(InstrumentRef(_, _, catched))) if (ref == catched) =>
-      onStateCatched(state)
+    case Event(Transition(ref, _, state: InstrumentState), Some(InstrumentRef(_, security, catched))) if (ref == catched) =>
+      onStateCatched(security, state)
       stay()
 
-    case Event(instrument@InstrumentUpdated(ref, parameters), Some(InstrumentRef(_, _, catched))) if (ref == catched) =>
-      onParametersCatched(parameters)
+    case Event(instrument@InstrumentUpdated(ref, parameters), Some(InstrumentRef(_, security, catched))) if (ref == catched) =>
+      onParametersCatched(security, parameters)
       stay()
   }
 
   initialize
 
   private def onCatched(instrument: InstrumentRef) {
-    if (notifyOnCatched) reportTo ! Catched(security, instrument.session, instrument)
+    if (notifyOnCatched) reportTo ! Catched(instrument.security, instrument.session, instrument)
   }
 
-  private def onStateCatched(state: InstrumentState) {
+  private def onStateCatched(security: Security, state: InstrumentState) {
     if (notifyOnState) reportTo ! CatchedState(security, state)
   }
 
-  private def onParametersCatched(parameters: InstrumentParameters) {
+  private def onParametersCatched(security: Security, parameters: InstrumentParameters) {
     if (notifyOnParams) reportTo ! CatchedParameters(security, parameters)
   }
 }
