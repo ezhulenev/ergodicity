@@ -93,7 +93,7 @@ class StrategyEngineIntegrationSpec extends TestKit(ActorSystem("StrategyEngineI
       val underlyingServices = services.underlyingActor
 
 
-      val strategies = CoverAllPositions() & TrendFollowing(Isin("RTS-12.12"))
+      val strategies = CoverAllPositions() & TrendFollowing(Isin("RTS-12.12"), 1.minute, 30.seconds)
       val strategyEngine = TestActorRef(new StrategyEngineActor(strategies)(underlyingServices), "StrategyEngine")
 
       services ! StartServices

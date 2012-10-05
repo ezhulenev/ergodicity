@@ -114,7 +114,10 @@ class TrendFollowingStrategy(isin: Isin, primaryDuration: Duration, secondaryDur
       initialSlope = Some(slope)
       stay()
 
-    case Event(PriceSlope(time, price, _, _), _) if warmedUp(time) =>
+    case Event(PriceSlope(time, price, _, _), _) if (initialSlope.isDefined && !warmedUp(time)) =>
+      stay()
+
+    case Event(PriceSlope(time, price, _, _), _) if (initialSlope.isDefined && warmedUp(time)) =>
       log.info("Warmed up, start trading!")
       goto(Parity)
   }
@@ -139,7 +142,7 @@ class TrendFollowingStrategy(isin: Isin, primaryDuration: Duration, secondaryDur
 
   initialize
 
-  private def warmedUp(time: DateTime) = initialSlope.isDefined && initialSlope.get.time.getMillis < time.getMillis + math.max(primaryDuration.toMillis, primaryDuration.toMillis)
+  private def warmedUp(time: DateTime) = initialSlope.get.time.getMillis < time.getMillis - math.max(primaryDuration.toMillis, primaryDuration.toMillis)
 
   private def catchUp(catching: CatchingData) = catching match {
     case CatchingData(Some(security), Some(parameters), Some(state)) =>
@@ -173,10 +176,10 @@ class PriceRegression(reportTo: ActorRef)(primaryDuration: Duration = 1.minute, 
   case object Computing
 
   implicit def pimpRawData(data: Seq[RawData]) = new {
-    def normalized(normalizeValues: Boolean = false): Seq[NormalizedData] = {
+    def normalized: Seq[NormalizedData] = {
       import scalaz.Scalaz._
       val normalizedTime = StatUtils.normalize(data.map(_.time.getMillis.toDouble).toArray)
-      val normalizedValued = normalizeValues ? StatUtils.normalize(data.map(_.value).toArray) | data.map(_.value).toArray
+      val normalizedValued = StatUtils.normalize(data.map(_.value).toArray)
       normalizedTime zip normalizedValued map {
         case (t, v) => NormalizedData(t, v)
       }
@@ -188,9 +191,9 @@ class PriceRegression(reportTo: ActorRef)(primaryDuration: Duration = 1.minute, 
   when(Computing) {
     case Event(Trade(_, _, _, price, _, time, _), TimeSeries(primary, secondary)) =>
       val adjustedPrimary = primary.dropWhile(_.time.getMillis < (time.getMillis - primaryDuration.toMillis)) :+ RawData(time, price.toDouble)
-      val primarySlope = slope(adjustedPrimary.normalized(normalizeValues = true))
+      val primarySlope = slope(adjustedPrimary.normalized)
       val adjustedSecondary = (secondary.dropWhile(_.time.getMillis < (time.getMillis - secondaryDuration.toMillis)) :+ RawData(time, primarySlope * SecondaryScale)).filterNot(_.value.isNaN)
-      val secondarySlope = slope(adjustedSecondary.normalized(normalizeValues = true))
+      val secondarySlope = slope(adjustedSecondary.normalized)
 
       reportTo ! PriceSlope(time, price, primarySlope, secondarySlope)
 
