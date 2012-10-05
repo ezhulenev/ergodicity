@@ -126,13 +126,13 @@ class InstrumentWatchDogSpec extends TestKit(ActorSystem("InstrumentWatchDogSpec
       watchdog ! OngoingSession(sessionId, buildSessionActor(sessionId))
 
       val catched = receiveOne(500.millis).asInstanceOf[Catched]
-      expectMsg(CatchedState(security, InstrumentState.Suspended))
+      expectMsg(CatchedState(isin, InstrumentState.Suspended))
 
       watchdog ! CurrentState(catched.instrument.instrumentActor, InstrumentState.Assigned)
-      expectMsg(CatchedState(security, InstrumentState.Assigned))
+      expectMsg(CatchedState(isin, InstrumentState.Assigned))
 
       watchdog ! Transition(catched.instrument.instrumentActor, InstrumentState.Assigned, InstrumentState.Online)
-      expectMsg(CatchedState(security, InstrumentState.Online))
+      expectMsg(CatchedState(isin, InstrumentState.Online))
 
       watchdog.stop()
     }

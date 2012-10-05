@@ -9,7 +9,7 @@ import akka.pattern.ask
 import akka.pattern.pipe
 import akka.util.Timeout
 import akka.util.duration._
-import com.ergodicity.core.{Isin, SessionId, Security}
+import com.ergodicity.core.{Isin, SessionId}
 import com.ergodicity.core.SessionsTracking.OngoingSession
 import com.ergodicity.core.SessionsTracking.OngoingSessionTransition
 import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
@@ -50,11 +50,11 @@ object InstrumentWatchDogState {
 
 object InstrumentWatchDog {
 
-  case class Catched(security: Security, session: SessionId, instrument: InstrumentRef)
+  case class Catched(isin: Isin, instrument: InstrumentRef)
 
-  case class CatchedState(security: Security, state: InstrumentState)
+  case class CatchedState(isin: Isin, state: InstrumentState)
 
-  case class CatchedParameters(security: Security, parameters: InstrumentParameters)
+  case class CatchedParameters(isin: Isin, parameters: InstrumentParameters)
 
   case class WatchDogConfig(reportTo: ActorRef, notifyOnCatched: Boolean = true, notifyOnState: Boolean = false, notifyOnParams: Boolean = false)
 }
@@ -122,30 +122,30 @@ class InstrumentWatchDog(isin: Isin, instrumentData: ActorRef)(implicit config: 
     case Event(Terminated(ref), Some(InstrumentRef(_, _, catched))) if (ref == catched) =>
       throw new InstrumentWatcherException("Watched instrument unexpectedly terminated")
 
-    case Event(CurrentState(ref, state: InstrumentState), Some(InstrumentRef(_, security, catched))) if (ref == catched) =>
-      onStateCatched(security, state)
+    case Event(CurrentState(ref, state: InstrumentState), Some(InstrumentRef(_, _, catched))) if (ref == catched) =>
+      onStateCatched(state)
       stay()
 
-    case Event(Transition(ref, _, state: InstrumentState), Some(InstrumentRef(_, security, catched))) if (ref == catched) =>
-      onStateCatched(security, state)
+    case Event(Transition(ref, _, state: InstrumentState), Some(InstrumentRef(_, _, catched))) if (ref == catched) =>
+      onStateCatched(state)
       stay()
 
-    case Event(instrument@InstrumentUpdated(ref, parameters), Some(InstrumentRef(_, security, catched))) if (ref == catched) =>
-      onParametersCatched(security, parameters)
+    case Event(instrument@InstrumentUpdated(ref, parameters), Some(InstrumentRef(_, _, catched))) if (ref == catched) =>
+      onParametersCatched(parameters)
       stay()
   }
 
   initialize
 
   private def onCatched(instrument: InstrumentRef) {
-    if (notifyOnCatched) reportTo ! Catched(instrument.security, instrument.session, instrument)
+    if (notifyOnCatched) reportTo ! Catched(isin, instrument)
   }
 
-  private def onStateCatched(security: Security, state: InstrumentState) {
-    if (notifyOnState) reportTo ! CatchedState(security, state)
+  private def onStateCatched(state: InstrumentState) {
+    if (notifyOnState) reportTo ! CatchedState(isin, state)
   }
 
-  private def onParametersCatched(security: Security, parameters: InstrumentParameters) {
-    if (notifyOnParams) reportTo ! CatchedParameters(security, parameters)
+  private def onParametersCatched(parameters: InstrumentParameters) {
+    if (notifyOnParams) reportTo ! CatchedParameters(isin, parameters)
   }
 }

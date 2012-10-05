@@ -104,7 +104,7 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
     case Event(FSM.StateTimeout, _) => failed("Timed out assigning contents")
   }
 
-  when(StartingPositionsTracker, stateTimeout = 10.seconds) {
+  when(StartingPositionsTracker, stateTimeout = 30.seconds) {
     case Event(Transition(PosStream, _, state@DataStreamState.Online), _) =>
       goto(Started) using StreamState(Some(state))
 

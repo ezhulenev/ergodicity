@@ -40,7 +40,7 @@ object InstrumentState {
 
 object InstrumentActor {
 
-  case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException
+  case class IllegalLifeCycleEvent(msg: String, event: Any) extends IllegalArgumentException(msg + "; event = " + event)
 
   case class SubscribeInstrumentCallback(ref: ActorRef)
 

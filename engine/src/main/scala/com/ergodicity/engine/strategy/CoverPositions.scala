@@ -12,7 +12,7 @@ import com.ergodicity.core.order.OrderActor.OrderEvent
 import com.ergodicity.core.position.Position
 import com.ergodicity.core.session.InstrumentParameters.{OptionParameters, FutureParameters}
 import com.ergodicity.core.session.{InstrumentParameters, InstrumentState}
-import com.ergodicity.core.{Security, position}
+import com.ergodicity.core.{Isin, Security, position}
 import com.ergodicity.engine.StrategyEngine
 import com.ergodicity.engine.service.Trading.Buy
 import com.ergodicity.engine.service.Trading.OrderExecution
@@ -96,8 +96,9 @@ abstract class CoverPositions(implicit id: StrategyId, val engine: StrategyEngin
   val positions: Map[Security, Position] = getOpenedPositions(5.seconds)
 
   // Catched instruments
-  val parameters = mutable.Map[Security, InstrumentParameters]()
-  val states = mutable.Map[Security, InstrumentState]()
+  val securities = mutable.Map[Isin, Security]()
+  val parameters = mutable.Map[Isin, InstrumentParameters]()
+  val states = mutable.Map[Isin, InstrumentState]()
 
   // Order executions
   val executions = mutable.Map[Security, OrderExecution]()
@@ -137,18 +138,19 @@ abstract class CoverPositions(implicit id: StrategyId, val engine: StrategyEngin
   }
 
   whenUnhandled {
-    case Event(Catched(security, session, ref), _) =>
-      log.info("Catched assigned instrument; Security = " + security + ", session = " + session)
+    case Event(Catched(isin, instrument), _) =>
+      log.info("Catched assigned instrument; Isin = {}, session = {}, security = {}", isin, instrument.session, instrument.security)
+      securities(isin) = instrument.security
       stay()
 
-    case Event(CatchedState(security, state), _) =>
-      states(security) = state
-      tryCover(security)
+    case Event(CatchedState(isin, state), _) =>
+      states(isin) = state
+      tryCover(isin)
       stay()
 
-    case Event(CatchedParameters(security, params), _) =>
-      parameters(security) = params
-      tryCover(security)
+    case Event(CatchedParameters(isin, params), _) =>
+      parameters(isin) = params
+      tryCover(isin)
       stay()
 
     case Event(execution: OrderExecution, _) =>
@@ -161,7 +163,7 @@ abstract class CoverPositions(implicit id: StrategyId, val engine: StrategyEngin
     case _ -> PositionsCovered => log.info("Positions covered")
   }
 
-  private def tryCover(security: Security) {
+  private def tryCover(isin: Isin) {
     import scalaz.Scalaz._
 
     def sellPrice(parameters: InstrumentParameters) = parameters match {
@@ -174,16 +176,17 @@ abstract class CoverPositions(implicit id: StrategyId, val engine: StrategyEngin
       case OptionParameters(lastClQuote) => failed("Option parameters no supported")
     }
 
-    val p = parameters get security
-    val s = states get security
+    val sec = securities get isin
+    val p = parameters get isin
+    val s = states get isin
 
-    val tuple = (p |@| s)((_, _))
+    val tuple = (sec |@| p |@| s)((_, _, _))
 
     tuple match {
-      case Some((params, InstrumentState.Online)) if (positions(security).dir == position.Long) =>
+      case Some((security, params, InstrumentState.Online)) if (positions(security).dir == position.Long) =>
         (trading ? Sell(security, positions(security).pos.abs, sellPrice(params))) pipeTo self
 
-      case Some((params, InstrumentState.Online)) if (positions(security).dir == position.Short) =>
+      case Some((security, params, InstrumentState.Online)) if (positions(security).dir == position.Short) =>
         (trading ? Buy(security, positions(security).pos.abs, buyPrice(params))) pipeTo self
 
       case _ =>
