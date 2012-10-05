@@ -72,12 +72,16 @@ class TrendFollowingStrategy(isin: Isin, primaryDuration: Duration, secondaryDur
 
   implicit val WatchDog = WatchDogConfig(self, notifyOnCatched = true, notifyOnParams = true, notifyOnState = true)
 
+  // Services
   val tradesData = engine.services(TradesData.TradesData)
 
+  // Regression calculation
   val priceRegression = context.actorOf(Props(new PriceRegression(self)(primaryDuration, secondaryDuration)), "PriceRegression")
 
+  var initialSlope: Option[PriceSlope] = None
+
   override def preStart() {
-    log.info("Trend following for isin = " + isin)
+    log.info("Start trend following for isin = " + isin)
     watchInstrument(isin)
   }
 
@@ -106,8 +110,18 @@ class TrendFollowingStrategy(isin: Isin, primaryDuration: Duration, secondaryDur
 
 
   when(WarmingUp) {
-    case Event(slope: PriceSlope, _) =>
+    case Event(slope: PriceSlope, _) if (initialSlope.isEmpty) =>
+      initialSlope = Some(slope)
+      stay()
 
+    case Event(PriceSlope(time, price, _, _), _) if warmedUp(time) =>
+      log.info("Warmed up, start trading!")
+      goto(Parity)
+  }
+
+  when(Parity) {
+    case Event(slope: PriceSlope, _) =>
+      log.info("Slope = " + slope)
       stay()
   }
 
@@ -125,9 +139,13 @@ class TrendFollowingStrategy(isin: Isin, primaryDuration: Duration, secondaryDur
 
   initialize
 
+  private def warmedUp(time: DateTime) = initialSlope.isDefined && initialSlope.get.time.getMillis < time.getMillis + math.max(primaryDuration.toMillis, primaryDuration.toMillis)
+
   private def catchUp(catching: CatchingData) = catching match {
     case CatchingData(Some(security), Some(parameters), Some(state)) =>
-      goto(Ready) using UnderlyingInstrument(security, parameters, state)
+      val underlying = UnderlyingInstrument(security, parameters, state)
+      log.debug("Ready to trade using unserlying instrument = " + underlying)
+      goto(Ready) using underlying
 
     case _ => stay() using catching
   }
@@ -141,7 +159,7 @@ object PriceRegression {
 
   case class TimeSeries(primary: Seq[RawData], secondary: Seq[RawData])
 
-  case class PriceSlope(time: DateTime, primary: Double, secondary: Double)
+  case class PriceSlope(time: DateTime, price: BigDecimal, primary: Double, secondary: Double)
 
 }
 
@@ -174,11 +192,7 @@ class PriceRegression(reportTo: ActorRef)(primaryDuration: Duration = 1.minute, 
       val adjustedSecondary = (secondary.dropWhile(_.time.getMillis < (time.getMillis - secondaryDuration.toMillis)) :+ RawData(time, primarySlope * SecondaryScale)).filterNot(_.value.isNaN)
       val secondarySlope = slope(adjustedSecondary.normalized(normalizeValues = true))
 
-      log.info("Price = {}, primary = {}, secondary = {}", price, primarySlope, secondarySlope)
-/*      log.info("Primary series = {}", adjustedPrimary.map(_.value))
-      log.info("Secondary series = {}", adjustedSecondary.map(_.value))*/
-
-      reportTo ! PriceSlope(time, primarySlope, secondarySlope)
+      reportTo ! PriceSlope(time, price, primarySlope, secondarySlope)
 
       stay() using TimeSeries(adjustedPrimary, adjustedSecondary)
   }

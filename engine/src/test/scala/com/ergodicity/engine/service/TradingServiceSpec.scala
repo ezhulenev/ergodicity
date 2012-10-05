@@ -27,6 +27,7 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
 
   override def afterAll() {
     system.shutdown()
+    system.awaitTermination()
   }
 
   implicit val Id = Trading.Trading
