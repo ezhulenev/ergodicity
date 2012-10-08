@@ -80,8 +80,8 @@ class PositionManagerSpec extends TestKit(ActorSystem("PositionManagerSpec", com
 
       awaitCond(positionManager.stateName == PositionManagerState.Balanced)
 
-      expectMsg(PositionManagerStarted(isin1, futureContract1))
-      expectMsg(PositionBalanced(isin1))
+      expectMsg(PositionManagerStarted(isin1, futureContract1, Position.flat))
+      expectMsg(PositionBalanced(isin1, Position.flat))
     }
   }
 }

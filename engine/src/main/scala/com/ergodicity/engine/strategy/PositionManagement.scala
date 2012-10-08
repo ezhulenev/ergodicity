@@ -10,7 +10,7 @@ import collection.mutable
 import com.ergodicity.core.session.{InstrumentState, InstrumentParameters}
 import com.ergodicity.engine.strategy.PositionManagerData.{ManagedPosition, UnderlyingInstrument, CatchingData}
 import com.ergodicity.engine.strategy.InstrumentWatchDog.{WatchDogConfig, CatchedParameters, CatchedState, Catched}
-import com.ergodicity.engine.strategy.PositionManagement.{PositionManagerStarted, PositionBalanced}
+import com.ergodicity.engine.strategy.PositionManagement.{AcquirePosition, PositionManagerStarted, PositionBalanced}
 
 class PositionManagementException(msg: String) extends RuntimeException(msg)
 
@@ -18,9 +18,11 @@ case class PositionManagementConfig(reportTo: ActorRef)
 
 object PositionManagement {
 
-  case class PositionManagerStarted(isin: Isin, security: Security)
+  case class PositionManagerStarted(isin: Isin, security: Security, position: Position)
 
-  case class PositionBalanced(isin: Isin)
+  case class PositionBalanced(isin: Isin, position: Position)
+
+  case class AcquirePosition(target: Position)
 
 }
 
@@ -69,6 +71,12 @@ object PositionManagerData {
 
 }
 
+class PositionManager(ref: ActorRef) {
+  def acquire(position: Position) {
+    ref ! AcquirePosition(position)
+  }
+}
+
 class PositionManagerActor(trading: ActorRef, isin: Isin, initialPosition: Position)
                           (implicit config: PositionManagementConfig, watcher: InstrumentWatcher) extends Actor with FSM[PositionManagerState, PositionManagerData] {
 
@@ -115,13 +123,13 @@ class PositionManagerActor(trading: ActorRef, isin: Isin, initialPosition: Posit
     case CatchingData(Some(sec), Some(parameters), Some(state)) =>
       val underlying = UnderlyingInstrument(sec, parameters, state)
       log.debug("Ready to trade; Underlying instrument = " + underlying)
-      config.reportTo ! PositionManagerStarted(isin, sec)
+      config.reportTo ! PositionManagerStarted(isin, sec, initialPosition)
       goto(Balanced) using ManagedPosition(underlying, initialPosition)
 
     case _ => stay() using catching
   }
 
   onTransition {
-    case _ -> Balanced => config.reportTo ! PositionBalanced(isin)
+    case _ -> Balanced => config.reportTo ! PositionBalanced(isin, stateData.asInstanceOf[ManagedPosition].position)
   }
 }
