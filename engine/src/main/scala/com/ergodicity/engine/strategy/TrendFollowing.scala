@@ -12,23 +12,42 @@ import akka.util.duration._
 import com.ergodicity.engine.strategy.PriceRegression.{PriceSlope, TimeSeries}
 import com.ergodicity.engine.service.TradesData
 import com.ergodicity.core.trade.TradesTracking.SubscribeTrades
-import com.ergodicity.core.session.{InstrumentState, InstrumentParameters}
 import com.ergodicity.engine.strategy.Strategy.Start
-import com.ergodicity.engine.strategy.InstrumentWatchDog.{CatchedParameters, CatchedState, Catched, WatchDogConfig}
 import akka.util
-import com.ergodicity.engine.strategy.TrendFollowingData.{UnderlyingInstrument, CatchingData}
+import com.ergodicity.engine.strategy.TrendFollowingState.{Bearish, Bullish, Flat, Trend}
+import com.ergodicity.engine.strategy.PositionManagement.{PositionBalanced, PositionManagerStarted}
 
 object TrendFollowing {
+
+  implicit def toInterval(tuple: (Double, Double)): Interval = Interval(tuple._1, tuple._2)
+
+  implicit def toDoubleInterval(tuple: ((Double, Double), (Double, Double))): (Interval, Interval) = (Interval(tuple._1._1, tuple._1._2), Interval(tuple._2._1, tuple._2._2))
+
+  case class Interval(from: Double, to: Double) {
+    assert(from < to, "'To' value must be greater then 'from' value, actual to = " + to + ", from = " + from)
+
+    def contains(value: Double) = value >= from & value <= to
+  }
 
   case class TrendFollowing(isin: Isin) extends StrategyId {
     override def toString = "TrendFollowing:" + isin.toActorName
   }
 
-  def apply(isin: Isin, primaryDuration: Duration = 1.minute, secondaryDuration: Duration = 1.minute) = new SingleStrategyFactory {
+  def apply(isin: Isin, primaryDuration: Duration = 1.minute, secondaryDuration: Duration = 1.minute,
+            bullishIndicator: (Interval, Interval),
+            bearishIndicator: (Interval, Interval),
+            flatIndicator: (Interval, Interval)) = new SingleStrategyFactory {
     implicit val id = TrendFollowing(isin)
 
     val strategy = new StrategyBuilder(id) {
-      def props(implicit engine: StrategyEngine) = Props(new TrendFollowingStrategy(isin, primaryDuration, secondaryDuration)(id, engine))
+      def props(implicit engine: StrategyEngine) = {
+        val config = TrendFollowingConfig(primaryDuration, secondaryDuration) {
+          case (_, PriceSlope(_, _, p, s)) if ((bullishIndicator._1 contains p) && (bullishIndicator._2 contains s)) => Bullish
+          case (_, PriceSlope(_, _, p, s)) if ((bearishIndicator._1 contains p) && (bearishIndicator._2 contains s)) => Bearish
+          case (_, PriceSlope(_, _, p, s)) if ((flatIndicator._1 contains p) && (flatIndicator._2 contains s)) => Flat
+        }
+        Props(new TrendFollowingStrategy(isin, config)(id, engine))
+      }
     }
   }
 }
@@ -37,72 +56,59 @@ sealed trait TrendFollowingState
 
 object TrendFollowingState {
 
-  case object CatchingInstrument extends TrendFollowingState
+  case object WaitingPositionManager extends TrendFollowingState
 
   case object Ready extends TrendFollowingState
 
   case object WarmingUp extends TrendFollowingState
 
-  case object Parity extends TrendFollowingState
-
-  case object Bullish extends TrendFollowingState
-
-  case object Bearish extends TrendFollowingState
-
   case object Stopping extends TrendFollowingState
 
-}
+  sealed trait Trend extends TrendFollowingState
 
-sealed trait TrendFollowingData
+  case object Flat extends Trend
 
-object TrendFollowingData {
+  case object Bullish extends Trend
 
-  case class CatchingData(security: Option[Security], parameters: Option[InstrumentParameters], state: Option[InstrumentState]) extends TrendFollowingData
-
-  case class UnderlyingInstrument(security: Security, parameters: InstrumentParameters, state: InstrumentState) extends TrendFollowingData
+  case object Bearish extends Trend
 
 }
 
-class TrendFollowingStrategy(isin: Isin, primaryDuration: Duration, secondaryDuration: Duration)
-                            (implicit id: StrategyId, val engine: StrategyEngine) extends Actor with LoggingFSM[TrendFollowingState, TrendFollowingData] with Strategy with InstrumentWatcher {
+case class TrendFollowingConfig(primaryDuration: Duration, secondaryDuration: Duration)(val trend: PartialFunction[(Trend, PriceSlope), Trend])
+
+class TrendFollowingStrategy(isin: Isin, config: TrendFollowingConfig)
+                            (implicit id: StrategyId, val engine: StrategyEngine) extends Actor with LoggingFSM[TrendFollowingState, Option[Security]] with Strategy with InstrumentWatcher with PositionManagement {
 
   import TrendFollowingState._
 
   implicit val timeout = util.Timeout(1.second)
 
-  implicit val WatchDog = WatchDogConfig(self, notifyOnCatched = true, notifyOnParams = true, notifyOnState = true)
+  implicit val PositionManager = PositionManagementConfig(self)
 
   // Services
   val tradesData = engine.services(TradesData.TradesData)
 
   // Regression calculation
-  val priceRegression = context.actorOf(Props(new PriceRegression(self)(primaryDuration, secondaryDuration)), "PriceRegression")
+  val priceRegression = context.actorOf(Props(new PriceRegression(self)(config.primaryDuration, config.secondaryDuration)), "PriceRegression")
 
   var initialSlope: Option[PriceSlope] = None
 
   override def preStart() {
     log.info("Start trend following for isin = " + isin)
-    watchInstrument(isin)
+    managePosition(isin)
   }
 
-  startWith(CatchingInstrument, CatchingData(None, None, None))
+  startWith(WaitingPositionManager, None)
 
-  when(CatchingInstrument, stateTimeout = 30.seconds) {
-    case Event(Catched(i, instrument), catching: CatchingData) if (i == isin) =>
-      log.info("Catched assigned instrument; Isin = {}, session = {}, security = {}", isin, instrument.session, instrument.security)
-      catchUp(catching.copy(security = Some(instrument.security)))
-
-    case Event(CatchedState(i, state), catching: CatchingData) if (i == isin) =>
-      catchUp(catching.copy(state = Some(state)))
-
-    case Event(CatchedParameters(i, params), catching: CatchingData) if (i == isin) =>
-      catchUp(catching.copy(parameters = Some(params)))
+  when(WaitingPositionManager, stateTimeout = 30.seconds) {
+    case Event(PositionManagerStarted(i, security), _) if (i == isin) =>
+      goto(Ready) using Some(security)
 
     case Event(StateTimeout, _) => failed("Failed to catch instrument for isin = " + isin)
   }
 
   when(Ready) {
-    case Event(Start, UnderlyingInstrument(security, _, _)) =>
+    case Event(Start, Some(security)) =>
       log.info("Start {} strategy", id)
       tradesData ! SubscribeTrades(priceRegression, security)
       goto(WarmingUp)
@@ -114,43 +120,46 @@ class TrendFollowingStrategy(isin: Isin, primaryDuration: Duration, secondaryDur
       initialSlope = Some(slope)
       stay()
 
-    case Event(PriceSlope(time, price, _, _), _) if (initialSlope.isDefined && !warmedUp(time)) =>
+    case Event(slope@PriceSlope(time, price, _, _), _) if (initialSlope.isDefined && !warmedUp(time)) =>
       stay()
 
     case Event(PriceSlope(time, price, _, _), _) if (initialSlope.isDefined && warmedUp(time)) =>
       log.info("Warmed up, start trading!")
-      goto(Parity)
+      goto(Flat)
   }
 
-  when(Parity) {
+  when(Flat) {
     case Event(slope: PriceSlope, _) =>
-      log.info("Slope = " + slope)
-      stay()
+      goto(config.trend orElse defaultTrend apply(Flat, slope))
+  }
+
+  when(Bullish) {
+    case Event(slope: PriceSlope, _) =>
+      goto(config.trend orElse defaultTrend apply(Bullish, slope))
+  }
+
+  when(Bearish) {
+    case Event(slope: PriceSlope, _) =>
+      goto(config.trend orElse defaultTrend apply(Bearish, slope))
   }
 
   whenUnhandled {
-    case Event(CatchedState(i, state), instrument: UnderlyingInstrument) if (i == isin) =>
-      stay() using instrument.copy(state = state)
-
-    case Event(CatchedParameters(i, params), instrument: UnderlyingInstrument) if (i == isin) =>
-      stay() using instrument.copy(parameters = params)
+    case Event(PositionBalanced(i), _) if (i == isin) =>
+      log.info("Position balanced!")
+      stay()
   }
 
   onTransition {
-    case CatchingInstrument -> Ready => engine.reportReady(Map())
+    case WaitingPositionManager -> Ready => engine.reportReady(Map())
+    case _ -> Bullish => sender
   }
 
   initialize
 
-  private def warmedUp(time: DateTime) = initialSlope.get.time.getMillis < time.getMillis - math.max(primaryDuration.toMillis, primaryDuration.toMillis)
+  private def warmedUp(time: DateTime) = initialSlope.get.time.getMillis < time.getMillis - math.max(config.primaryDuration.toMillis, config.primaryDuration.toMillis)
 
-  private def catchUp(catching: CatchingData) = catching match {
-    case CatchingData(Some(security), Some(parameters), Some(state)) =>
-      val underlying = UnderlyingInstrument(security, parameters, state)
-      log.debug("Ready to trade using unserlying instrument = " + underlying)
-      goto(Ready) using underlying
-
-    case _ => stay() using catching
+  def defaultTrend: PartialFunction[(Trend, PriceSlope), Trend] = {
+    case (old, slope) => old
   }
 }
 
@@ -171,13 +180,12 @@ class PriceRegression(reportTo: ActorRef)(primaryDuration: Duration = 1.minute, 
 
   import PriceRegression._
 
-  val SecondaryScale = 10000
+  val SecondaryScale = 100000
 
   case object Computing
 
   implicit def pimpRawData(data: Seq[RawData]) = new {
     def normalized: Seq[NormalizedData] = {
-      import scalaz.Scalaz._
       val normalizedTime = StatUtils.normalize(data.map(_.time.getMillis.toDouble).toArray)
       val normalizedValued = StatUtils.normalize(data.map(_.value).toArray)
       normalizedTime zip normalizedValued map {

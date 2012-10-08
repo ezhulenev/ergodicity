@@ -62,7 +62,7 @@ class TrendFollowingSpec extends TestKit(ActorSystem("TrendFollowing", com.ergod
   val start = new DateTime(2012, 1, 1, 12, 0)
 
   "TrendFollowingStrategy" must {
-    "catch instrument for given isin" in {
+    "wait for position manager started" in {
       implicit val Id1 = TrendFollowing.TrendFollowing(isin1)
 
       // Prepare mock for engine and services
@@ -72,7 +72,10 @@ class TrendFollowingSpec extends TestKit(ActorSystem("TrendFollowing", com.ergod
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(instrumentDataService)
 
       // Build strategy
-      val strategy = TestFSMRef(new TrendFollowingStrategy(isin1, 1.minute, 1.minute), "TrendFollowingStrategy")
+      val config = TrendFollowingConfig(1.minute, 1.minute) {
+        case (_, _) => TrendFollowingState.Flat
+      }
+      val strategy = TestFSMRef(new TrendFollowingStrategy(isin1, config), "TrendFollowingStrategy")
       awaitCond(strategy.stateName == TrendFollowingState.Ready)
 
       verify(engine).reportReady(Map())

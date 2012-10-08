@@ -92,8 +92,11 @@ class StrategyEngineIntegrationSpec extends TestKit(ActorSystem("StrategyEngineI
       val services = TestActorRef(new IntegrationServices(underlyingEngine), "Services")
       val underlyingServices = services.underlyingActor
 
-
-      val strategies = CoverAllPositions() & TrendFollowing(Isin("RTS-12.12"), 1.minute, 30.seconds)
+      import TrendFollowing.toDoubleInterval
+      val bullishIndicator = ((-0.30, 0.30), (0.75, Double.MaxValue))
+      val bearishIndicator = ((-0.30, 0.30), (Double.MinValue, -0.75))
+      val flatIndicator = ((-0.30, 0.30), (-0.3, 0.3))
+      val strategies = CoverAllPositions() & TrendFollowing(Isin("RTS-12.12"), 1.minute, 30.seconds, bullishIndicator, bearishIndicator, flatIndicator)
       val strategyEngine = TestActorRef(new StrategyEngineActor(strategies)(underlyingServices), "StrategyEngine")
 
       services ! StartServices
