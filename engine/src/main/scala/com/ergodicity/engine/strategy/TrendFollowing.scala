@@ -16,6 +16,7 @@ import com.ergodicity.engine.strategy.Strategy.Start
 import akka.util
 import com.ergodicity.engine.strategy.TrendFollowingState.{Bearish, Bullish, Flat, Trend}
 import com.ergodicity.engine.strategy.PositionManagement.{PositionBalanced, PositionManagerStarted}
+import com.ergodicity.core.position.Position
 
 object TrendFollowing {
 
@@ -91,17 +92,19 @@ class TrendFollowingStrategy(isin: Isin, config: TrendFollowingConfig)
   // Regression calculation
   val priceRegression = context.actorOf(Props(new PriceRegression(self)(config.primaryDuration, config.secondaryDuration)), "PriceRegression")
 
+  // Position manager
+  val positionManager = managePosition(isin)
+
   var initialSlope: Option[PriceSlope] = None
 
   override def preStart() {
     log.info("Start trend following for isin = " + isin)
-    managePosition(isin)
   }
 
   startWith(WaitingPositionManager, None)
 
   when(WaitingPositionManager, stateTimeout = 30.seconds) {
-    case Event(PositionManagerStarted(i, security), _) if (i == isin) =>
+    case Event(PositionManagerStarted(i, security, position), _) if (i == isin) =>
       goto(Ready) using Some(security)
 
     case Event(StateTimeout, _) => failed("Failed to catch instrument for isin = " + isin)
@@ -144,19 +147,29 @@ class TrendFollowingStrategy(isin: Isin, config: TrendFollowingConfig)
   }
 
   whenUnhandled {
-    case Event(PositionBalanced(i), _) if (i == isin) =>
-      log.info("Position balanced!")
+    case Event(PositionBalanced(i, pos), _) if (i == isin) =>
+      log.info("Position balanced! Position = "+pos)
       stay()
   }
 
   onTransition {
     case WaitingPositionManager -> Ready => engine.reportReady(Map())
-    case _ -> Bullish => sender
+    case _ -> Bullish =>
+      log.info("Go to BULLISH trend")
+      positionManager acquire Position(1)
+
+    case _ -> Bearish =>
+      log.info("Go to BEARISH trend")
+      positionManager acquire Position(-1)
+
+    case _ -> Flat =>
+      log.info("Go to FLAT trend")
+      positionManager acquire Position.flat
   }
 
   initialize
 
-  private def warmedUp(time: DateTime) = initialSlope.get.time.getMillis < time.getMillis - math.max(config.primaryDuration.toMillis, config.primaryDuration.toMillis)
+  private def warmedUp(time: DateTime) = true //initialSlope.get.time.getMillis < time.getMillis - math.max(config.primaryDuration.toMillis, config.primaryDuration.toMillis)
 
   def defaultTrend: PartialFunction[(Trend, PriceSlope), Trend] = {
     case (old, slope) => old

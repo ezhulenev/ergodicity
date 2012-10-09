@@ -8,7 +8,7 @@ import ru.micexrts.cgate.{Connection => CGConnection}
 import org.mockito.Mockito._
 import akka.actor.FSM.CurrentState
 import com.ergodicity.engine.Services.ServiceFailedException
-import com.ergodicity.engine.Services
+import com.ergodicity.engine.{Engine, Services}
 
 class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -16,6 +16,8 @@ class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec",
   override def afterAll() {
     system.shutdown()
   }
+
+  implicit val config = ConnectionConfig(Engine.ReplicationDispatcher)
 
   "ConnectionService" must {
     "throw exception on error state" in {

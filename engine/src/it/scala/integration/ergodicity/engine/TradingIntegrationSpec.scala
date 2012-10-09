@@ -31,6 +31,7 @@ import com.ergodicity.core.FutureContract
 import com.ergodicity.cgate.config.FortsMessages
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import akka.actor.FSM.SubscribeTransitionCallBack
+import com.ergodicity.core.OrderType.{ImmediateOrCancel, GoodTillCancelled}
 
 class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -40,8 +41,8 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
   val Port = 4001
 
   val ReplicationConnection = Tcp(Host, Port, system.name + "Replication")
-  val PublisherConnection = Tcp(Host, Port,  system.name + "Publisher")
-  val RepliesConnection = Tcp(Host, Port,  system.name + "Repl")
+  val PublisherConnection = Tcp(Host, Port, system.name + "Publisher")
+  val RepliesConnection = Tcp(Host, Port, system.name + "Repl")
 
   override def beforeAll() {
     val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
@@ -134,7 +135,7 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
             log.info("Trading service = " + trading)
 
             implicit val timeout = Timeout(10.minutes)
-            val f1 = (trading ? Sell(FutureContract(IsinId(0), Isin("RTS-12.12"), ShortIsin(""), ""), 1, 150000)).mapTo[OrderExecution]
+            val f1 = (trading ? Sell(FutureContract(IsinId(0), Isin("RTS-12.12"), ShortIsin(""), ""), 1, 143000, orderType = ImmediateOrCancel)).mapTo[OrderExecution]
 
             f1 onComplete (_ match {
               case Left(err) =>
@@ -142,6 +143,11 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
 
               case Right(execution) =>
                 log.info("Execution report = " + execution)
+                execution.subscribeOrderEvents(TestActorRef(new Actor {
+                  protected def receive = {
+                    case e => log.info("OrderEvent = " + e)
+                  }
+                }))
                 val f2 = execution.cancel
                 val cancelled = Await.result(f2, 5.seconds)
 

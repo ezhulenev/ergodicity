@@ -8,6 +8,7 @@ import akka.util.duration._
 import com.ergodicity.engine.underlying.{UnderlyingTradingConnections, UnderlyingConnection}
 import ru.micexrts.cgate.{Connection => CGConnection, CGateException}
 import com.ergodicity.cgate.Connection.StartMessageProcessing
+import akka.util.Duration
 
 object ReplicationConnection {
 
@@ -19,6 +20,8 @@ trait ReplicationConnection {
   this: Services =>
 
   import ReplicationConnection._
+
+  private[this] implicit val config = ConnectionConfig(Engine.ReplicationDispatcher)
 
   def engine: Engine with UnderlyingConnection
 
@@ -37,17 +40,21 @@ trait TradingConnection {
 
   import TradingConnection._
 
+  private[this] implicit val config = ConnectionConfig(Engine.ReplicationDispatcher, processingDuration = 10.millis)
+
   def engine: Engine with UnderlyingTradingConnections
 
   register(Props(new ConnectionService(engine.underlyingTradingConnection)))
 }
 
+case class ConnectionConfig(dispatcher: String, processingDuration: Duration = 10.millis)
+
 protected[service] class ConnectionService(underlyingConnection: CGConnection)
-                                          (implicit val services: Services, id: ServiceId) extends Actor with ActorLogging with WhenUnhandled with Service {
+                                          (implicit val services: Services, id: ServiceId, config: ConnectionConfig) extends Actor with ActorLogging with WhenUnhandled with Service {
 
   import services._
 
-  val Connection = context.actorOf(Props(new CgateConnection(underlyingConnection)).withDispatcher(Engine.ReplicationDispatcher), "Connection")
+  val Connection = context.actorOf(Props(new CgateConnection(underlyingConnection)).withDispatcher(config.dispatcher), "Connection")
 
   // Stop Connection on any CGException
   override def supervisorStrategy() = AllForOneStrategy() {
@@ -89,11 +96,11 @@ protected[service] class ConnectionService(underlyingConnection: CGConnection)
       failed("Connection switched to Error state")
 
     case CurrentState(Connection, com.ergodicity.cgate.Active) =>
-      Connection ! StartMessageProcessing(100.millis)
+      Connection ! StartMessageProcessing(config.processingDuration)
       serviceStarted
 
     case Transition(Connection, _, com.ergodicity.cgate.Active) =>
-      Connection ! StartMessageProcessing(100.millis)
+      Connection ! StartMessageProcessing(config.processingDuration)
       serviceStarted
   }
 }

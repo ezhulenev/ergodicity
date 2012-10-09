@@ -108,10 +108,10 @@ protected[service] class TradingService(listener: ListenerFactory,
   private[this] implicit val brokerConfig = Broker.Config(brokerCode)
 
   // Execution broker
-  val TradingBroker = context.actorOf(Props(new Broker(underlyingPublisher)).withDispatcher(Engine.PublisherDispatcher), "Broker")
+  val TradingBroker = context.actorOf(Props(new Broker(underlyingPublisher)).withDispatcher(Engine.TradingDispatcher), "Broker")
 
   private[this] val underlyingRepliesListener = listener(tradingConnection, Replies(publisherName)(), new ReplySubscriber(TradingBroker))
-  private[this] val replyListener = context.actorOf(Props(new Listener(underlyingRepliesListener)).withDispatcher(Engine.ReplyDispatcher), "RepliesListener")
+  private[this] val replyListener = context.actorOf(Props(new Listener(underlyingRepliesListener)).withDispatcher(Engine.TradingDispatcher), "RepliesListener")
 
   // Orders tracking
   val FutOrdersStream = context.actorOf(Props(new DataStream), "FutOrdersStream")

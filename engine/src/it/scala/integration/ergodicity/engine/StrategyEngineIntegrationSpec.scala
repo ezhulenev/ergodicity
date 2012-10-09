@@ -74,11 +74,11 @@ class StrategyEngineIntegrationSpec extends TestKit(ActorSystem("StrategyEngineI
   }
 
   trait Publisher extends UnderlyingPublisher {
-    self: Engine with UnderlyingConnection =>
+    self: Engine with UnderlyingTradingConnections =>
     val publisherName: String = "Engine"
     val brokerCode: String = "533"
     val messagesConfig = FortsMessages(publisherName, 5.seconds, new File("./cgate/scheme/FortsMessages.ini"))
-    val underlyingPublisher = new CGPublisher(underlyingConnection, messagesConfig())
+    val underlyingPublisher = new CGPublisher(underlyingTradingConnection, messagesConfig())
   }
 
   class IntegrationEngine extends Engine with Connections with Replication with Listener with Publisher

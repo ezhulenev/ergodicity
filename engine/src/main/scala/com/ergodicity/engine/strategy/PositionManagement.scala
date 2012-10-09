@@ -42,13 +42,15 @@ trait PositionManagement {
 
   private[this] val positionManagers = mutable.Map[Isin, ActorRef]()
 
-  def managePosition(isin: Isin, initialPosition: Position = Position.flat)(implicit config: PositionManagementConfig) {
+  def managePosition(isin: Isin, initialPosition: Position = Position.flat)(implicit config: PositionManagementConfig) = {
     if (positionManagers contains isin)
       throw new PositionManagementException("Position manager for isin = " + isin + " already registered")
 
     val creator = Props(new PositionManagerActor(trading, isin, initialPosition))
     val positionManagerActor = context.actorOf(creator, "PositionManager-" + isin.toActorName)
     positionManagers(isin) = positionManagerActor
+
+    new PositionManager(positionManagerActor)
   }
 }
 
@@ -117,9 +119,12 @@ class PositionManagerActor(trading: ActorRef, isin: Isin, initialPosition: Posit
   }
 
   when(Balanced) {
-    case Event(AcquirePosition(acquired), managed@ManagedPosition(instrument, actual, target)) =>
+    case Event(AcquirePosition(acquired), managed@ManagedPosition(instrument, actual, target)) if(acquired != actual) =>
       balance(acquired - actual)
       goto(Balancing) using managed.copy(target = acquired)
+
+    case Event(AcquirePosition(acquired), managed@ManagedPosition(instrument, actual, target)) if(acquired == actual) =>
+    stay()
   }
 
   when(Balancing) {
@@ -127,7 +132,8 @@ class PositionManagerActor(trading: ActorRef, isin: Isin, initialPosition: Posit
       balance(acquired - target)
       stay() using managed.copy(target = acquired)
 
-    case Event(OrderEvent(order, Fill(amount, rest, _)), managed@ManagedPosition(instrument, actual, target)) =>
+    case Event(OrderEvent(order, Fill(amount, rest, deal)), managed@ManagedPosition(instrument, actual, target)) =>
+      log.info("Order filled; Deal = " + deal)
       val afterFill = actual.pos + (order.direction match {
         case OrderDirection.Buy => amount
         case OrderDirection.Sell => -1 * amount

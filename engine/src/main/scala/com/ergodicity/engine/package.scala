@@ -36,7 +36,7 @@ package object engine {
              throughput = 1
            }
 
-           replyDispatcher {
+           tradingDispatcher {
              type = Dispatcher
 
              executor = "thread-pool-executor"
@@ -51,22 +51,6 @@ package object engine {
 
              throughput = 1
             }
-
-            publisherDispatcher {
-              type = Dispatcher
-
-              executor = "thread-pool-executor"
-
-              # Single Threaded Executor
-              thread-pool-executor {
-                core-pool-size-min = 1
-                core-pool-size-max = 1
-                max-pool-size-min = 1
-                max-pool-size-max = 1
-              }
-
-              throughput = 1
-             }
        }
     }
 

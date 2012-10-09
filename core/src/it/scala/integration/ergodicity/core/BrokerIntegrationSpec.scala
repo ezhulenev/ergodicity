@@ -17,7 +17,7 @@ import akka.util.duration._
 import com.ergodicity.core.broker._
 import com.ergodicity.core.Market.Futures
 import com.ergodicity.core.Isin
-import com.ergodicity.core.OrderType.GoodTillCancelled
+import com.ergodicity.core.OrderType.{ImmediateOrCancel, GoodTillCancelled}
 import Broker._
 import akka.actor.FSM.Transition
 import scala.Some
@@ -158,7 +158,7 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
 
     Thread.sleep(3000)
 
-    val f1 = (broker ? Buy[Futures](Isin("RTS-12.12"), 2, 150000, GoodTillCancelled)).mapTo[OrderId]
+    val f1 = (broker ? Buy[Futures](Isin("RTS-12.12"), 5, 155000, ImmediateOrCancel)).mapTo[OrderId]
 
     f1 onComplete (_ match {
       case Left(ActionFailedException(code, message)) =>
