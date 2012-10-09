@@ -1,16 +1,23 @@
 package com.ergodicity.engine.strategy
 
 import akka.actor.{Props, ActorRef, FSM, Actor}
+import akka.pattern.ask
+import akka.pattern.pipe
 import com.ergodicity.engine.service.Trading
-import com.ergodicity.core.position.Position
 import akka.util.duration._
-import com.ergodicity.core.{Isin, Security}
-import com.ergodicity.engine.strategy.PositionManagerState.{Balanced, CatchingInstrument}
-import collection.mutable
+import com.ergodicity.core.{OrderDirection, position, Isin, Security}
+import com.ergodicity.engine.strategy.PositionManagerState.{Balancing, Balanced, CatchingInstrument}
 import com.ergodicity.core.session.{InstrumentState, InstrumentParameters}
 import com.ergodicity.engine.strategy.PositionManagerData.{ManagedPosition, UnderlyingInstrument, CatchingData}
 import com.ergodicity.engine.strategy.InstrumentWatchDog.{WatchDogConfig, CatchedParameters, CatchedState, Catched}
 import com.ergodicity.engine.strategy.PositionManagement.{AcquirePosition, PositionManagerStarted, PositionBalanced}
+import com.ergodicity.engine.service.Trading.{Buy, Sell, OrderExecution}
+import com.ergodicity.core.session.InstrumentParameters.{OptionParameters, FutureParameters}
+import collection.mutable
+import position.Position
+import com.ergodicity.core.order.OrderActor.OrderEvent
+import com.ergodicity.core.order.{Fill, Create, Cancel, Order}
+import akka.util.Timeout
 
 class PositionManagementException(msg: String) extends RuntimeException(msg)
 
@@ -67,7 +74,7 @@ object PositionManagerData {
 
   case class UnderlyingInstrument(security: Security, parameters: InstrumentParameters, state: InstrumentState)
 
-  case class ManagedPosition(instrument: UnderlyingInstrument, position: Position) extends PositionManagerData
+  case class ManagedPosition(instrument: UnderlyingInstrument, actual: Position, target: Position) extends PositionManagerData
 
 }
 
@@ -80,7 +87,12 @@ class PositionManager(ref: ActorRef) {
 class PositionManagerActor(trading: ActorRef, isin: Isin, initialPosition: Position)
                           (implicit config: PositionManagementConfig, watcher: InstrumentWatcher) extends Actor with FSM[PositionManagerState, PositionManagerData] {
 
+  implicit val timeout = Timeout(5.seconds)
+
   implicit val watchDogConfig = WatchDogConfig(self, notifyOnCatched = true, notifyOnParams = true, notifyOnState = true)
+
+  // Order executions
+  val orders = mutable.Map[Order, OrderExecution]()
 
   override def preStart() {
     log.info("Start position manager for isin = " + isin + ", initial position = " + initialPosition)
@@ -101,35 +113,110 @@ class PositionManagerActor(trading: ActorRef, isin: Isin, initialPosition: Posit
     case Event(CatchedParameters(i, params), catching: CatchingData) if (i == isin) =>
       catchUp(catching.copy(parameters = Some(params)))
 
-    case Event(StateTimeout, _) => throw new PositionManagementException("Failed to catch instrument for isin = " + isin)
+    case Event(StateTimeout, _) => failed("Failed to catch instrument for isin = " + isin)
   }
 
   when(Balanced) {
-    case Event(_, _) => stay()
+    case Event(AcquirePosition(acquired), managed@ManagedPosition(instrument, actual, target)) =>
+      balance(acquired - actual)
+      goto(Balancing) using managed.copy(target = acquired)
+  }
+
+  when(Balancing) {
+    case Event(AcquirePosition(acquired), managed@ManagedPosition(instrument, actual, target)) =>
+      balance(acquired - target)
+      stay() using managed.copy(target = acquired)
+
+    case Event(OrderEvent(order, Fill(amount, rest, _)), managed@ManagedPosition(instrument, actual, target)) =>
+      val afterFill = actual.pos + (order.direction match {
+        case OrderDirection.Buy => amount
+        case OrderDirection.Sell => -1 * amount
+      })
+
+      if (Position(afterFill) == target) {
+        val newPosition = Position(afterFill)
+        config.reportTo ! PositionBalanced(isin, newPosition)
+        goto(Balanced) using managed.copy(actual = newPosition)
+      } else {
+        stay() using managed.copy(actual = Position(afterFill))
+      }
   }
 
   whenUnhandled {
-    case Event(CatchedState(i, state), mp@ManagedPosition(instrument, pos)) if (i == isin) =>
-      stay() using ManagedPosition(instrument.copy(state = state), pos)
+    // Updated catched instrument
+    case Event(CatchedState(i, state), mp@ManagedPosition(instrument, actual, target)) if (i == isin) =>
+      stay() using ManagedPosition(instrument.copy(state = state), actual, target)
 
-    case Event(CatchedParameters(i, params), mp@ManagedPosition(instrument, pos)) if (i == isin) =>
-      stay() using ManagedPosition(instrument.copy(parameters = params), pos)
+    case Event(CatchedParameters(i, params), mp@ManagedPosition(instrument, actual, target)) if (i == isin) =>
+      stay() using ManagedPosition(instrument.copy(parameters = params), actual, target)
+
+    // Track orders
+    case Event(execution: OrderExecution, _) =>
+      orders(execution.order) = execution
+      execution.subscribeOrderEvents(self)
+      stay()
+
+    // Handle Order Events
+    case Event(OrderEvent(order, Create(_)), _) =>
+      stay()
+
+    case Event(OrderEvent(order, Cancel(amount)), _) if (orders contains order) && (amount > 0) =>
+      log.warning("Order cancelled with amount > 0; amount = " + amount + ", order = " + order)
+      orders -= order
+      stay()
+
+    case Event(OrderEvent(order, Cancel(amount)), _) if (orders contains order) && (amount == 0) =>
+      orders -= order
+      stay()
   }
 
-
   initialize
+
+  private def balance(diff: Position) {
+    def sellPrice(parameters: InstrumentParameters) = parameters match {
+      case FutureParameters(lastClQuote, limits) => lastClQuote - limits.lower
+      case OptionParameters(lastClQuote) => failed("Option parameters no supported")
+    }
+
+    def buyPrice(parameters: InstrumentParameters) = parameters match {
+      case FutureParameters(lastClQuote, limits) => lastClQuote + limits.upper
+      case OptionParameters(lastClQuote) => failed("Option parameters no supported")
+    }
+
+    val underlying = stateData.asInstanceOf[ManagedPosition].instrument
+
+    diff.dir match {
+      case position.Long =>
+        (trading ? Buy(underlying.security, diff.pos.abs, buyPrice(underlying.parameters))) pipeTo self
+
+      case position.Short =>
+        (trading ? Sell(underlying.security, diff.pos.abs, sellPrice(underlying.parameters))) pipeTo self
+
+      case position.Flat => // do nothing
+    }
+  }
+
+  private def failed(message: String): Nothing = {
+    throw new PositionManagementException(message)
+  }
 
   private def catchUp(catching: CatchingData) = catching match {
     case CatchingData(Some(sec), Some(parameters), Some(state)) =>
       val underlying = UnderlyingInstrument(sec, parameters, state)
       log.debug("Ready to trade; Underlying instrument = " + underlying)
+
+      // Report on position
       config.reportTo ! PositionManagerStarted(isin, sec, initialPosition)
-      goto(Balanced) using ManagedPosition(underlying, initialPosition)
+      config.reportTo ! PositionBalanced(isin, initialPosition)
+
+      // Ang go to Balanced state
+      goto(Balanced) using ManagedPosition(underlying, initialPosition, initialPosition)
 
     case _ => stay() using catching
   }
 
   onTransition {
-    case _ -> Balanced => config.reportTo ! PositionBalanced(isin, stateData.asInstanceOf[ManagedPosition].position)
+    case _ -> Balanced => log.info("Position balanced")
+    case _ -> Balancing => log.info("Balancing position")
   }
 }
