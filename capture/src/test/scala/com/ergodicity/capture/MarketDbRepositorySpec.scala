@@ -5,12 +5,13 @@ import org.slf4j.LoggerFactory
 import org.squeryl.{Session => SQRLSession, SessionFactory}
 import org.squeryl.adapters.H2Adapter
 import org.squeryl.PrimitiveTypeMode._
-import com.ergodicity.capture.CaptureSchema._
+import com.ergodicity.schema.ErgodicitySchema._
 import scala.Some
 import com.ergodicity.core.SessionId
+import com.ergodicity.schema.ErgodicitySchemaSpec
 
 class MarketDbRepositorySpec extends FlatSpec with BeforeAndAfterAll {
-  val log = LoggerFactory.getLogger(classOf[CaptureSchemaSpec])
+  val log = LoggerFactory.getLogger(classOf[ErgodicitySchemaSpec])
 
   override protected def beforeAll() {
     initialize()

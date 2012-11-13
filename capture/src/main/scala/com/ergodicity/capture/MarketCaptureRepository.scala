@@ -2,7 +2,8 @@ package com.ergodicity.capture
 
 import org.slf4j.LoggerFactory
 import com.ergodicity.cgate.scheme._
-import com.ergodicity.capture.CaptureSchema._
+import com.ergodicity.schema._
+import com.ergodicity.schema.ErgodicitySchema._
 import org.squeryl.PrimitiveTypeMode._
 import com.ergodicity.core.SessionId
 

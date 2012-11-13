@@ -12,7 +12,7 @@ import com.ergodicity.capture.Mocking._
 import org.squeryl.{Session => SQRLSession, SessionFactory}
 import org.squeryl.adapters.H2Adapter
 import org.squeryl.PrimitiveTypeMode._
-import com.ergodicity.capture.CaptureSchema._
+import com.ergodicity.schema.ErgodicitySchema._
 import com.ergodicity.capture.Repository.Snapshot
 import scala.Some
 

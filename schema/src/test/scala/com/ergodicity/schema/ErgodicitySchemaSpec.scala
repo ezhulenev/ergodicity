@@ -1,21 +1,21 @@
-package com.ergodicity.capture
+package com.ergodicity.schema
 
 import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 import org.slf4j.LoggerFactory
 import org.squeryl.{Session => SQRLSession, _}
-import adapters.{PostgreSqlAdapter, H2Adapter}
+import adapters.H2Adapter
 import PrimitiveTypeMode._
-import CaptureSchema._
 import org.joda.time.DateTime
+import com.ergodicity.schema.ErgodicitySchema._
 
-class CaptureSchemaSpec extends FlatSpec with BeforeAndAfterAll {
-  val log = LoggerFactory.getLogger(classOf[CaptureSchemaSpec])
+class ErgodicitySchemaSpec extends FlatSpec with BeforeAndAfterAll {
+  val log = LoggerFactory.getLogger(classOf[ErgodicitySchemaSpec])
 
   override protected def beforeAll() {
     initialize()
   }
 
-  "Capture Schema" should "load sessions" in {
+  "Ergodicity Schema" should "load sessions" in {
     val begin = new DateTime().getMillis
     val end = new DateTime().getMillis
     val zero = 0l

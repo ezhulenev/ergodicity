@@ -5,7 +5,7 @@ import com.twitter.ostrich.admin.RuntimeEnvironment
 import org.squeryl.{Session => SQRLSession, _}
 import adapters.H2Adapter
 import PrimitiveTypeMode._
-import CaptureSchema._
+import ErgodicitySchema._
 import java.io.File
 
 new CaptureEngineConfig {

@@ -17,7 +17,7 @@ import com.ergodicity.cgate.WhenUnhandled
 import org.squeryl.{Session => SQRLSession, SessionFactory}
 import org.squeryl.adapters.H2Adapter
 import org.squeryl.PrimitiveTypeMode.inTransaction
-import com.ergodicity.capture.CaptureSchema._
+import com.ergodicity.schema.ErgodicitySchema._
 import com.ergodicity.cgate.config.CGateConfig
 import scala.Some
 import com.ergodicity.cgate.StreamEvent.ReplState

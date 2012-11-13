@@ -1,4 +1,4 @@
-package com.ergodicity.capture
+package com.ergodicity.schema
 
 import org.squeryl.annotations.Column
 import org.squeryl.KeyedEntity
@@ -6,8 +6,6 @@ import org.squeryl.PrimitiveTypeMode._
 import org.squeryl.Schema
 import org.squeryl.dsl.CompositeKey2
 import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
-import org.squeryl.customtypes.StringField
-
 
 object Session {
   def apply(record: FutInfo.session) = new Session(
@@ -191,7 +189,7 @@ class ReplicationState(val stream: String,
                        @Column(length = 5000)
                        val state: String)
 
-object CaptureSchema extends Schema {
+object ErgodicitySchema extends Schema {
   val sessions = table[Session]("SESSION")
   val futSessContents = table[FutSessContents]("FUT_SESS_CONTENTS")
   val optSessContents = table[OptSessContents]("OPT_SESS_CONTENTS")

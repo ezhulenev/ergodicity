@@ -15,24 +15,16 @@ object ErgodicityBuild extends Build {
   lazy val ergodicity = Project(
     id = "ergodicity",
     base = file("."),
-    aggregate = Seq(cgate, core, capture, engine)
+    aggregate = Seq(cgate, core, capture, engine, schema)
   ).configs( IntegrationTest )
     .settings( (Defaults.itSettings ++ graphSettings) : _*)
 
   lazy val capture = Project(
     id = "capture",
     base = file("capture"),
-    dependencies = Seq(core),
+    dependencies = Seq(core, schema),
     settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.capture) ++
       assemblySettings ++ extAssemblySettings
-  ).configs( IntegrationTest )
-    .settings( Defaults.itSettings : _*)
-
-  lazy val quant = Project(
-    id = "quant",
-    base = file("quant"),
-    dependencies = Seq(core),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.quant)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
@@ -59,6 +51,22 @@ object ErgodicityBuild extends Build {
       (sourceGenerators in Compile) <+= (sourceManaged in Compile) map {
         case out: File => SchemeTools.generateSchemes(file("cgate").getAbsoluteFile, out)
       })
+  ).configs( IntegrationTest )
+    .settings( Defaults.itSettings : _*)
+
+  lazy val quant = Project(
+    id = "quant",
+    base = file("quant"),
+    dependencies = Seq(core),
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.quant)
+  ).configs( IntegrationTest )
+    .settings( Defaults.itSettings : _*)
+
+  lazy val schema = Project(
+    id = "schema",
+    base = file("schema"),
+    dependencies = Seq(core),
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.schema)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
@@ -131,15 +139,17 @@ object ErgodicityBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val capture = Seq(sbinary, scalaz, finagleKestrel, marketDb, squeryl, h2Driver, postgresDriver, ostrich, scalaIO) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
-
-  val quant = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
+  val capture = Seq(sbinary, scalaz, finagleKestrel, marketDbApi, squeryl, h2Driver, postgresDriver, ostrich, scalaIO) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val engine = Seq(commonsMath) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val core = Seq(scalaz, jodaTime, jodaConvert, scalaTime) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val cgate = Seq(scalaz, akka, akkaSlf4j, ostrich, logback) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
+
+  val quant = Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
+
+  val schema = Seq(squeryl, h2Driver, postgresDriver) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 }
 
 
@@ -173,7 +183,7 @@ object Dependency {
   }
 
   // Compile
-  val marketDb               = "com.ergodicity.marketdb"          %% "marketdb-api"           % V.MarketDb intransitive()
+  val marketDbApi            = "com.ergodicity.marketdb"          %% "marketdb-api"           % V.MarketDb intransitive()
 
   val logback                = "ch.qos.logback"                    % "logback-classic"        % V.Logback
   val scalaz                 = "org.scalaz"                       %% "scalaz-core"            % V.Scalaz
