@@ -15,9 +15,17 @@ object ErgodicityBuild extends Build {
   lazy val ergodicity = Project(
     id = "ergodicity",
     base = file("."),
-    aggregate = Seq(cgate, core, capture, engine, schema)
+    aggregate = Seq(backtest, cgate, core, capture, engine, schema)
   ).configs( IntegrationTest )
     .settings( (Defaults.itSettings ++ graphSettings) : _*)
+
+  lazy val backtest = Project(
+    id = "backtest",
+    base = file("backtest"),
+    dependencies = Seq(core, schema),
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.backtest)
+  ).configs( IntegrationTest )
+    .settings( Defaults.itSettings : _*)
 
   lazy val capture = Project(
     id = "capture",
@@ -138,6 +146,8 @@ object ErgodicityBuild extends Build {
 
 object Dependencies {
   import Dependency._
+
+  val backtest = Seq(scalaz, marketDbApi, squeryl, h2Driver, postgresDriver) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val capture = Seq(sbinary, scalaz, finagleKestrel, marketDbApi, squeryl, h2Driver, postgresDriver, ostrich, scalaIO) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
