@@ -22,11 +22,11 @@ package object cgate {
 
     def moneyMarket = (signs & 0x800) > 0
 
+
     sealed trait Type
 
     case object Margin extends Type
 
     case object Premium extends Type
   }
-
 }
