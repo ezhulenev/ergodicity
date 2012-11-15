@@ -102,13 +102,21 @@ object Listener {
 
 
 class ListenerActor(subscriber: ISubscriber) extends Actor with FSM[State, Unit] {
+  import Listener._
+
   startWith(Closed, ())
 
   when(Closed) {
-    case Event(OpenCmd, _) => goto(Active) replying (Left(()))
+    case Event(OpenCmd, _) =>
+      notify(StreamEvent.Open)
+      goto(Active) replying (Left(()))
   }
 
   when(Active) {
     case Event(OpenCmd, _) => stay() replying (Right(new CGateException("Listener already opened")))
+  }
+
+  private def notify(event: StreamEvent) {
+    subscriber onMessage (null, null, event)
   }
 }

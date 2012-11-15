@@ -3,12 +3,15 @@ package com.ergodicity.backtest.cgate
 import akka.actor.ActorSystem
 import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
 import akka.event.Logging
-import akka.testkit.{TestFSMRef, TestActorRef, ImplicitSender, TestKit}
-import com.ergodicity.cgate.{Active, Closed}
+import akka.testkit._
+import com.ergodicity.cgate.{StreamEvent, DataStreamSubscriber, Active, Closed}
 import org.mockito.Mockito._
 import org.scalatest.matchers.ShouldMatchers
 import org.scalatest.{WordSpec, BeforeAndAfterAll}
 import ru.micexrts.cgate.{CGateException, ISubscriber}
+import akka.actor.FSM.Transition
+import akka.actor.FSM.CurrentState
+import akka.actor.FSM.SubscribeTransitionCallBack
 
 class ListenerSpec extends TestKit(ActorSystem("ListenerSpec")) with WordSpec with ShouldMatchers with BeforeAndAfterAll with ImplicitSender {
   val log = Logging(system, classOf[ListenerSpec])
@@ -19,13 +22,15 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec")) with WordSpec wi
 
   "Listener" must {
     "open listener" in {
-      val listenerActor = TestActorRef(new ListenerActor(mock(classOf[ISubscriber])))
+      val subscriber = TestProbe()
+      val listenerActor = TestActorRef(new ListenerActor(new DataStreamSubscriber(subscriber.ref)))
       val listener = Listener(listenerActor)
 
       listenerActor ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(listenerActor, Closed))
 
       listener.open("Ebaka")
+      subscriber.expectMsg(StreamEvent.Open)
       expectMsg(Transition(listenerActor, Closed, Active))
     }
 
