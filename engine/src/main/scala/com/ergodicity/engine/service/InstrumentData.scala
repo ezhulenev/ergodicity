@@ -16,7 +16,6 @@ import com.ergodicity.engine.underlying.{ListenerFactory, UnderlyingListener, Un
 import com.ergodicity.engine.{Engine, Services}
 import ru.micexrts.cgate.{Connection => CGConnection}
 import scala.Some
-import com.ergodicity.core.session.SessionActor.GetAssignedContents
 
 object InstrumentData {
 
@@ -67,10 +66,10 @@ protected[service] class InstrumentDataService(listener: ListenerFactory, underl
   log.info("Underlying conn = " + underlyingConnection + ", repl = " + futInfoReplication)
 
   // Listeners
-  val underlyingFutInfoListener = listener(underlyingConnection, futInfoReplication(), new DataStreamSubscriber(FutInfoStream))
+  val underlyingFutInfoListener = listener(underlyingConnection, futInfoReplication, new DataStreamSubscriber(FutInfoStream))
   val futInfoListener = context.actorOf(Props(new Listener(underlyingFutInfoListener)).withDispatcher(Engine.ReplicationDispatcher), "FutInfoListener")
 
-  val underlyingOptInfoListener = listener(underlyingConnection, optInfoReplication(), new DataStreamSubscriber(OptInfoStream))
+  val underlyingOptInfoListener = listener(underlyingConnection, optInfoReplication, new DataStreamSubscriber(OptInfoStream))
   val optInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)).withDispatcher(Engine.ReplicationDispatcher), "OptInfoListener")
 
   startWith(Idle, StreamStates())

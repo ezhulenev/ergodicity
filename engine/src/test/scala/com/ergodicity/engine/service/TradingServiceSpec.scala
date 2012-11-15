@@ -20,7 +20,7 @@ import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{ISubscriber, Connection => CGConnection, Listener => CGListener, Publisher => CGPublisher}
-import com.ergodicity.cgate.config.Replication
+import com.ergodicity.cgate.config.{ListenerConfig, Replication}
 
 class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -33,7 +33,7 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
   implicit val Id = Trading.Trading
 
   val listenerFactory = new ListenerFactory {
-    def apply(connection: CGConnection, config: String, subscriber: ISubscriber) = mock(classOf[CGListener])
+    def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = mock(classOf[CGListener])
   }
 
 

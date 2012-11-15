@@ -11,7 +11,7 @@ trait Subscriber extends ISubscriber {
   def handleMessage(msg: Message): Int
 
   def clone(original: ByteBuffer) = {
-    val clone = ByteBuffer.allocate(original.capacity());
+    val clone = ByteBuffer.allocate(original.capacity())
     clone.order(ByteOrder.nativeOrder())
     original.rewind()
     clone.put(original)

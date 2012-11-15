@@ -1,18 +1,16 @@
 package integration.ergodicity.engine
 
-import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
 import akka.actor.{Actor, ActorSystem}
 import akka.event.Logging
 import akka.pattern.ask
 import akka.testkit.{TestActorRef, TestKit}
 import akka.util.Timeout
 import akka.util.duration._
-import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import com.ergodicity.cgate.config.{FortsMessages, CGateConfig, Replication}
-import com.ergodicity.core.{IsinId, Isin, ShortIsin, FutureContract}
+import com.ergodicity.cgate.config._
+import com.ergodicity.core.{IsinId, Isin, ShortIsin}
 import com.ergodicity.engine.ReplicationScheme._
 import com.ergodicity.engine.Services.StartServices
-import com.ergodicity.engine.service.Trading.{Sell, OrderExecution, Buy}
+import com.ergodicity.engine.service.Trading.OrderExecution
 import com.ergodicity.engine.service._
 import com.ergodicity.engine.underlying._
 import com.ergodicity.engine.{ServicesState, ServicesActor, Engine}
@@ -21,6 +19,7 @@ import java.util.concurrent.TimeUnit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener, Publisher => CGPublisher}
 import akka.dispatch.Await
+import com.ergodicity.core.OrderType.ImmediateOrCancel
 import scala.Left
 import akka.actor.FSM.Transition
 import com.ergodicity.engine.service.Trading.Buy
@@ -31,7 +30,6 @@ import com.ergodicity.core.FutureContract
 import com.ergodicity.cgate.config.FortsMessages
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.core.OrderType.{ImmediateOrCancel, GoodTillCancelled}
 
 class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -79,7 +77,7 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
 
   trait Listener extends UnderlyingListener {
     val listenerFactory = new ListenerFactory {
-      def apply(connection: CGConnection, config: String, subscriber: ISubscriber) = new CGListener(connection, config, subscriber)
+      def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = new CGListener(connection, config(), subscriber)
     }
   }
 

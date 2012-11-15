@@ -20,7 +20,6 @@ import com.ergodicity.core.order.OrdersSnapshotActor.{OrdersSnapshot, GetOrdersS
 import com.ergodicity.core.order.OrderBooksTracking.Snapshots
 import com.ergodicity.core.session.SessionActor.{AssignedContents, GetAssignedContents}
 import akka.actor.FSM.{UnsubscribeTransitionCallBack, Transition, CurrentState, SubscribeTransitionCallBack}
-import com.ergodicity.core.trade.TradesTracking
 
 object OrdersData {
 
@@ -71,7 +70,7 @@ protected[service] class OrdersDataService(listener: ListenerFactory, underlying
   val OrdLogStream = context.actorOf(Props(new DataStream), "OrdLogStream")
 
   // Order Log listener
-  private[this] val underlyingOrdLogListener = listener(underlyingConnection, ordLogReplication(), new DataStreamSubscriber(OrdLogStream))
+  private[this] val underlyingOrdLogListener = listener(underlyingConnection, ordLogReplication, new DataStreamSubscriber(OrdLogStream))
   private[this] val ordLogListener = context.actorOf(Props(new Listener(underlyingOrdLogListener)).withDispatcher(Engine.ReplicationDispatcher), "OrdLogListener")
 
   // OrderBook streams
@@ -79,10 +78,10 @@ protected[service] class OrdersDataService(listener: ListenerFactory, underlying
   val OptOrderBookStream = context.actorOf(Props(new DataStream), "OptOrderBookStream")
 
   // OrderBook listeners
-  private[this] val underlyingFutOrderBookListener = listener(underlyingConnection, futOrderBookReplication(), new DataStreamSubscriber(FutOrderBookStream))
+  private[this] val underlyingFutOrderBookListener = listener(underlyingConnection, futOrderBookReplication, new DataStreamSubscriber(FutOrderBookStream))
   private[this] val futOrderBookListener = context.actorOf(Props(new Listener(underlyingFutOrderBookListener)).withDispatcher(Engine.ReplicationDispatcher), "FutOrderBookListener")
 
-  private[this] val underlyingOptOrderBookListener = listener(underlyingConnection, optOrderBookReplication(), new DataStreamSubscriber(OptOrderBookStream))
+  private[this] val underlyingOptOrderBookListener = listener(underlyingConnection, optOrderBookReplication, new DataStreamSubscriber(OptOrderBookStream))
   private[this] val optOrderBookListener = context.actorOf(Props(new Listener(underlyingOptOrderBookListener)).withDispatcher(Engine.ReplicationDispatcher), "OptOrderBookListener")
 
   // OrderBook snapshots

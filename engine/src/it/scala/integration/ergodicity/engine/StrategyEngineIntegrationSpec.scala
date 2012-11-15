@@ -4,7 +4,7 @@ import akka.actor.{Actor, ActorSystem}
 import akka.event.Logging
 import akka.testkit.{TestActorRef, TestKit}
 import akka.util.duration._
-import com.ergodicity.cgate.config.Replication
+import com.ergodicity.cgate.config.{ListenerConfig, Replication, CGateConfig, FortsMessages}
 import com.ergodicity.engine.ReplicationScheme._
 import com.ergodicity.engine.Services.StartServices
 import com.ergodicity.engine.service._
@@ -14,14 +14,11 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener, Publisher => CGPublisher}
-import strategy.{TrendFollowing, CoverAllPositions}
+import strategy.CoverAllPositions
 import com.ergodicity.engine.StrategyEngine.{StartStrategies, PrepareStrategies}
 import akka.actor.FSM.Transition
-import com.ergodicity.cgate.config.CGateConfig
-import com.ergodicity.cgate.config.FortsMessages
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.core.Isin
 
 class StrategyEngineIntegrationSpec extends TestKit(ActorSystem("StrategyEngineIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -69,7 +66,7 @@ class StrategyEngineIntegrationSpec extends TestKit(ActorSystem("StrategyEngineI
 
   trait Listener extends UnderlyingListener {
     val listenerFactory = new ListenerFactory {
-      def apply(connection: CGConnection, config: String, subscriber: ISubscriber) = new CGListener(connection, config, subscriber)
+      def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = new CGListener(connection, config(), subscriber)
     }
   }
 
@@ -92,11 +89,12 @@ class StrategyEngineIntegrationSpec extends TestKit(ActorSystem("StrategyEngineI
       val services = TestActorRef(new IntegrationServices(underlyingEngine), "Services")
       val underlyingServices = services.underlyingActor
 
-      import TrendFollowing.toDoubleInterval
+      /*import TrendFollowing.toDoubleInterval
       val bullishIndicator = ((-0.30, 0.30), (0.75, Double.MaxValue))
       val bearishIndicator = ((-0.30, 0.30), (Double.MinValue, -0.75))
       val flatIndicator = ((-0.30, 0.30), (-0.3, 0.3))
-      val strategies = CoverAllPositions() & TrendFollowing(Isin("RTS-12.12"), 1.minute, 30.seconds, bullishIndicator, bearishIndicator, flatIndicator)
+      val strategies = CoverAllPositions() & TrendFollowing(Isin("RTS-12.12"), 1.minute, 30.seconds, bullishIndicator, bearishIndicator, flatIndicator)*/
+      val strategies = CoverAllPositions()
       val strategyEngine = TestActorRef(new StrategyEngineActor(strategies)(underlyingServices), "StrategyEngine")
 
       services ! StartServices

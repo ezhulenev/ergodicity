@@ -5,7 +5,7 @@ import akka.actor.{FSM, Terminated, ActorSystem}
 import akka.event.Logging
 import akka.testkit._
 import com.ergodicity.cgate.DataStreamState
-import com.ergodicity.cgate.config.Replication
+import com.ergodicity.cgate.config.{ListenerConfig, Replication}
 import com.ergodicity.engine.Services
 import com.ergodicity.engine.service.Service.Start
 import com.ergodicity.engine.underlying.ListenerFactory
@@ -26,7 +26,7 @@ class TradesDataServiceSpec extends TestKit(ActorSystem("TradesDataServiceSpec",
   implicit val Id = TradesData.TradesData
 
   val listenerFactory = new ListenerFactory {
-    def apply(connection: CGConnection, config: String, subscriber: ISubscriber) = mock(classOf[CGListener])
+    def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = mock(classOf[CGListener])
   }
 
   def createService(implicit services: Services = mock(classOf[Services])) = {

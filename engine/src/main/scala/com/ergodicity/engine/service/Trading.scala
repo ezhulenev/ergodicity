@@ -110,7 +110,7 @@ protected[service] class TradingService(listener: ListenerFactory,
   // Execution broker
   val TradingBroker = context.actorOf(Props(new Broker(underlyingPublisher)).withDispatcher(Engine.TradingDispatcher), "Broker")
 
-  private[this] val underlyingRepliesListener = listener(tradingConnection, Replies(publisherName)(), new ReplySubscriber(TradingBroker))
+  private[this] val underlyingRepliesListener = listener(tradingConnection, Replies(publisherName), new ReplySubscriber(TradingBroker))
   private[this] val replyListener = context.actorOf(Props(new Listener(underlyingRepliesListener)).withDispatcher(Engine.TradingDispatcher), "RepliesListener")
 
   // Orders tracking
@@ -120,10 +120,10 @@ protected[service] class TradingService(listener: ListenerFactory,
   val OrdersTracking = context.actorOf(Props(new OrdersTracking(FutOrdersStream, OptOrdersStream)), "OrdersTracking")
 
   // Orders tracking listeners
-  private[this] val underlyingFutListener = listener(replicationConnection, futOrdersReplication(), new DataStreamSubscriber(FutOrdersStream))
+  private[this] val underlyingFutListener = listener(replicationConnection, futOrdersReplication, new DataStreamSubscriber(FutOrdersStream))
   private[this] val futListener = context.actorOf(Props(new Listener(underlyingFutListener)).withDispatcher(Engine.ReplicationDispatcher), "FutOrdersListener")
 
-  private[this] val underlyingOptListener = listener(replicationConnection, optOrdersReplication(), new DataStreamSubscriber(OptOrdersStream))
+  private[this] val underlyingOptListener = listener(replicationConnection, optOrdersReplication, new DataStreamSubscriber(OptOrdersStream))
   private[this] val optListener = context.actorOf(Props(new Listener(underlyingOptListener)).withDispatcher(Engine.ReplicationDispatcher), "OptOrdersListener")
 
   override def preStart() {

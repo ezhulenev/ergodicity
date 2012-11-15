@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.testkit.{TestActorRef, TestKit}
 import akka.util.duration._
-import com.ergodicity.cgate.config.Replication
+import com.ergodicity.cgate.config.{ListenerConfig, Replication, CGateConfig, FortsMessages}
 import com.ergodicity.engine.ReplicationScheme._
 import com.ergodicity.engine.Services.StartServices
 import com.ergodicity.engine.service._
@@ -14,8 +14,6 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener, Publisher => CGPublisher}
-import com.ergodicity.cgate.config.CGateConfig
-import com.ergodicity.cgate.config.FortsMessages
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 
 class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
@@ -70,7 +68,7 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
 
   trait Listener extends UnderlyingListener {
     val listenerFactory = new ListenerFactory {
-      def apply(connection: CGConnection, config: String, subscriber: ISubscriber) = new CGListener(connection, config, subscriber)
+      def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = new CGListener(connection, config(), subscriber)
     }
   }
 

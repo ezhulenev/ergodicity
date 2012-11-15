@@ -71,10 +71,10 @@ protected[service] class TradesDataService(listener: ListenerFactory, underlying
   val OptTradeStream = context.actorOf(Props(new DataStream), "OptTradeStream")
 
   // Trades listeners
-  private[this] val underlyingFutTradeListener = listener(underlyingConnection, futTradeReplication(), new DataStreamSubscriber(FutTradeStream))
+  private[this] val underlyingFutTradeListener = listener(underlyingConnection, futTradeReplication, new DataStreamSubscriber(FutTradeStream))
   private[this] val futTradeListener = context.actorOf(Props(new Listener(underlyingFutTradeListener)).withDispatcher(Engine.ReplicationDispatcher), "FutTradeListener")
 
-  private[this] val underlyingOptTradeListener = listener(underlyingConnection, optTradeReplication(), new DataStreamSubscriber(OptTradeStream))
+  private[this] val underlyingOptTradeListener = listener(underlyingConnection, optTradeReplication, new DataStreamSubscriber(OptTradeStream))
   private[this] val optTradeListener = context.actorOf(Props(new Listener(underlyingOptTradeListener)).withDispatcher(Engine.ReplicationDispatcher), "OptTradeListener")
 
   val Trades = context.actorOf(Props(new TradesTracking(FutTradeStream, OptTradeStream)), "TradesTracking")

@@ -5,7 +5,7 @@ import akka.actor._
 import akka.event.Logging
 import akka.testkit._
 import com.ergodicity.cgate.DataStreamState
-import com.ergodicity.cgate.config.Replication
+import com.ergodicity.cgate.config.{ListenerConfig, Replication}
 import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.engine.Services
 import com.ergodicity.engine.service.Service.{Stop, Start}
@@ -25,7 +25,7 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
   implicit val Id = Portfolio.Portfolio
 
   val listenerFactory = new ListenerFactory {
-    def apply(connection: CGConnection, config: String, subscriber: ISubscriber) = mock(classOf[CGListener])
+    def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = mock(classOf[CGListener])
   }
 
   def createService(implicit services: Services = mock(classOf[Services])) = {

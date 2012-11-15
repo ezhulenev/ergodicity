@@ -76,7 +76,7 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
 
   val Positions = context.actorOf(Props(new PositionsTracking(PosStream)), "Positions")
 
-  val underlyingPosListener = listener(underlyingConnection, posReplication(), new DataStreamSubscriber(PosStream))
+  val underlyingPosListener = listener(underlyingConnection, posReplication, new DataStreamSubscriber(PosStream))
   val posListener = context.actorOf(Props(new Listener(underlyingPosListener)).withDispatcher(Engine.ReplicationDispatcher), "PosListener")
 
   startWith(Idle, StreamState(None))

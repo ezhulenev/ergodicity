@@ -22,7 +22,7 @@ object ErgodicityBuild extends Build {
   lazy val backtest = Project(
     id = "backtest",
     base = file("backtest"),
-    dependencies = Seq(core, schema),
+    dependencies = Seq(engine, schema),
     settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.backtest)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
@@ -147,7 +147,7 @@ object ErgodicityBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val backtest = Seq(scalaz, marketDbApi, squeryl, h2Driver, postgresDriver) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
+  val backtest = Seq(scalaz, marketDbApi, squeryl, h2Driver, postgresDriver, mockito) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val capture = Seq(sbinary, scalaz, finagleKestrel, marketDbApi, squeryl, h2Driver, postgresDriver, ostrich, scalaIO) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
@@ -212,6 +212,7 @@ object Dependency {
   val h2Driver               = "com.h2database"                    % "h2"                     % V.H2
   val postgresDriver         = "postgresql"                        % "postgresql"             % V.Postgres
   val commonsMath            = "org.apache.commons"                % "commons-math3"          % V.CommonsMath
+  val mockito                = "org.mockito"                       % "mockito-all"            % V.Mockito
 
 
   // Provided
