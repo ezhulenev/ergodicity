@@ -14,11 +14,39 @@ import org.mockito.stubbing.Answer
 import ru.micexrts.cgate.messages._
 import ru.micexrts.cgate.{Listener => CGListener, MessageType, CGateException, ISubscriber}
 import java.nio.ByteBuffer
-import com.ergodicity.backtest.cgate.Listener.Command.OpenCmd
+import com.ergodicity.backtest.cgate.ListenerActor.Command.{GetStateCmd, CloseCmd, OpenCmd}
 import scala.Left
 import scala.Right
 
 object Listener {
+
+  import ListenerActor._
+
+  implicit def toAnswer[A](f: InvocationOnMock => A) = new Answer[A] {
+    def answer(invocation: InvocationOnMock) = f(invocation)
+  }
+
+  // -- Create wrapper over backtest Listener actor
+  def wrap(actor: ActorRef) = {
+    implicit val timeout = util.Timeout(1.second)
+
+    def execCmd(cmd: Command)(i: InvocationOnMock) {
+      Await.result((actor ? cmd).mapTo[Either[Unit, CGateException]], 1.second) fold(s => s, e => throw e)
+    }
+
+    def getState(i: InvocationOnMock) = {
+      Await.result((actor ? GetStateCmd).mapTo[Int], 1.second)
+    }
+
+    val mock = Mockito.mock(classOf[CGListener])
+    doAnswer(execCmd(OpenCmd) _).when(mock).open(any())
+    doAnswer(execCmd(CloseCmd) _).when(mock).close()
+    doAnswer(getState _).when(mock).getState
+    mock
+  }
+}
+
+object ListenerActor {
 
   // -- Listener actor commands
   sealed trait Command
@@ -27,7 +55,13 @@ object Listener {
 
     case object OpenCmd extends Command
 
+    case object CloseCmd extends Command
+
+    case object GetStateCmd extends Command
+
   }
+
+  case class Dispatch(data: Seq[StreamEvent.StreamData])
 
   // -- Convert StreamEvent into CGate Message
   implicit def toCGateMessage(event: StreamEvent): Message = {
@@ -81,42 +115,53 @@ object Listener {
       case msg@UnsupportedMessage(_) => throw new IllegalArgumentException("Unsupported msg = " + msg)
     }
   }
-
-  implicit def toAnswer[A](f: InvocationOnMock => A) = new Answer[A] {
-    def answer(invocation: InvocationOnMock) = f(invocation)
-  }
-
-  // -- Create wrapper over backtest Listener actor
-  def apply(actor: ActorRef) = {
-    implicit val timeout = util.Timeout(1.second)
-
-    def open(i: InvocationOnMock) {
-      Await.result((actor ? OpenCmd).mapTo[Either[Unit, CGateException]], 1.second) fold(_ => (), e => throw e)
-    }
-
-    val mock = Mockito.mock(classOf[CGListener])
-    doAnswer(open _).when(mock).open(any())
-    mock
-  }
 }
 
+class ListenerActor(subscriber: ISubscriber, replState: String = "") extends Actor with FSM[State, Seq[StreamEvent.StreamData]] {
 
-class ListenerActor(subscriber: ISubscriber) extends Actor with FSM[State, Unit] {
-  import Listener._
+  import ListenerActor._
 
-  startWith(Closed, ())
+  startWith(Closed, Seq.empty)
 
   when(Closed) {
-    case Event(OpenCmd, _) =>
+    case Event(OpenCmd, data) if (data.size == 0) =>
       notify(StreamEvent.Open)
+      notify(StreamEvent.StreamOnline)
       goto(Active) replying (Left(()))
+
+    case Event(OpenCmd, data) if (data.size > 0) =>
+      notify(StreamEvent.Open)
+      notify(StreamEvent.TnBegin)
+      data.foreach(notify _)
+      notify(StreamEvent.TnCommit)
+      notify(StreamEvent.StreamOnline)
+      goto(Active) replying (Left(()))
+
+    case Event(CloseCmd, _) => stay() replying (Right(new CGateException("Listener already closed")))
+
+    case Event(Dispatch(data), pending) => stay() using (pending ++ data)
   }
 
   when(Active) {
+    case Event(CloseCmd, _) =>
+      notify(StreamEvent.ReplState(replState))
+      notify(StreamEvent.Close)
+      goto(Closed) replying (Left(()))
+
     case Event(OpenCmd, _) => stay() replying (Right(new CGateException("Listener already opened")))
+
+    case Event(Dispatch(data), _) =>
+      notify(StreamEvent.TnBegin)
+      data.foreach(notify _)
+      notify(StreamEvent.TnCommit)
+      stay()
+  }
+
+  whenUnhandled {
+    case Event(GetStateCmd, _) => stay() replying (stateName.value)
   }
 
   private def notify(event: StreamEvent) {
-    subscriber onMessage (null, null, event)
+    subscriber onMessage(null, null, event)
   }
 }

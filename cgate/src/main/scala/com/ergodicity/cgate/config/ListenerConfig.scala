@@ -3,7 +3,7 @@ package com.ergodicity.cgate.config
 import java.io.File
 import com.ergodicity.cgate.StreamEvent.ReplState
 
-sealed trait ListenerConfig {
+trait ListenerConfig {
   def config: String
 
   def apply(): String = config
