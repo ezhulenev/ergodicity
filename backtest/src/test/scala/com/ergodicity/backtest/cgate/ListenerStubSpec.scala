@@ -14,8 +14,8 @@ import ru.micexrts.cgate.{CGateException, ISubscriber}
 import java.nio.ByteBuffer
 import com.ergodicity.cgate.StreamEvent.{TnCommit, TnBegin, StreamData}
 
-class ListenerSpec extends TestKit(ActorSystem("ListenerSpec")) with WordSpec with ShouldMatchers with BeforeAndAfterAll with ImplicitSender {
-  val log = Logging(system, classOf[ListenerSpec])
+class ListenerStubSpec extends TestKit(ActorSystem("ListenerStubSpec")) with WordSpec with ShouldMatchers with BeforeAndAfterAll with ImplicitSender {
+  val log = Logging(system, classOf[ListenerStubSpec])
 
   override def afterAll() {
     system.shutdown()
@@ -24,8 +24,8 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec")) with WordSpec wi
   "Listener" must {
     "open listener with empty data" in {
       val subscriber = TestProbe()
-      val listenerActor = TestActorRef(new ListenerActor(new DataStreamSubscriber(subscriber.ref)))
-      val listener = Listener wrap listenerActor
+      val listenerActor = TestActorRef(new ListenerStubActor(new DataStreamSubscriber(subscriber.ref)))
+      val listener = ListenerStub wrap listenerActor
 
       listenerActor ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(listenerActor, Closed))
@@ -38,14 +38,14 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec")) with WordSpec wi
 
     "open listener and dispatch data" in {
       val subscriber = TestProbe()
-      val listenerActor = TestActorRef(new ListenerActor(new DataStreamSubscriber(subscriber.ref)))
-      val listener = Listener wrap listenerActor
+      val listenerActor = TestActorRef(new ListenerStubActor(new DataStreamSubscriber(subscriber.ref)))
+      val listener = ListenerStub wrap listenerActor
 
       listenerActor ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(listenerActor, Closed))
 
       val dataMsg = StreamData(0, ByteBuffer.allocate(0))
-      listenerActor ! ListenerActor.Dispatch(dataMsg :: Nil)
+      listenerActor ! ListenerStubActor.Dispatch(dataMsg :: Nil)
 
       listener.open("Ebaka")
       subscriber.expectMsg(StreamEvent.Open)
@@ -57,9 +57,9 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec")) with WordSpec wi
     }
 
     "throw exception opening Active listener" in {
-      val listenerActor = TestFSMRef(new ListenerActor(mock(classOf[ISubscriber])))
+      val listenerActor = TestFSMRef(new ListenerStubActor(mock(classOf[ISubscriber])))
       listenerActor.setState(Active)
-      val listener = Listener wrap listenerActor
+      val listener = ListenerStub wrap listenerActor
 
       intercept[CGateException] {
         listener.open("Ebaka")
@@ -68,9 +68,9 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec")) with WordSpec wi
 
     "close Active listener" in {
       val subscriber = TestProbe()
-      val listenerActor = TestFSMRef(new ListenerActor(new DataStreamSubscriber(subscriber.ref), replState = "CloseState"))
+      val listenerActor = TestFSMRef(new ListenerStubActor(new DataStreamSubscriber(subscriber.ref), replState = "CloseState"))
       listenerActor.setState(Active)
-      val listener = Listener wrap listenerActor
+      val listener = ListenerStub wrap listenerActor
 
       listenerActor ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(listenerActor, Active))
@@ -82,8 +82,8 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec")) with WordSpec wi
     }
 
     "fail close already Closed listener" in {
-      val listenerActor = TestFSMRef(new ListenerActor(mock(classOf[ISubscriber])))
-      val listener = Listener wrap listenerActor
+      val listenerActor = TestFSMRef(new ListenerStubActor(mock(classOf[ISubscriber])))
+      val listener = ListenerStub wrap listenerActor
 
       intercept[CGateException] {
         listener.close()
@@ -91,8 +91,8 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec")) with WordSpec wi
     }
 
     "get state" in {
-      val listenerActor = TestFSMRef(new ListenerActor(mock(classOf[ISubscriber])))
-      val listener = Listener wrap listenerActor
+      val listenerActor = TestFSMRef(new ListenerStubActor(mock(classOf[ISubscriber])))
+      val listener = ListenerStub wrap listenerActor
 
       assert(listener.getState == Closed.value)
 
@@ -102,11 +102,11 @@ class ListenerSpec extends TestKit(ActorSystem("ListenerSpec")) with WordSpec wi
 
     "dispatch data with opened listener" in {
       val subscriber = TestProbe()
-      val listenerActor = TestFSMRef(new ListenerActor(new DataStreamSubscriber(subscriber.ref)))
+      val listenerActor = TestFSMRef(new ListenerStubActor(new DataStreamSubscriber(subscriber.ref)))
       listenerActor.setState(Active)
 
       val dataMsg = StreamData(0, ByteBuffer.allocate(0))
-      listenerActor ! ListenerActor.Dispatch(dataMsg :: Nil)
+      listenerActor ! ListenerStubActor.Dispatch(dataMsg :: Nil)
 
       subscriber.expectMsg(TnBegin)
       subscriber.expectMsg(dataMsg)

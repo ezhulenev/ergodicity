@@ -8,10 +8,9 @@ import org.squeryl.PrimitiveTypeMode._
 import com.ergodicity.schema.ErgodicitySchema._
 import scala.Some
 import com.ergodicity.core.SessionId
-import com.ergodicity.schema.ErgodicitySchemaSpec
 
 class MarketDbRepositorySpec extends FlatSpec with BeforeAndAfterAll {
-  val log = LoggerFactory.getLogger(classOf[ErgodicitySchemaSpec])
+  val log = LoggerFactory.getLogger(classOf[MarketDbRepositorySpec])
 
   override protected def beforeAll() {
     initialize()

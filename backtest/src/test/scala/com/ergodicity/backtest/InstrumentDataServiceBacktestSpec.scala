@@ -3,7 +3,7 @@ package com.ergodicity.backtest
 import akka.actor.{ActorRef, Props, ActorSystem}
 import akka.event.Logging
 import akka.testkit._
-import com.ergodicity.backtest.cgate.{Listener, ListenerActor}
+import com.ergodicity.backtest.cgate.{ListenerStub, ListenerStubActor}
 import com.ergodicity.cgate.config.ListenerConfig
 import com.ergodicity.engine.ReplicationScheme._
 import com.ergodicity.engine.service.{ReplicationConnection, InstrumentData}
@@ -43,12 +43,12 @@ class InstrumentDataServiceBacktestSpec extends TestKit(ActorSystem("InstrumentD
     val listenerFactory = new ListenerFactory {
       def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = config match {
         case Replications.OptInfo =>
-          listenerActors.getOrElse(Replications.OptInfo, system.actorOf(Props(new ListenerActor(subscriber)), "OptInfoListenerActor"))
-          Listener wrap listenerActors(Replications.OptInfo)
+          listenerActors.getOrElse(Replications.OptInfo, system.actorOf(Props(new ListenerStubActor(subscriber)), "OptInfoListenerActor"))
+          ListenerStub wrap listenerActors(Replications.OptInfo)
 
         case Replications.FutInfo =>
-          listenerActors.getOrElse(Replications.FutInfo, system.actorOf(Props(new ListenerActor(subscriber)), "FutInfoListenerActor"))
-          Listener wrap listenerActors(Replications.FutInfo)
+          listenerActors.getOrElse(Replications.FutInfo, system.actorOf(Props(new ListenerStubActor(subscriber)), "FutInfoListenerActor"))
+          ListenerStub wrap listenerActors(Replications.FutInfo)
 
         case _ => throw new IllegalArgumentException("Unknown listener config = " + config)
       }

@@ -1,6 +1,6 @@
 package com.ergodicity.backtest.cgate
 
-import akka.actor.{ActorRef, FSM, Actor}
+import akka.actor._
 import akka.dispatch.Await
 import akka.pattern.ask
 import akka.util
@@ -10,23 +10,17 @@ import org.mockito.Matchers._
 import org.mockito.Mockito
 import org.mockito.Mockito.doAnswer
 import org.mockito.invocation.InvocationOnMock
-import org.mockito.stubbing.Answer
 import ru.micexrts.cgate.messages._
 import ru.micexrts.cgate.{Listener => CGListener, MessageType, CGateException, ISubscriber}
 import java.nio.ByteBuffer
-import com.ergodicity.backtest.cgate.ListenerActor.Command.{GetStateCmd, CloseCmd, OpenCmd}
+import com.ergodicity.backtest.cgate.ListenerStubActor.Command.{GetStateCmd, CloseCmd, OpenCmd}
 import scala.Left
 import scala.Right
 
-object Listener {
+object ListenerStub {
 
-  import ListenerActor._
+  import ListenerStubActor._
 
-  implicit def toAnswer[A](f: InvocationOnMock => A) = new Answer[A] {
-    def answer(invocation: InvocationOnMock) = f(invocation)
-  }
-
-  // -- Create wrapper over backtest Listener actor
   def wrap(actor: ActorRef) = {
     implicit val timeout = util.Timeout(1.second)
 
@@ -44,9 +38,13 @@ object Listener {
     doAnswer(getState _).when(mock).getState
     mock
   }
+
+  def apply(subscriber: ISubscriber)(implicit context: ActorContext) = wrap(context.actorOf(Props(new ListenerStubActor(subscriber))))
+
+  def apply(name: String, subscriber: ISubscriber)(implicit context: ActorContext) = wrap(context.actorOf(Props(new ListenerStubActor(subscriber)), name))
 }
 
-object ListenerActor {
+object ListenerStubActor {
 
   // -- Listener actor commands
   sealed trait Command
@@ -117,9 +115,9 @@ object ListenerActor {
   }
 }
 
-class ListenerActor(subscriber: ISubscriber, replState: String = "") extends Actor with FSM[State, Seq[StreamEvent.StreamData]] {
+class ListenerStubActor(subscriber: ISubscriber, replState: String = "") extends Actor with FSM[State, Seq[StreamEvent.StreamData]] {
 
-  import ListenerActor._
+  import ListenerStubActor._
 
   startWith(Closed, Seq.empty)
 
