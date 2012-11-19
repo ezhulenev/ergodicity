@@ -12,8 +12,8 @@ import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
 import com.ergodicity.cgate.SysEvent.SessionDataReady
 import com.ergodicity.core.SessionsTracking.{OptSysEvent, FutSysEvent}
 
-class SessionsService(futInfo: ActorRef, optInfo: ActorRef)(implicit system: ActorSystem) {
-  val log = Logging(system, classOf[SessionsService])
+class SessionsManager(futInfo: ActorRef, optInfo: ActorRef)(implicit system: ActorSystem) {
+  val log = Logging(system, classOf[SessionsManager])
 
   val sysEventsCounter = new AtomicInteger(0)
 
