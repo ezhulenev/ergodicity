@@ -97,7 +97,7 @@ class SessionManagerSpec extends TestKit(ActorSystem("SessionManagerSpec", com.e
       expectMsg(3.seconds, Transition(services, ServicesState.Idle, ServicesState.Starting))
       expectMsg(10.seconds, Transition(services, ServicesState.Starting, ServicesState.Active))
 
-      val sessions = new SessionsManager(engine.underlyingActor.listenerActors(Replications.FutInfo), engine.underlyingActor.listenerActors(Replications.OptInfo))
+      val sessions = new SessionsService(engine.underlyingActor.listenerActors(Replications.FutInfo), engine.underlyingActor.listenerActors(Replications.OptInfo))
 
       val session = Session(Mocking.mockSession(sessionId.fut, sessionId.opt, begin, end))
       val futures = FutSessContents(Mocking.mockFuture(sessionId.fut, 100, "FISIN", "FSISIN", "Future", 115, InstrumentState.Assigned.toInt)) :: Nil

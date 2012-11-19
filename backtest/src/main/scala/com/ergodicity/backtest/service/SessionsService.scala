@@ -2,18 +2,25 @@ package com.ergodicity.backtest.service
 
 import akka.actor.{ActorSystem, ActorRef}
 import akka.event.Logging
-import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
-import com.ergodicity.core.SessionId
-import com.ergodicity.core.session.{InstrumentState, IntradayClearingState, SessionState}
-import java.util.concurrent.atomic.AtomicInteger
 import com.ergodicity.backtest.cgate.ListenerStubActor.Dispatch
+import com.ergodicity.backtest.service.SessionsService.SessionManager
 import com.ergodicity.cgate.StreamEvent.StreamData
-import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
 import com.ergodicity.cgate.SysEvent.SessionDataReady
+import com.ergodicity.cgate.scheme.{OptInfo, FutInfo}
+import com.ergodicity.core.SessionId
 import com.ergodicity.core.SessionsTracking.{OptSysEvent, FutSysEvent}
+import com.ergodicity.core.session.{InstrumentState, IntradayClearingState, SessionState}
+import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
+import java.util.concurrent.atomic.AtomicInteger
 
-class SessionsManager(futInfo: ActorRef, optInfo: ActorRef)(implicit system: ActorSystem) {
-  val log = Logging(system, classOf[SessionsManager])
+object SessionsService {
+  class SessionManager(val id: SessionId) {
+
+  }
+}
+
+class SessionsService(futInfo: ActorRef, optInfo: ActorRef)(implicit system: ActorSystem) {
+  val log = Logging(system, classOf[SessionsService])
 
   val sysEventsCounter = new AtomicInteger(0)
 
@@ -45,8 +52,4 @@ class SessionsManager(futInfo: ActorRef, optInfo: ActorRef)(implicit system: Act
     // -- Construct manager for particular session
     new SessionManager(id)
   }
-}
-
-class SessionManager(val id: SessionId) {
-
 }
