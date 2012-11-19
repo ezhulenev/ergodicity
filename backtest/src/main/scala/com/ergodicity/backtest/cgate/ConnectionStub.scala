@@ -10,7 +10,7 @@ import akka.util
 import akka.util.duration._
 import akka.pattern.ask
 import akka.dispatch.Await
-import ru.micexrts.cgate.{Connection => CGConnection, CGateException}
+import ru.micexrts.cgate.{Connection => CGConnection, ErrorCode, CGateException}
 import com.ergodicity.backtest.cgate.ConnectionStubActor.Command
 import util.Duration
 import scala.Left
@@ -31,15 +31,16 @@ object ConnectionStub {
       Await.result((actor ? GetStateCmd).mapTo[Int], 1.second)
     }
 
-    def sleep(duration: Duration)(i: InvocationOnMock) {
+    def process(duration: Duration)(i: InvocationOnMock) = {
       Thread.sleep(duration.toMillis)
+      ErrorCode.OK
     }
 
     val mock = Mockito.mock(classOf[CGConnection])
     doAnswer(execCmd(OpenCmd) _).when(mock).open(any())
     doAnswer(execCmd(CloseCmd) _).when(mock).close()
     doAnswer(getState _).when(mock).getState
-    doAnswer(sleep(500.millis) _).when(mock).process(any())
+    doAnswer(process(500.millis) _).when(mock).process(any())
     mock
   }
 }
@@ -71,7 +72,7 @@ class ConnectionStubActor extends Actor with FSM[State, Unit] {
     case Event(CloseCmd, _) => stay() replying (Right(new CGateException("Connection already closed")))
   }
 
-  when(Opening, stateTimeout = 1.second) {
+  when(Opening, stateTimeout = 50.millis) {
     case Event(CloseCmd, _) => goto(Closed) replying (Left(()))
 
     case Event(OpenCmd, _) => stay() replying (Right(new CGateException("Connection already opened")))

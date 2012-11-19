@@ -31,7 +31,7 @@ object Mocking {
   def mockSession(sessionId: Int, sessionState: SessionState) = {
     val buffer = ByteBuffer.allocate(1000)
 
-    val stateValue = SessionState.decode(sessionState)
+    val stateValue = SessionState.toInt(sessionState)
 
     val session = new FutInfo.session(buffer)
     session.set_replAct(0)

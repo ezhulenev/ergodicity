@@ -36,6 +36,13 @@ object InstrumentState {
 
   case object Suspended extends InstrumentState
 
+  implicit def toInt(state: InstrumentState) = state match {
+    case Assigned => 0
+    case Online => 1
+    case Suspended => 2
+    case Canceled => 3
+    case Completed => 4
+  }
 }
 
 object InstrumentActor {

@@ -29,7 +29,7 @@ class SessionContents[T](Session: ActorRef) extends Actor with ActorLogging with
   var sessionState: SessionState = SessionState.Suspended
 
   override def preStart() {
-    log.info("Start SessionContents with parent session state = " + sessionState)
+    log.info("Start SessionContents")
     Session ! SubscribeTransitionCallBack(self)
   }
 

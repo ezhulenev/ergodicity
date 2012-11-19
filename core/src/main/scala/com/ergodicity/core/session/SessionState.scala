@@ -21,7 +21,7 @@ object SessionState {
 
   case object Completed extends SessionState
 
-  def decode(state: SessionState) = state match {
+  implicit def toInt(state: SessionState) = state match {
     case Assigned => 0
     case Online => 1
     case Suspended => 2
@@ -61,5 +61,14 @@ object IntradayClearingState {
   case object Finalizing extends IntradayClearingState
 
   case object Completed extends IntradayClearingState
+
+  implicit def toInt(state: IntradayClearingState) = state match {
+    case Undefined => 0
+    case Oncoming => ~0 & OncomingMask
+    case Canceled => ~0 & CanceledMask
+    case Running => ~0 & RunningMask
+    case Finalizing => ~0 & FinalizingMask
+    case Completed => ~0 & CompletedMask
+  }
 
 }
