@@ -6,7 +6,7 @@ import akka.actor.{Terminated, Actor, ActorSystem}
 import akka.event.Logging
 import akka.testkit._
 import akka.util.duration._
-import com.ergodicity.cgate.DataStreamState
+import com.ergodicity.cgate.{ListenerDecorator, DataStreamState}
 import com.ergodicity.core._
 import com.ergodicity.core.broker.MarketCommand
 import com.ergodicity.core.broker.OrderId
@@ -15,12 +15,10 @@ import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef}
 import com.ergodicity.engine.Services
 import com.ergodicity.engine.service.Service.{Stop, Start}
 import com.ergodicity.engine.service.Trading.{Sell, OrderExecution, Buy}
-import com.ergodicity.engine.underlying.ListenerFactory
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import ru.micexrts.cgate.{ISubscriber, Connection => CGConnection, Listener => CGListener, Publisher => CGPublisher}
-import com.ergodicity.cgate.config.{ListenerConfig, Replication}
+import ru.micexrts.cgate.{Listener => CGListener, Publisher => CGPublisher}
 
 class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -32,42 +30,35 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
 
   implicit val Id = Trading.Trading
 
-  val listenerFactory = new ListenerFactory {
-    def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = mock(classOf[CGListener])
-  }
-
-
   val publisherName = "Engine"
   val brokerCode = "000"
 
   "Trading Service" must {
     "initialized in Idle state" in {
       val publisher = mock(classOf[CGPublisher])
-      val repliesConnection = mock(classOf[CGConnection])
-      val replicationConnection = mock(classOf[CGConnection])
-      val futReplication = mock(classOf[Replication])
-      val optReplication = mock(classOf[Replication])
+      val futListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+      val optListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+      val repliesListener = ListenerDecorator(_ => mock(classOf[CGListener]))
 
       implicit val services = mock(classOf[Services])
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
 
-      val service = TestFSMRef(new TradingService(listenerFactory, publisherName, brokerCode, publisher, repliesConnection, replicationConnection, futReplication, optReplication), "TradingService")
+      val service = TestFSMRef(new TradingService(brokerCode, publisher, futListener, optListener, repliesListener), "TradingService")
 
       assert(service.stateName == TradingState.Idle)
     }
 
     "start service" in {
       val publisher = mock(classOf[CGPublisher])
-      val repliesConnection = mock(classOf[CGConnection])
-      val replicationConnection = mock(classOf[CGConnection])
-      val futReplication = mock(classOf[Replication])
-      val optReplication = mock(classOf[Replication])
+      val futListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+      val optListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+      val repliesListener = ListenerDecorator(_ => mock(classOf[CGListener]))
 
       implicit val services = mock(classOf[Services])
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
 
       given("Trading service")
-      val service = TestFSMRef(new TradingService(listenerFactory, publisherName, brokerCode, publisher, repliesConnection, replicationConnection, futReplication, optReplication), "TradingService")
+      val service = TestFSMRef(new TradingService(brokerCode, publisher, futListener, optListener, repliesListener), "TradingService")
       val underlying = service.underlyingActor.asInstanceOf[TradingService]
 
       when("receive Start message")
@@ -88,16 +79,15 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
 
     "stop service" in {
       val publisher = mock(classOf[CGPublisher])
-      val repliesConnection = mock(classOf[CGConnection])
-      val replicationConnection = mock(classOf[CGConnection])
-      val futReplication = mock(classOf[Replication])
-      val optReplication = mock(classOf[Replication])
+      val futListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+      val optListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+      val repliesListener = ListenerDecorator(_ => mock(classOf[CGListener]))
 
       implicit val services = mock(classOf[Services])
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
 
       given("Trading service in started state")
-      val service = TestFSMRef(new TradingService(listenerFactory, publisherName, brokerCode, publisher, repliesConnection, replicationConnection, futReplication, optReplication), "TradingService")
+      val service = TestFSMRef(new TradingService(brokerCode, publisher, futListener, optListener, repliesListener), "TradingService")
       service.setState(TradingState.Started)
       val underlying = service.underlyingActor.asInstanceOf[TradingService]
 
@@ -120,10 +110,9 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
 
     "buy & sell future" in {
       val publisher = mock(classOf[CGPublisher])
-      val repliesConnection = mock(classOf[CGConnection])
-      val replicationConnection = mock(classOf[CGConnection])
-      val futReplication = mock(classOf[Replication])
-      val optReplication = mock(classOf[Replication])
+      val futListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+      val optListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+      val repliesListener = ListenerDecorator(_ => mock(classOf[CGListener]))
 
       implicit val services = mock(classOf[Services])
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
@@ -146,7 +135,7 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
       }, "OrderTracker")
 
       given("Trading service in started state")
-      val service = TestFSMRef(new TradingService(listenerFactory, publisherName, brokerCode, publisher, repliesConnection, replicationConnection, futReplication, optReplication) {
+      val service = TestFSMRef(new TradingService(brokerCode, publisher, futListener, optListener, repliesListener) {
         override val TradingBroker = broker
         override val OrdersTracking = tracker
       }, "TradingService")

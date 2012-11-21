@@ -3,20 +3,18 @@ package com.ergodicity.engine.service
 import akka.actor.FSM.Transition
 import akka.actor._
 import akka.event.Logging
+import akka.testkit.TestActor.AutoPilot
 import akka.testkit._
-import com.ergodicity.cgate.DataStreamState
-import com.ergodicity.cgate.config.{ListenerConfig, Replication}
+import com.ergodicity.cgate.{ListenerDecorator, DataStreamState}
+import com.ergodicity.core.order.OrdersSnapshotActor.{OrdersSnapshot, GetOrdersSnapshot}
 import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.engine.Services
 import com.ergodicity.engine.service.Service.{Stop, Start}
-import com.ergodicity.engine.underlying.ListenerFactory
+import org.joda.time.DateTime
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, Listener => CGListener}
-import akka.testkit.TestActor.AutoPilot
-import com.ergodicity.core.order.OrdersSnapshotActor.{OrdersSnapshot, GetOrdersSnapshot}
-import org.joda.time.DateTime
+import ru.micexrts.cgate.{Listener => CGListener}
 
 class OrdersDataServiceSpec  extends TestKit(ActorSystem("OrdersDataServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -27,19 +25,14 @@ class OrdersDataServiceSpec  extends TestKit(ActorSystem("OrdersDataServiceSpec"
 
   implicit val Id = OrdersData.OrdersData
 
-  val listenerFactory = new ListenerFactory {
-    def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = mock(classOf[CGListener])
-  }
-
   def createService(implicit services: Services = mock(classOf[Services]), futuresSnapshot: ActorRef = system.deadLetters, optionsSnapshot:ActorRef = system.deadLetters) = {
-    val underlyingConnection = mock(classOf[CGConnection])
-    val futOrderBookReplication = mock(classOf[Replication])
-    val optOrderBookReplication = mock(classOf[Replication])
-    val ordLogReplication = mock(classOf[Replication])
+    val futOrderBookListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+    val optOrderBookListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+    val ordLogListener = ListenerDecorator(_ => mock(classOf[CGListener]))
 
     Mockito.when(services.apply(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
 
-    TestFSMRef(new OrdersDataService(listenerFactory, underlyingConnection, futOrderBookReplication, optOrderBookReplication, ordLogReplication) {
+    TestFSMRef(new OrdersDataService(futOrderBookListener, optOrderBookListener, ordLogListener) {
       override val FuturesSnapshot = futuresSnapshot
       override val OptionsSnapshot = optionsSnapshot
     }, "OrdersData")

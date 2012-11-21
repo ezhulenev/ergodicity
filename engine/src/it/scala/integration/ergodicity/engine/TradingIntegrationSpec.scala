@@ -1,37 +1,35 @@
 package integration.ergodicity.engine
 
+import akka.actor.FSM.SubscribeTransitionCallBack
+import akka.actor.FSM.Transition
 import akka.actor.{Actor, ActorSystem}
+import akka.dispatch.Await
 import akka.event.Logging
 import akka.pattern.ask
 import akka.testkit.{TestActorRef, TestKit}
 import akka.util.Timeout
 import akka.util.duration._
+import com.ergodicity.cgate.ListenerDecorator
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.config._
+import com.ergodicity.core.FutureContract
+import com.ergodicity.core.OrderType.ImmediateOrCancel
 import com.ergodicity.core.{IsinId, Isin, ShortIsin}
+import com.ergodicity.engine.Listener._
 import com.ergodicity.engine.ReplicationScheme._
 import com.ergodicity.engine.Services.StartServices
+import com.ergodicity.engine.service.Trading.Buy
 import com.ergodicity.engine.service.Trading.OrderExecution
+import com.ergodicity.engine.service.Trading.Sell
 import com.ergodicity.engine.service._
 import com.ergodicity.engine.underlying._
 import com.ergodicity.engine.{ServicesState, ServicesActor, Engine}
 import java.io.File
 import java.util.concurrent.TimeUnit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
-import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener, Publisher => CGPublisher}
-import akka.dispatch.Await
-import com.ergodicity.core.OrderType.ImmediateOrCancel
+import ru.micexrts.cgate.{Connection => CGConnection, P2TypeParser, CGate, Publisher => CGPublisher}
 import scala.Left
-import akka.actor.FSM.Transition
-import com.ergodicity.engine.service.Trading.Buy
-import com.ergodicity.engine.service.Trading.Sell
-import com.ergodicity.cgate.config.CGateConfig
 import scala.Right
-import com.ergodicity.core.FutureContract
-import com.ergodicity.cgate.config.FortsMessages
-import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.engine.Listener.{OptInfoListener, FutInfoListener}
-import com.ergodicity.cgate.ListenerDecorator
 
 class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -77,18 +75,6 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
     val optTradesReplication = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptTrades.ini"), "CustReplScheme")
   }
 
-  trait Listener extends UnderlyingListener  with FutInfoListener with OptInfoListener {
-    self: Engine with UnderlyingConnection with FutInfoReplication with OptInfoReplication =>
-
-    val listenerFactory = new ListenerFactory {
-      def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = new CGListener(connection, config(), subscriber)
-    }
-
-    val futInfoListener = new ListenerDecorator(underlyingConnection, futInfoReplication)
-
-    val optInfoListener = new ListenerDecorator(underlyingConnection, optInfoReplication)
-  }
-
   trait Publisher extends UnderlyingPublisher {
     self: Engine with UnderlyingTradingConnections =>
     val publisherName: String = "Engine"
@@ -97,7 +83,25 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
     val underlyingPublisher = new CGPublisher(underlyingTradingConnection, messagesConfig())
   }
 
-  class IntegrationEngine extends Engine with Connections with Replication with Listener with Publisher
+  trait Listeners extends FutInfoListener with OptInfoListener with FutTradesListener with OptTradesListener with FutOrdersListener with OptOrdersListener with RepliesListener with PosListener {
+    self: Connections with Replication with Publisher =>
+
+    val futInfoListener = ListenerDecorator(underlyingConnection, futInfoReplication)
+    val optInfoListener = ListenerDecorator(underlyingConnection, optInfoReplication)
+
+    val futOrdersListener = ListenerDecorator(underlyingConnection, futOrdersReplication)
+    val optOrdersListener = ListenerDecorator(underlyingConnection, optOrdersReplication)
+
+    val futTradesListener = ListenerDecorator(underlyingConnection, futTradesReplication)
+    val optTradesListener = ListenerDecorator(underlyingConnection, optTradesReplication)
+
+    val posListener = ListenerDecorator(underlyingConnection, posReplication)
+
+    val repliesListener = ListenerDecorator(underlyingTradingConnection, Replies(publisherName))
+  }
+
+
+  class IntegrationEngine extends Engine with Connections with Replication with Listeners with Publisher
 
   class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection with TradingConnection with InstrumentData with Portfolio with Trading
 

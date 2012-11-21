@@ -1,25 +1,27 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.ReplicationScheme.{OptTradesReplication, FutTradesReplication}
-import com.ergodicity.cgate.{Listener, DataStreamSubscriber, DataStream, DataStreamState}
+import akka.actor.FSM.CurrentState
+import akka.actor.FSM.SubscribeTransitionCallBack
+import akka.actor.FSM.Transition
 import akka.actor.{FSM, Props, Actor, LoggingFSM}
-import akka.util.duration._
 import akka.pattern.ask
 import akka.pattern.pipe
-import com.ergodicity.cgate.config.Replication
-import ru.micexrts.cgate.{Connection => CGConnection}
-import com.ergodicity.engine.underlying.{ListenerFactory, UnderlyingConnection, UnderlyingListener}
-import com.ergodicity.engine.{Services, Engine}
-import com.ergodicity.engine.service.TradesDataState.StreamStates
 import akka.util.Timeout
-import com.ergodicity.core.trade.TradesTracking
-import com.ergodicity.engine.service.Service.{Stop, Start}
-import com.ergodicity.core.SessionsTracking.{OngoingSessionTransition, OngoingSession, SubscribeOngoingSessions}
-import com.ergodicity.core.session.SessionActor.{AssignedContents, GetAssignedContents}
+import akka.util.duration._
+import com.ergodicity.cgate._
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Online
 import com.ergodicity.cgate.config.Replication.ReplicationParams
-import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
+import com.ergodicity.core.SessionsTracking.OngoingSession
+import com.ergodicity.core.SessionsTracking.OngoingSessionTransition
+import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
+import com.ergodicity.core.session.SessionActor.AssignedContents
+import com.ergodicity.core.session.SessionActor.GetAssignedContents
+import com.ergodicity.core.trade.TradesTracking
 import com.ergodicity.core.trade.TradesTracking.SubscribeTrades
+import com.ergodicity.engine.Listener.{OptTradesListener, FutTradesListener}
+import com.ergodicity.engine.service.Service.{Stop, Start}
+import com.ergodicity.engine.service.TradesDataState.StreamStates
+import com.ergodicity.engine.{Services, Engine}
 
 object TradesData {
 
@@ -32,9 +34,9 @@ trait TradesData {
 
   import TradesData._
 
-  def engine: Engine with UnderlyingConnection with UnderlyingListener with FutTradesReplication with OptTradesReplication
+  def engine: Engine with FutTradesListener with OptTradesListener
 
-  private[this] lazy val creator = new TradesDataService(engine.listenerFactory, engine.underlyingConnection, engine.futTradesReplication, engine.optTradesReplication)
+  private[this] lazy val creator = new TradesDataService(engine.futTradesListener, engine.optTradesListener)
   register(Props(creator), dependOn = InstrumentData.InstrumentData :: Nil)
 }
 
@@ -56,7 +58,7 @@ object TradesDataState {
 
 }
 
-protected[service] class TradesDataService(listener: ListenerFactory, underlyingConnection: CGConnection, futTradeReplication: Replication, optTradeReplication: Replication)
+protected[service] class TradesDataService(futTrade: ListenerDecorator, optTrade: ListenerDecorator)
                                           (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[TradesDataState, StreamStates] with Service {
 
   import TradesDataState._
@@ -71,11 +73,11 @@ protected[service] class TradesDataService(listener: ListenerFactory, underlying
   val OptTradeStream = context.actorOf(Props(new DataStream), "OptTradeStream")
 
   // Trades listeners
-  private[this] val underlyingFutTradeListener = listener(underlyingConnection, futTradeReplication, new DataStreamSubscriber(FutTradeStream))
-  private[this] val futTradeListener = context.actorOf(Props(new Listener(underlyingFutTradeListener)).withDispatcher(Engine.ReplicationDispatcher), "FutTradeListener")
+  futTrade.bind(new DataStreamSubscriber(FutTradeStream))
+  private[this] val futTradeListener = context.actorOf(Props(new Listener(futTrade.listener)).withDispatcher(Engine.ReplicationDispatcher), "FutTradesListener")
 
-  private[this] val underlyingOptTradeListener = listener(underlyingConnection, optTradeReplication, new DataStreamSubscriber(OptTradeStream))
-  private[this] val optTradeListener = context.actorOf(Props(new Listener(underlyingOptTradeListener)).withDispatcher(Engine.ReplicationDispatcher), "OptTradeListener")
+  optTrade.bind(new DataStreamSubscriber(OptTradeStream))
+  private[this] val optTradeListener = context.actorOf(Props(new Listener(optTrade.listener)).withDispatcher(Engine.ReplicationDispatcher), "OptTradesListener")
 
   val Trades = context.actorOf(Props(new TradesTracking(FutTradeStream, OptTradeStream)), "TradesTracking")
 

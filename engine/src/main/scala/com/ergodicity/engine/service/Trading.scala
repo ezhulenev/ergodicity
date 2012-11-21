@@ -12,24 +12,23 @@ import com.ergodicity.cgate._
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
 import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.cgate.config.Replies.RepliesParams
-import com.ergodicity.cgate.config.{Replication, Replies}
 import com.ergodicity.core.Market.Futures
 import com.ergodicity.core.OrderType.ImmediateOrCancel
 import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
-import com.ergodicity.core.broker.{Cancelled, OrderId, ReplySubscriber, Broker}
 import com.ergodicity.core.broker.Protocol._
+import com.ergodicity.core.broker.{Cancelled, OrderId, ReplySubscriber, Broker}
+import com.ergodicity.core.order.OrderActor.SubscribeOrderEvents
 import com.ergodicity.core.order.OrdersTracking.{GetOrder, OrderRef}
 import com.ergodicity.core.order.{Order, OrdersTracking}
 import com.ergodicity.core.{OrderType, Security, FutureContract}
+import com.ergodicity.engine.Listener.{RepliesListener, OptOrdersListener, FutOrdersListener}
 import com.ergodicity.engine.service.Service.{Stop, Start}
 import com.ergodicity.engine.service.Trading.{Sell, OrderExecution, Buy}
 import com.ergodicity.engine.service.TradingState.TradingStates
 import com.ergodicity.engine.underlying._
 import com.ergodicity.engine.{Services, Engine}
-import ru.micexrts.cgate.{Publisher => CGPublisher, Connection => CGConnection}
+import ru.micexrts.cgate.{Publisher => CGPublisher}
 import scala.Some
-import com.ergodicity.core.order.OrderActor.SubscribeOrderEvents
-import com.ergodicity.engine.ReplicationScheme.{OptOrdersReplication, FutOrdersReplication}
 
 object Trading {
 
@@ -62,13 +61,9 @@ trait Trading {
 
   import Trading._
 
-  def engine: Engine with UnderlyingListener with UnderlyingConnection with UnderlyingTradingConnections with UnderlyingPublisher with FutOrdersReplication with OptOrdersReplication
+  def engine: Engine with UnderlyingPublisher with FutOrdersListener with OptOrdersListener with RepliesListener
 
-  private[this] lazy val creator = new TradingService(
-    engine.listenerFactory, engine.publisherName, engine.brokerCode,
-    engine.underlyingPublisher, engine.underlyingTradingConnection, engine.underlyingConnection,
-    engine.futOrdersReplication, engine.optOrdersReplication
-  )
+  private[this] lazy val creator = new TradingService(engine.brokerCode, engine.underlyingPublisher, engine.futOrdersListener, engine.optOrdersListener, engine.repliesListener)
   register(Props(creator), dependOn = InstrumentData.InstrumentData :: Nil)
 }
 
@@ -88,14 +83,11 @@ protected[service] object TradingState {
 
 }
 
-protected[service] class TradingService(listener: ListenerFactory,
-                                        publisherName: String,
-                                        brokerCode: String,
-                                        underlyingPublisher: CGPublisher,
-                                        tradingConnection: CGConnection,
-                                        replicationConnection: CGConnection,
-                                        futOrdersReplication: Replication,
-                                        optOrdersReplication: Replication)
+protected[service] class TradingService(brokerCode: String,
+                                        publisher: CGPublisher,
+                                        futOrders: ListenerDecorator,
+                                        optOrders: ListenerDecorator,
+                                        replies: ListenerDecorator)
                                        (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[TradingState, TradingStates] with Service {
 
   import TradingState._
@@ -108,11 +100,10 @@ protected[service] class TradingService(listener: ListenerFactory,
   private[this] implicit val brokerConfig = Broker.Config(brokerCode)
 
   // Execution broker
-  val TradingBroker = context.actorOf(Props(new Broker(underlyingPublisher)).withDispatcher(Engine.TradingDispatcher), "Broker")
+  val TradingBroker = context.actorOf(Props(new Broker(publisher)).withDispatcher(Engine.TradingDispatcher), "Broker")
 
-  import com.ergodicity.cgate.Subscriber._
-  private[this] val underlyingRepliesListener = listener(tradingConnection, Replies(publisherName), new ReplySubscriber(TradingBroker))
-  private[this] val replyListener = context.actorOf(Props(new Listener(underlyingRepliesListener)).withDispatcher(Engine.TradingDispatcher), "RepliesListener")
+  replies.bind(new ReplySubscriber(TradingBroker))
+  private[this] val replyListener = context.actorOf(Props(new Listener(replies.listener)).withDispatcher(Engine.TradingDispatcher), "RepliesListener")
 
   // Orders tracking
   val FutOrdersStream = context.actorOf(Props(new DataStream), "FutOrdersStream")
@@ -121,11 +112,11 @@ protected[service] class TradingService(listener: ListenerFactory,
   val OrdersTracking = context.actorOf(Props(new OrdersTracking(FutOrdersStream, OptOrdersStream)), "OrdersTracking")
 
   // Orders tracking listeners
-  private[this] val underlyingFutListener = listener(replicationConnection, futOrdersReplication, new DataStreamSubscriber(FutOrdersStream))
-  private[this] val futListener = context.actorOf(Props(new Listener(underlyingFutListener)).withDispatcher(Engine.ReplicationDispatcher), "FutOrdersListener")
+  futOrders.bind(new DataStreamSubscriber(FutOrdersStream))
+  private[this] val futListener = context.actorOf(Props(new Listener(futOrders.listener)).withDispatcher(Engine.ReplicationDispatcher), "FutOrdersListener")
 
-  private[this] val underlyingOptListener = listener(replicationConnection, optOrdersReplication, new DataStreamSubscriber(OptOrdersStream))
-  private[this] val optListener = context.actorOf(Props(new Listener(underlyingOptListener)).withDispatcher(Engine.ReplicationDispatcher), "OptOrdersListener")
+  optOrders.bind(new DataStreamSubscriber(OptOrdersStream))
+  private[this] val optListener = context.actorOf(Props(new Listener(optOrders.listener)).withDispatcher(Engine.ReplicationDispatcher), "OptOrdersListener")
 
   override def preStart() {
     log.info("Start " + id + " service")

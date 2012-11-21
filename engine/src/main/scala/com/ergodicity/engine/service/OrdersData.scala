@@ -1,25 +1,31 @@
 package com.ergodicity.engine.service
 
-import com.ergodicity.engine.{Engine, Services}
-import com.ergodicity.engine.underlying.{ListenerFactory, UnderlyingListener, UnderlyingConnection}
-import com.ergodicity.engine.ReplicationScheme._
+import akka.actor.FSM.CurrentState
+import akka.actor.FSM.SubscribeTransitionCallBack
+import akka.actor.FSM.Transition
+import akka.actor.FSM.UnsubscribeTransitionCallBack
 import akka.actor.{FSM, Props, LoggingFSM, Actor}
 import akka.pattern.ask
 import akka.pattern.pipe
+import akka.util
 import akka.util.duration._
-import com.ergodicity.cgate.{DataStreamState, DataStreamSubscriber, DataStream, Listener}
-import com.ergodicity.cgate.config.Replication
-import ru.micexrts.cgate.{Connection => CGConnection}
-import akka.util.Timeout
-import com.ergodicity.core.order.{OrdersSnapshotActor, OrderBooksTracking}
-import com.ergodicity.core.SessionsTracking.{OngoingSessionTransition, OngoingSession, SubscribeOngoingSessions}
-import com.ergodicity.engine.service.Service.{Stop, Start}
-import com.ergodicity.cgate.config.Replication.{ReplicationMode, ReplicationParams}
+import com.ergodicity.cgate._
+import com.ergodicity.cgate.config.Replication.ReplicationMode
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Snapshot
-import com.ergodicity.core.order.OrdersSnapshotActor.{OrdersSnapshot, GetOrdersSnapshot}
+import com.ergodicity.cgate.config.Replication.ReplicationParams
+import com.ergodicity.core.SessionsTracking.OngoingSession
+import com.ergodicity.core.SessionsTracking.OngoingSessionTransition
+import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
 import com.ergodicity.core.order.OrderBooksTracking.Snapshots
-import com.ergodicity.core.session.SessionActor.{AssignedContents, GetAssignedContents}
-import akka.actor.FSM.{UnsubscribeTransitionCallBack, Transition, CurrentState, SubscribeTransitionCallBack}
+import com.ergodicity.core.order.OrdersSnapshotActor.GetOrdersSnapshot
+import com.ergodicity.core.order.OrdersSnapshotActor.OrdersSnapshot
+import com.ergodicity.core.order.{OrdersSnapshotActor, OrderBooksTracking}
+import com.ergodicity.core.session.SessionActor.AssignedContents
+import com.ergodicity.core.session.SessionActor.GetAssignedContents
+import com.ergodicity.engine.Listener.{OrdLogListener, FutOrderBookListener, OptOrderBookListener}
+import com.ergodicity.engine.service.Service.{Stop, Start}
+import com.ergodicity.engine.{Engine, Services}
+import ru.micexrts.cgate.{Connection => CGConnection}
 
 object OrdersData {
 
@@ -32,9 +38,9 @@ trait OrdersData {
 
   import OrdersData._
 
-  def engine: Engine with UnderlyingConnection with UnderlyingListener with OrdLogReplication with FutOrderBookReplication with OptOrderBookReplication
+  def engine: Engine with OrdLogListener with FutOrderBookListener with OptOrderBookListener
 
-  lazy val creator = new OrdersDataService(engine.listenerFactory, engine.underlyingConnection, engine.futOrderbookReplication, engine.optOrderbookReplication, engine.ordLogReplication)
+  lazy val creator = new OrdersDataService(engine.futOrderbookListener, engine.optOrderbookListener, engine.ordLogListener)
   register(Props(creator), dependOn = InstrumentData.InstrumentData :: Nil)
 }
 
@@ -56,13 +62,12 @@ object OrdersDataState {
 
 }
 
-protected[service] class OrdersDataService(listener: ListenerFactory, underlyingConnection: CGConnection,
-                                           futOrderBookReplication: Replication, optOrderBookReplication: Replication, ordLogReplication: Replication)
+protected[service] class OrdersDataService(futOrderBook: ListenerDecorator, optOrderBook: ListenerDecorator, ordLog: ListenerDecorator)
                                           (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[OrdersDataState, Unit] with Service {
 
   import OrdersDataState._
 
-  implicit val timeout = Timeout(30.second)
+  implicit val timeout = util.Timeout(30.second)
 
   private[this] val instrumentData = services(InstrumentData.InstrumentData)
 
@@ -70,19 +75,19 @@ protected[service] class OrdersDataService(listener: ListenerFactory, underlying
   val OrdLogStream = context.actorOf(Props(new DataStream), "OrdLogStream")
 
   // Order Log listener
-  private[this] val underlyingOrdLogListener = listener(underlyingConnection, ordLogReplication, new DataStreamSubscriber(OrdLogStream))
-  private[this] val ordLogListener = context.actorOf(Props(new Listener(underlyingOrdLogListener)).withDispatcher(Engine.ReplicationDispatcher), "OrdLogListener")
+  ordLog.bind(new DataStreamSubscriber(OrdLogStream))
+  private[this] val ordLogListener = context.actorOf(Props(new Listener(ordLog.listener)).withDispatcher(Engine.ReplicationDispatcher), "OrdLogListener")
 
   // OrderBook streams
   val FutOrderBookStream = context.actorOf(Props(new DataStream), "FutOrderBookStream")
   val OptOrderBookStream = context.actorOf(Props(new DataStream), "OptOrderBookStream")
 
   // OrderBook listeners
-  private[this] val underlyingFutOrderBookListener = listener(underlyingConnection, futOrderBookReplication, new DataStreamSubscriber(FutOrderBookStream))
-  private[this] val futOrderBookListener = context.actorOf(Props(new Listener(underlyingFutOrderBookListener)).withDispatcher(Engine.ReplicationDispatcher), "FutOrderBookListener")
+  futOrderBook.bind(new DataStreamSubscriber(FutOrderBookStream))
+  private[this] val futOrderBookListener = context.actorOf(Props(new Listener(futOrderBook.listener)).withDispatcher(Engine.ReplicationDispatcher), "FutOrderBookListener")
 
-  private[this] val underlyingOptOrderBookListener = listener(underlyingConnection, optOrderBookReplication, new DataStreamSubscriber(OptOrderBookStream))
-  private[this] val optOrderBookListener = context.actorOf(Props(new Listener(underlyingOptOrderBookListener)).withDispatcher(Engine.ReplicationDispatcher), "OptOrderBookListener")
+  optOrderBook.bind(new DataStreamSubscriber(OptOrderBookStream))
+  private[this] val optOrderBookListener = context.actorOf(Props(new Listener(optOrderBook.listener)).withDispatcher(Engine.ReplicationDispatcher), "OptOrderBookListener")
 
   // OrderBook snapshots
   val FuturesSnapshot = context.actorOf(Props(new OrdersSnapshotActor(FutOrderBookStream)), "FuturesSnapshot")

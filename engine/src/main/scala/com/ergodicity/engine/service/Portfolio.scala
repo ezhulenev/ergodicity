@@ -6,26 +6,23 @@ import akka.actor.FSM.Transition
 import akka.actor._
 import akka.pattern.ask
 import akka.pattern.pipe
+import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.cgate._
-import com.ergodicity.cgate.config.Replication
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
 import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.core.PositionsTracking
+import com.ergodicity.core.PositionsTracking.GetPositions
 import com.ergodicity.core.SessionsTracking.OngoingSession
 import com.ergodicity.core.SessionsTracking.OngoingSessionTransition
 import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
 import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.core.session.SessionActor.GetAssignedContents
-import com.ergodicity.engine.ReplicationScheme.PosReplication
+import com.ergodicity.engine.Listener.PosListener
 import com.ergodicity.engine.service.PortfolioState.StreamState
 import com.ergodicity.engine.service.Service.{Stop, Start}
-import com.ergodicity.engine.underlying.{ListenerFactory, UnderlyingConnection, UnderlyingListener}
 import com.ergodicity.engine.{Services, Engine}
-import ru.micexrts.cgate.{Connection => CGConnection}
 import scala.Some
-import akka.util.Timeout
-import com.ergodicity.core.PositionsTracking.GetPositions
 
 object Portfolio {
 
@@ -38,9 +35,9 @@ trait Portfolio {
 
   import Portfolio._
 
-  def engine: Engine with UnderlyingConnection with UnderlyingListener with PosReplication
+  def engine: Engine with PosListener
 
-  register(Props(new PortfolioService(engine.listenerFactory, engine.underlyingConnection, engine.posReplication)), dependOn = InstrumentData.InstrumentData :: Nil)
+  register(Props(new PortfolioService(engine.posListener)), dependOn = InstrumentData.InstrumentData :: Nil)
 }
 
 protected[service] sealed trait PortfolioState
@@ -61,7 +58,7 @@ object PortfolioState {
 
 }
 
-protected[service] class PortfolioService(listener: ListenerFactory, underlyingConnection: CGConnection, posReplication: Replication)
+protected[service] class PortfolioService(pos: ListenerDecorator)
                                          (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[PortfolioState, StreamState] with Service {
 
   import PortfolioState._
@@ -76,8 +73,8 @@ protected[service] class PortfolioService(listener: ListenerFactory, underlyingC
 
   val Positions = context.actorOf(Props(new PositionsTracking(PosStream)), "Positions")
 
-  val underlyingPosListener = listener(underlyingConnection, posReplication, new DataStreamSubscriber(PosStream))
-  val posListener = context.actorOf(Props(new Listener(underlyingPosListener)).withDispatcher(Engine.ReplicationDispatcher), "PosListener")
+  pos.bind(new DataStreamSubscriber(PosStream))
+  val posListener = context.actorOf(Props(new Listener(pos.listener)).withDispatcher(Engine.ReplicationDispatcher), "PosListener")
 
   startWith(Idle, StreamState(None))
 

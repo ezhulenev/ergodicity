@@ -9,6 +9,12 @@ import java.util.concurrent.atomic.AtomicReference
 import ru.micexrts.cgate.messages.Message
 import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection, ISubscriber}
 
+object ListenerDecorator {
+  def apply(f: ISubscriber => CGListener) = new ListenerDecorator(f)
+
+  def apply(connection: CGConnection, config: ListenerConfig) = new ListenerDecorator(subscriber => new CGListener(connection, config(), subscriber))
+}
+
 class ListenerDecorator(f: ISubscriber => CGListener) {
   private[this] val subscriber: AtomicReference[Subscriber] = new AtomicReference[Subscriber](null)
 

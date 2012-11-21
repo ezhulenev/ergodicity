@@ -4,17 +4,15 @@ import akka.actor.FSM.Transition
 import akka.actor.{FSM, Terminated, ActorSystem}
 import akka.event.Logging
 import akka.testkit._
-import com.ergodicity.cgate.DataStreamState
-import com.ergodicity.cgate.config.{ListenerConfig, Replication}
+import com.ergodicity.cgate.{ListenerDecorator, DataStreamState}
+import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.engine.Services
+import com.ergodicity.engine.Services.ServiceFailedException
 import com.ergodicity.engine.service.Service.Start
-import com.ergodicity.engine.underlying.ListenerFactory
+import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, Listener => CGListener}
-import com.ergodicity.engine.Services.ServiceFailedException
-import org.mockito.Mockito
-import com.ergodicity.core.session.SessionActor.AssignedContents
+import ru.micexrts.cgate.{Listener => CGListener}
 
 class TradesDataServiceSpec extends TestKit(ActorSystem("TradesDataServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -25,18 +23,13 @@ class TradesDataServiceSpec extends TestKit(ActorSystem("TradesDataServiceSpec",
 
   implicit val Id = TradesData.TradesData
 
-  val listenerFactory = new ListenerFactory {
-    def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = mock(classOf[CGListener])
-  }
-
   def createService(implicit services: Services = mock(classOf[Services])) = {
-    val underlyingConnection = mock(classOf[CGConnection])
-    val futTradeReplication = mock(classOf[Replication])
-    val optTradeReplication = mock(classOf[Replication])
+    val futTradeListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+    val optTradeListener = ListenerDecorator(_ => mock(classOf[CGListener]))
 
     Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
 
-    TestFSMRef(new TradesDataService(listenerFactory, underlyingConnection, futTradeReplication, optTradeReplication), "TradesDataService")
+    TestFSMRef(new TradesDataService(futTradeListener, optTradeListener), "TradesDataService")
   }
 
 

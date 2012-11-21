@@ -134,4 +134,40 @@ object Listener {
   trait OptInfoListener {
     def optInfoListener: ListenerDecorator
   }
+
+  trait FutOrderBookListener {
+    def futOrderbookListener: ListenerDecorator
+  }
+
+  trait OptOrderBookListener {
+    def optOrderbookListener: ListenerDecorator
+  }
+
+  trait OrdLogListener {
+    def ordLogListener: ListenerDecorator
+  }
+
+  trait PosListener {
+    def posListener: ListenerDecorator
+  }
+
+  trait FutTradesListener {
+    def futTradesListener: ListenerDecorator
+  }
+
+  trait OptTradesListener {
+    def optTradesListener: ListenerDecorator
+  }
+
+  trait FutOrdersListener {
+    def futOrdersListener: ListenerDecorator
+  }
+
+  trait OptOrdersListener {
+    def optOrdersListener: ListenerDecorator
+  }
+
+  trait RepliesListener {
+    def repliesListener: ListenerDecorator
+  }
 }

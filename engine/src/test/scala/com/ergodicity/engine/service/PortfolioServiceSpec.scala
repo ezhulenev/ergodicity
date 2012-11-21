@@ -4,16 +4,14 @@ import akka.actor.FSM.Transition
 import akka.actor._
 import akka.event.Logging
 import akka.testkit._
-import com.ergodicity.cgate.DataStreamState
-import com.ergodicity.cgate.config.{ListenerConfig, Replication}
+import com.ergodicity.cgate.{ListenerDecorator, DataStreamState}
 import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.engine.Services
 import com.ergodicity.engine.service.Service.{Stop, Start}
-import com.ergodicity.engine.underlying.ListenerFactory
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, Listener => CGListener}
+import ru.micexrts.cgate.{ Listener => CGListener}
 
 class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -24,17 +22,12 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
 
   implicit val Id = Portfolio.Portfolio
 
-  val listenerFactory = new ListenerFactory {
-    def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = mock(classOf[CGListener])
-  }
-
   def createService(implicit services: Services = mock(classOf[Services])) = {
-    val underlyingConnection = mock(classOf[CGConnection])
-    val posReplication = mock(classOf[Replication])
+    val posListener = ListenerDecorator(_ => mock(classOf[CGListener]))
 
     Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
 
-    TestFSMRef(new PortfolioService(listenerFactory, underlyingConnection, posReplication), "Portfolio")
+    TestFSMRef(new PortfolioService(posListener), "Portfolio")
   }
 
   "Portfolio Service" must {

@@ -179,7 +179,7 @@ object Dependency {
     val JodaConvert  = "1.2"
     val SBinary      = "0.4.0"
     val ScalaTime    = "0.5"
-    val Akka         = "2.0.3"
+    val Akka         = "2.0.4"
     val ScalaIO      = "0.4.1"
     val Squeryl      = "0.9.5-2"
     val H2           = "1.3.168"

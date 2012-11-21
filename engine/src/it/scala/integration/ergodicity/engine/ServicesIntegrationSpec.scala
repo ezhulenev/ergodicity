@@ -4,9 +4,11 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.testkit.{TestActorRef, TestKit}
 import akka.util.duration._
-import com.ergodicity.cgate.config.{ListenerConfig, Replication, CGateConfig, FortsMessages}
-import com.ergodicity.engine.ReplicationScheme._
+import com.ergodicity.cgate.ListenerDecorator
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
+import com.ergodicity.cgate.config.{Replication, CGateConfig, FortsMessages}
 import com.ergodicity.engine.Listener._
+import com.ergodicity.engine.ReplicationScheme._
 import com.ergodicity.engine.Services.StartServices
 import com.ergodicity.engine.service._
 import com.ergodicity.engine.underlying._
@@ -14,9 +16,7 @@ import com.ergodicity.engine.{ServicesActor, Engine}
 import java.io.File
 import java.util.concurrent.TimeUnit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
-import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener, Publisher => CGPublisher}
-import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import com.ergodicity.cgate.ListenerDecorator
+import ru.micexrts.cgate.{Connection => CGConnection, P2TypeParser, CGate, Publisher => CGPublisher}
 
 class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -68,16 +68,16 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
     val optTradesReplication = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptTrades.ini"), "CustReplScheme")
   }
 
-  trait Listener extends UnderlyingListener with FutInfoListener with OptInfoListener {
-    self: Engine with UnderlyingConnection with FutInfoReplication with OptInfoReplication =>
+  trait Listeners extends FutInfoListener with OptInfoListener with FutTradesListener with OptTradesListener {
+    self: Connections with Replication =>
 
-    val listenerFactory = new ListenerFactory {
-      def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = new CGListener(connection, config(), subscriber)
-    }
+    val futInfoListener = ListenerDecorator(underlyingConnection, futInfoReplication)
 
-    val futInfoListener = new ListenerDecorator(underlyingConnection, futInfoReplication)
+    val optInfoListener = ListenerDecorator(underlyingConnection, optInfoReplication)
 
-    val optInfoListener = new ListenerDecorator(underlyingConnection, optInfoReplication)
+    val futTradesListener = ListenerDecorator(underlyingConnection, futTradesReplication)
+
+    val optTradesListener = ListenerDecorator(underlyingConnection, optTradesReplication)
   }
 
   trait Publisher extends UnderlyingPublisher {
@@ -88,7 +88,7 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
     val underlyingPublisher = new CGPublisher(underlyingTradingConnection, messagesConfig())
   }
 
-  class IntegrationEngine extends Engine with Connections with Replication with Listener with Publisher
+  class IntegrationEngine extends Engine with Connections with Replication with Listeners with Publisher
 
   class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection /*with TradingConnection*/ with InstrumentData /*with Portfolio with Trading */ /*with OrdersData*/ with TradesData
 
