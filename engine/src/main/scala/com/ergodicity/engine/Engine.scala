@@ -8,6 +8,7 @@ import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection, CG
 import akka.actor.SupervisorStrategy.Stop
 import akka.util.Timeout
 import com.ergodicity.cgate.config.Replication
+import com.ergodicity.cgate.ListenerDecorator
 
 
 object Engine {
@@ -122,5 +123,15 @@ object ReplicationScheme {
 
   trait OrdLogReplication {
     def ordLogReplication: Replication
+  }
+}
+
+object Listener {
+  trait FutInfoListener {
+    def futInfoListener: ListenerDecorator
+  }
+
+  trait OptInfoListener {
+    def optInfoListener: ListenerDecorator
   }
 }

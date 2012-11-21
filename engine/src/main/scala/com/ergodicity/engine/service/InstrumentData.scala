@@ -3,19 +3,15 @@ package com.ergodicity.engine.service
 import akka.actor.FSM._
 import akka.actor.{FSM, LoggingFSM, Actor, Props}
 import akka.util.duration._
-import com.ergodicity.cgate.config.Replication
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
 import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.cgate.{Connection => _, _}
 import com.ergodicity.core.SessionsTracking
 import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
-import com.ergodicity.engine.ReplicationScheme.{OptInfoReplication, FutInfoReplication}
+import com.ergodicity.engine.Listener.{OptInfoListener, FutInfoListener}
 import com.ergodicity.engine.service.InstrumentDataState.StreamStates
 import com.ergodicity.engine.service.Service.{Stop, Start}
-import com.ergodicity.engine.underlying.{ListenerFactory, UnderlyingListener, UnderlyingConnection}
 import com.ergodicity.engine.{Engine, Services}
-import ru.micexrts.cgate.{Connection => CGConnection}
-import scala.Some
 
 object InstrumentData {
 
@@ -28,10 +24,10 @@ trait InstrumentData {
 
   import InstrumentData._
 
-  def engine: Engine with UnderlyingConnection with UnderlyingListener with FutInfoReplication with OptInfoReplication
+  def engine: Engine with FutInfoListener with OptInfoListener
 
   register(
-    Props(new InstrumentDataService(engine.listenerFactory, engine.underlyingConnection, engine.futInfoReplication, engine.optInfoReplication)),
+    Props(new InstrumentDataService(engine.futInfoListener, engine.optInfoListener)),
     dependOn = ReplicationConnection.Connection :: Nil
   )
 }
@@ -52,7 +48,7 @@ object InstrumentDataState {
 
 }
 
-protected[service] class InstrumentDataService(listener: ListenerFactory, underlyingConnection: CGConnection, futInfoReplication: Replication, optInfoReplication: Replication)
+protected[service] class InstrumentDataService(underlyingFutInfoListener: ListenerDecorator, underlyingOptInfoListener: ListenerDecorator)
                                               (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[InstrumentDataState, StreamStates] with Service {
 
   import InstrumentDataState._
@@ -63,14 +59,12 @@ protected[service] class InstrumentDataService(listener: ListenerFactory, underl
 
   val Sessions = context.actorOf(Props(new SessionsTracking(FutInfoStream, OptInfoStream)), "SessionsTracking")
 
-  log.info("Underlying conn = " + underlyingConnection + ", repl = " + futInfoReplication)
-
   // Listeners
-  val underlyingFutInfoListener = listener(underlyingConnection, futInfoReplication, new DataStreamSubscriber(FutInfoStream))
-  val futInfoListener = context.actorOf(Props(new Listener(underlyingFutInfoListener)).withDispatcher(Engine.ReplicationDispatcher), "FutInfoListener")
+  underlyingFutInfoListener.bind(new DataStreamSubscriber(FutInfoStream))
+  val futInfoListener = context.actorOf(Props(new Listener(underlyingFutInfoListener.listener)).withDispatcher(Engine.ReplicationDispatcher), "FutInfoListener")
 
-  val underlyingOptInfoListener = listener(underlyingConnection, optInfoReplication, new DataStreamSubscriber(OptInfoStream))
-  val optInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener)).withDispatcher(Engine.ReplicationDispatcher), "OptInfoListener")
+  underlyingOptInfoListener.bind(new DataStreamSubscriber(OptInfoStream))
+  val optInfoListener = context.actorOf(Props(new Listener(underlyingOptInfoListener.listener)).withDispatcher(Engine.ReplicationDispatcher), "OptInfoListener")
 
   startWith(Idle, StreamStates())
 

@@ -110,6 +110,7 @@ protected[service] class TradingService(listener: ListenerFactory,
   // Execution broker
   val TradingBroker = context.actorOf(Props(new Broker(underlyingPublisher)).withDispatcher(Engine.TradingDispatcher), "Broker")
 
+  import com.ergodicity.cgate.Subscriber._
   private[this] val underlyingRepliesListener = listener(tradingConnection, Replies(publisherName), new ReplySubscriber(TradingBroker))
   private[this] val replyListener = context.actorOf(Props(new Listener(underlyingRepliesListener)).withDispatcher(Engine.TradingDispatcher), "RepliesListener")
 

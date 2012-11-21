@@ -1,9 +1,11 @@
 package com.ergodicity.cgate
 
 import akka.actor.{LoggingFSM, ActorRef, Actor, FSM}
-import ru.micexrts.cgate.{ErrorCode, MessageType}
+import ru.micexrts.cgate._
 import ru.micexrts.cgate.messages._
 import java.nio.ByteBuffer
+import com.ergodicity.cgate.DataStream.StreamEventSubscribers
+import com.ergodicity.cgate.StreamEvent.ReplState
 import com.ergodicity.cgate.DataStream.StreamEventSubscribers
 import com.ergodicity.cgate.StreamEvent.ReplState
 

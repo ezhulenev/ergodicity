@@ -16,6 +16,7 @@ import util.Duration
 import scala.Left
 import scala.Right
 
+
 object ConnectionStub {
 
   import Command._

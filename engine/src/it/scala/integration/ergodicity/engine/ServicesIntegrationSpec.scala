@@ -6,6 +6,7 @@ import akka.testkit.{TestActorRef, TestKit}
 import akka.util.duration._
 import com.ergodicity.cgate.config.{ListenerConfig, Replication, CGateConfig, FortsMessages}
 import com.ergodicity.engine.ReplicationScheme._
+import com.ergodicity.engine.Listener._
 import com.ergodicity.engine.Services.StartServices
 import com.ergodicity.engine.service._
 import com.ergodicity.engine.underlying._
@@ -15,6 +16,7 @@ import java.util.concurrent.TimeUnit
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, P2TypeParser, CGate, Listener => CGListener, Publisher => CGPublisher}
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
+import com.ergodicity.cgate.ListenerDecorator
 
 class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -66,10 +68,16 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
     val optTradesReplication = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptTrades.ini"), "CustReplScheme")
   }
 
-  trait Listener extends UnderlyingListener {
+  trait Listener extends UnderlyingListener with FutInfoListener with OptInfoListener {
+    self: Engine with UnderlyingConnection with FutInfoReplication with OptInfoReplication =>
+
     val listenerFactory = new ListenerFactory {
       def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = new CGListener(connection, config(), subscriber)
     }
+
+    val futInfoListener = new ListenerDecorator(underlyingConnection, futInfoReplication)
+
+    val optInfoListener = new ListenerDecorator(underlyingConnection, optInfoReplication)
   }
 
   trait Publisher extends UnderlyingPublisher {

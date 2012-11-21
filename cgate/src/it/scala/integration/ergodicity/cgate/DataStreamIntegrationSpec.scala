@@ -1,23 +1,22 @@
 package integration.ergodicity.cgate
 
-import java.io.File
-import integration._
-import org.scalatest.{BeforeAndAfterAll, WordSpec}
-import com.ergodicity.cgate.config.ConnectionConfig.Tcp
-import akka.actor.{Actor, Props, ActorSystem}
 import akka.actor.FSM.{Transition, SubscribeTransitionCallBack}
+import akka.actor.{Actor, Props, ActorSystem}
+import akka.event.Logging
+import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
 import akka.util.duration._
 import com.ergodicity.cgate.Connection.StartMessageProcessing
-import com.ergodicity.cgate._
-import config.{Replication, CGateConfig}
-import com.ergodicity.cgate.config.Replication._
-import akka.testkit.{TestActorRef, ImplicitSender, TestKit}
-import akka.event.Logging
-import java.util.concurrent.TimeUnit
-import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
 import com.ergodicity.cgate.DataStream.SubscribeStreamEvents
+import com.ergodicity.cgate._
+import com.ergodicity.cgate.config.ConnectionConfig.Tcp
+import com.ergodicity.cgate.config.Replication._
+import config.{Replication, CGateConfig}
+import java.io.File
+import java.util.concurrent.TimeUnit
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
+import ru.micexrts.cgate.{P2TypeParser, CGate, Connection => CGConnection, Listener => CGListener}
 
-class DataStreamIntegrationSpec extends TestKit(ActorSystem("DataStreamIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
+class DataStreamIntegrationSpec extends TestKit(ActorSystem("DataStreamIntegrationSpec", integration.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
 
   val Host = "localhost"

@@ -5,19 +5,23 @@ import akka.dispatch.Await
 import akka.pattern.ask
 import akka.util
 import akka.util.duration._
-import com.ergodicity.cgate.{StreamEvent, Active, Closed, State}
+import com.ergodicity.backtest.cgate.ListenerStubActor.Command.Bind
+import com.ergodicity.backtest.cgate.ListenerStubActor.Command.{GetStateCmd, CloseCmd, OpenCmd}
+import com.ergodicity.backtest.cgate.ListenerStubState.Binded
+import com.ergodicity.backtest.cgate.ListenerStubState.UnBinded
+import com.ergodicity.cgate._
+import java.nio.ByteBuffer
 import org.mockito.Matchers._
 import org.mockito.Mockito
 import org.mockito.Mockito.doAnswer
 import org.mockito.invocation.InvocationOnMock
 import ru.micexrts.cgate.messages._
 import ru.micexrts.cgate.{Listener => CGListener, MessageType, CGateException, ISubscriber}
-import java.nio.ByteBuffer
-import com.ergodicity.backtest.cgate.ListenerStubActor.Command.{GetStateCmd, CloseCmd, OpenCmd}
 import scala.Left
 import scala.Right
+import scala.Some
 
-object ListenerStub {
+object ListenerDecoratorStub {
 
   import ListenerStubActor._
 
@@ -29,7 +33,7 @@ object ListenerStub {
     }
 
     def getState(i: InvocationOnMock) = {
-      Await.result((actor ? GetStateCmd).mapTo[Int], 1.second)
+      Await.result((actor ? GetStateCmd).mapTo[State], 1.second).value
     }
 
     val mock = Mockito.mock(classOf[CGListener])
@@ -37,12 +41,18 @@ object ListenerStub {
     doAnswer(execCmd(CloseCmd) _).when(mock).close()
     doAnswer(getState _).when(mock).getState
     mock
+
+    new ListenerDecorator(subscriber => {
+      actor ! Bind(subscriber)
+      mock
+    })
   }
 
-  def apply(subscriber: ISubscriber)(implicit context: ActorContext) = wrap(context.actorOf(Props(new ListenerStubActor(subscriber))))
+  def apply()(implicit context: ActorContext) = wrap(context.actorOf(Props(new ListenerStubActor())))
 
-  def apply(name: String, subscriber: ISubscriber)(implicit context: ActorContext) = wrap(context.actorOf(Props(new ListenerStubActor(subscriber)), name))
+  def apply(name: String)(implicit context: ActorContext) = wrap(context.actorOf(Props(new ListenerStubActor()), name))
 }
+
 
 object ListenerStubActor {
 
@@ -56,6 +66,8 @@ object ListenerStubActor {
     case object CloseCmd extends Command
 
     case object GetStateCmd extends Command
+
+    case class Bind(subscriber: ISubscriber) extends Command
 
   }
 
@@ -115,17 +127,39 @@ object ListenerStubActor {
   }
 }
 
-class ListenerStubActor(subscriber: ISubscriber, replState: String = "") extends Actor with FSM[State, Seq[StreamEvent.StreamData]] {
+sealed trait ListenerStubState
+
+object ListenerStubState {
+
+  case object UnBinded extends ListenerStubState
+
+  case class Binded(state: State) extends ListenerStubState
+
+}
+
+class ListenerStubActor(replState: String = "") extends Actor with FSM[ListenerStubState, Seq[StreamEvent.StreamData]] {
 
   import ListenerStubActor._
 
-  startWith(Closed, Seq.empty)
+  private[this] var subscriber: Option[ISubscriber] = None
 
-  when(Closed) {
+  startWith(UnBinded, Seq.empty)
+
+  when(UnBinded, stateTimeout = 100.millis) {
+    case Event(Bind(s), _) =>
+      subscriber = Some(s)
+      goto(Binded(Closed))
+
+    case Event(FSM.StateTimeout, _) => throw new IllegalActorStateException("Timed out in Binding state")
+
+    case _ => throw new IllegalActorStateException("Actor is UnBinded")
+  }
+
+  when(Binded(Closed)) {
     case Event(OpenCmd, data) if (data.size == 0) =>
       notify(StreamEvent.Open)
       notify(StreamEvent.StreamOnline)
-      goto(Active) replying (Left(()))
+      goto(Binded(Active)) replying (Left(()))
 
     case Event(OpenCmd, data) if (data.size > 0) =>
       notify(StreamEvent.Open)
@@ -133,18 +167,20 @@ class ListenerStubActor(subscriber: ISubscriber, replState: String = "") extends
       data.foreach(notify _)
       notify(StreamEvent.TnCommit)
       notify(StreamEvent.StreamOnline)
-      goto(Active) replying (Left(()))
+      goto(Binded(Active)) replying (Left(()))
 
     case Event(CloseCmd, _) => stay() replying (Right(new CGateException("Listener already closed")))
 
     case Event(Dispatch(data), pending) => stay() using (pending ++ data)
+
+    case Event(GetStateCmd, _) => stay() replying(Closed)
   }
 
-  when(Active) {
+  when(Binded(Active)) {
     case Event(CloseCmd, _) =>
       notify(StreamEvent.ReplState(replState))
       notify(StreamEvent.Close)
-      goto(Closed) replying (Left(()))
+      goto(Binded(Closed)) replying (Left(()))
 
     case Event(OpenCmd, _) => stay() replying (Right(new CGateException("Listener already opened")))
 
@@ -153,13 +189,12 @@ class ListenerStubActor(subscriber: ISubscriber, replState: String = "") extends
       data.foreach(notify _)
       notify(StreamEvent.TnCommit)
       stay()
-  }
 
-  whenUnhandled {
-    case Event(GetStateCmd, _) => stay() replying (stateName.value)
+    case Event(GetStateCmd, _) => stay() replying(Active)
   }
 
   private def notify(event: StreamEvent) {
-    subscriber onMessage(null, null, event)
+    // Subscriber should be never null
+    subscriber.get.onMessage(null, null, event)
   }
 }

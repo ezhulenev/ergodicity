@@ -3,6 +3,7 @@ package com.ergodicity.capture
 import com.typesafe.config.ConfigFactory
 
 object AkkaConfigurations {
+
   val ConfigWithDetailedLogging = ConfigFactory.parseString("""
     akka.loglevel = DEBUG
     akka.actor.debug {
@@ -10,4 +11,5 @@ object AkkaConfigurations {
       lifecycle = on
     }
     """)
+
 }

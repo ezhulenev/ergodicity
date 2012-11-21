@@ -1,11 +1,28 @@
 package com.ergodicity.cgate
 
-import akka.util.duration._
-import config.ListenerOpenParams
-import ru.micexrts.cgate.{Listener => CGListener}
 import akka.actor.FSM.Failure
 import akka.actor.{Actor, FSM}
 import akka.util.Duration
+import akka.util.duration._
+import com.ergodicity.cgate.config.{ListenerConfig, ListenerOpenParams}
+import java.util.concurrent.atomic.AtomicReference
+import ru.micexrts.cgate.messages.Message
+import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection, ISubscriber}
+
+class ListenerDecorator(f: ISubscriber => CGListener) {
+  private[this] val subscriber: AtomicReference[Subscriber] = new AtomicReference[Subscriber](null)
+
+  def this(connection: CGConnection, config: ListenerConfig) = this(subscriber => new CGListener(connection, config(), subscriber))
+
+  val listener = f(new ISubscriber {
+    def onMessage(connection: CGConnection, listener: CGListener, msg: Message) = subscriber.get().handleMessage(msg)
+  })
+
+  def bind(s: Subscriber) {
+    if (!subscriber.compareAndSet(null, s))
+      throw new IllegalStateException("Can't bind to stream twice")
+  }
+}
 
 object Listener {
 

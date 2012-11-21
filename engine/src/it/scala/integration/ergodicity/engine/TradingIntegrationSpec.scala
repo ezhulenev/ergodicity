@@ -30,6 +30,8 @@ import com.ergodicity.core.FutureContract
 import com.ergodicity.cgate.config.FortsMessages
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import akka.actor.FSM.SubscribeTransitionCallBack
+import com.ergodicity.engine.Listener.{OptInfoListener, FutInfoListener}
+import com.ergodicity.cgate.ListenerDecorator
 
 class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with BeforeAndAfterAll {
 
@@ -75,10 +77,16 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
     val optTradesReplication = Replication("FORTS_OPTTRADE_REPL", new File("cgate/scheme/OptTrades.ini"), "CustReplScheme")
   }
 
-  trait Listener extends UnderlyingListener {
+  trait Listener extends UnderlyingListener  with FutInfoListener with OptInfoListener {
+    self: Engine with UnderlyingConnection with FutInfoReplication with OptInfoReplication =>
+
     val listenerFactory = new ListenerFactory {
       def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = new CGListener(connection, config(), subscriber)
     }
+
+    val futInfoListener = new ListenerDecorator(underlyingConnection, futInfoReplication)
+
+    val optInfoListener = new ListenerDecorator(underlyingConnection, optInfoReplication)
   }
 
   trait Publisher extends UnderlyingPublisher {

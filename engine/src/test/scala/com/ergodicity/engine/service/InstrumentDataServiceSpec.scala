@@ -4,16 +4,15 @@ import akka.actor.FSM.{CurrentState, Transition}
 import akka.actor.{FSM, Terminated, ActorSystem}
 import akka.event.Logging
 import akka.testkit._
-import com.ergodicity.cgate.DataStreamState
-import com.ergodicity.cgate.config.{ListenerConfig, Replication}
+import com.ergodicity.cgate.{ListenerDecorator, DataStreamState}
 import com.ergodicity.engine.Services
+import com.ergodicity.engine.Services.ServiceFailedException
 import com.ergodicity.engine.service.InstrumentDataState.Started
 import com.ergodicity.engine.service.Service.Start
-import com.ergodicity.engine.underlying.ListenerFactory
 import org.mockito.Mockito._
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import ru.micexrts.cgate.{Connection => CGConnection, ISubscriber, Listener => CGListener}
-import com.ergodicity.engine.Services.ServiceFailedException
+import org.mockito.Mockito
+import ru.micexrts.cgate.{Listener => CGListener}
 
 class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -22,34 +21,27 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
     system.shutdown()
   }
 
-
   implicit val Id = InstrumentData.InstrumentData
 
-  val listenerFactory = new ListenerFactory {
-    def apply(connection: CGConnection, config: ListenerConfig, subscriber: ISubscriber) = mock(classOf[CGListener])
-  }
+  val futInfoListener = mock(classOf[ListenerDecorator])
+  Mockito.when(futInfoListener.listener).thenReturn(mock(classOf[CGListener]))
+  val optInfoListener = mock(classOf[ListenerDecorator])
+  Mockito.when(optInfoListener.listener).thenReturn(mock(classOf[CGListener]))
+
 
   "InstrumentData Service" must {
     "initialized in Idle state" in {
-      val underlyingConnection = mock(classOf[CGConnection])
-      val optInfoReplication = mock(classOf[Replication])
-      val futInfoReplication = mock(classOf[Replication])
+    implicit val services = mock(classOf[Services])
 
-      implicit val services = mock(classOf[Services])
-
-      val service = TestFSMRef(new InstrumentDataService(listenerFactory, underlyingConnection, futInfoReplication, optInfoReplication), "InstrumentDataService")
+      val service = TestFSMRef(new InstrumentDataService(futInfoListener, optInfoListener), "InstrumentDataService")
 
       assert(service.stateName == InstrumentDataState.Idle)
     }
 
     "start service" in {
-      val underlyingConnection = mock(classOf[CGConnection])
-      val optInfoReplication = mock(classOf[Replication])
-      val futInfoReplication = mock(classOf[Replication])
-
       implicit val services = mock(classOf[Services])
 
-      val service = TestFSMRef(new InstrumentDataService(listenerFactory, underlyingConnection, futInfoReplication, optInfoReplication), "InstrumentDataService")
+      val service = TestFSMRef(new InstrumentDataService(futInfoListener, optInfoListener), "InstrumentDataService")
       val underlying = service.underlyingActor.asInstanceOf[InstrumentDataService]
 
       when("got Start message")
@@ -70,14 +62,10 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
     }
 
     "stop service" in {
-      val underlyingConnection = mock(classOf[CGConnection])
-      val optInfoReplication = mock(classOf[Replication])
-      val futInfoReplication = mock(classOf[Replication])
-
       implicit val services = mock(classOf[Services])
 
       given("service in Started state")
-      val service = TestFSMRef(new InstrumentDataService(listenerFactory, underlyingConnection, futInfoReplication, optInfoReplication), "InstrumentDataService")
+      val service = TestFSMRef(new InstrumentDataService(futInfoListener, optInfoListener), "InstrumentDataService")
       val underlying = service.underlyingActor.asInstanceOf[InstrumentDataService]
       service.setState(InstrumentDataState.Started)
 
@@ -100,14 +88,10 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
     }
 
     "fail starting" in {
-      val underlyingConnection = mock(classOf[CGConnection])
-      val optInfoReplication = mock(classOf[Replication])
-      val futInfoReplication = mock(classOf[Replication])
-
       implicit val services = mock(classOf[Services])
 
       given("service in Starting state")
-      val service = TestFSMRef(new InstrumentDataService(listenerFactory, underlyingConnection, futInfoReplication, optInfoReplication), "InstrumentDataService")
+      val service = TestFSMRef(new InstrumentDataService(futInfoListener, optInfoListener), "InstrumentDataService")
       service.setState(InstrumentDataState.Starting)
 
       when("starting timed out")
@@ -118,14 +102,10 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
     }
 
     "fail stopping" in {
-      val underlyingConnection = mock(classOf[CGConnection])
-      val optInfoReplication = mock(classOf[Replication])
-      val futInfoReplication = mock(classOf[Replication])
-
       implicit val services = mock(classOf[Services])
 
       given("service in Stopping state")
-      val service = TestFSMRef(new InstrumentDataService(listenerFactory, underlyingConnection, futInfoReplication, optInfoReplication), "InstrumentDataService")
+      val service = TestFSMRef(new InstrumentDataService(futInfoListener, optInfoListener), "InstrumentDataService")
       service.setState(InstrumentDataState.Stopping)
 
       when("stopping timed out")

@@ -7,6 +7,7 @@ import com.ergodicity.cgate.StreamEvent.StreamData
 import akka.util.Duration
 
 class StreamDataThrottler(size: Int, duration: Duration = 1.second) extends Actor with ActorLogging {
+
   private val counter = mutable.Map[Int, Int]()
   private val cancellable = mutable.Map[Int, Cancellable]()
 
@@ -31,5 +32,4 @@ class StreamDataThrottler(size: Int, duration: Duration = 1.second) extends Acto
   def handleData(data: StreamData) {
     log.info("Data = " + data)
   }
-
 }
