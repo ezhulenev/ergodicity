@@ -65,6 +65,8 @@ object Replication {
 
 
 case class Replies(ref: String) extends ListenerConfig {
+  if (ref == null) throw new IllegalArgumentException("Replies ref must be not null")
+
   val prefix = "p2mqreply://"
 
   val config = prefix + ";ref=" + ref

@@ -101,7 +101,7 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
   }
 
 
-  class IntegrationEngine extends Engine with Connections with Replication with Listeners with Publisher
+  class IntegrationEngine extends Engine with Connections with Replication with Publisher with Listeners
 
   class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection with TradingConnection with InstrumentData with Portfolio with Trading
 
@@ -145,7 +145,7 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
             log.info("Trading service = " + trading)
 
             implicit val timeout = Timeout(10.minutes)
-            val f1 = (trading ? Sell(FutureContract(IsinId(0), Isin("RTS-12.12"), ShortIsin(""), ""), 1, 143000, orderType = ImmediateOrCancel)).mapTo[OrderExecution]
+            val f1 = (trading ? Buy(FutureContract(IsinId(0), Isin("RTS-12.12"), ShortIsin(""), ""), 1, 143000, orderType = ImmediateOrCancel)).mapTo[OrderExecution]
 
             f1 onComplete (_ match {
               case Left(err) =>
