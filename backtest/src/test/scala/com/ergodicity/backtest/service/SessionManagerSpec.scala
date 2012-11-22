@@ -1,15 +1,17 @@
 package com.ergodicity.backtest.service
 
-import akka.actor.FSM.{Transition, CurrentState, SubscribeTransitionCallBack}
-import akka.actor.{Props, ActorSystem}
+import akka.actor.ActorSystem
+import akka.actor.FSM.CurrentState
+import akka.actor.FSM.SubscribeTransitionCallBack
+import akka.actor.FSM.Transition
 import akka.event.Logging
 import akka.testkit._
 import akka.util.duration._
 import com.ergodicity.backtest.Mocking
 import com.ergodicity.backtest.cgate.{ConnectionStub, ConnectionStubActor, ListenerDecoratorStub, ListenerStubActor}
-import com.ergodicity.cgate.ListenerDecorator
 import com.ergodicity.core.SessionId
-import com.ergodicity.core.SessionsTracking.{OngoingSession, SubscribeOngoingSessions}
+import com.ergodicity.core.SessionsTracking.OngoingSession
+import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
 import com.ergodicity.core.session.{SessionState, InstrumentState}
 import com.ergodicity.engine.Listener.{OptInfoListener, FutInfoListener}
 import com.ergodicity.engine.Services.StartServices
@@ -19,14 +21,6 @@ import com.ergodicity.engine.{ServicesState, ServicesActor, Engine}
 import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
 import org.joda.time.DateTime
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import ru.micexrts.cgate.{Connection => CGConnection}
-import ru.micexrts.cgate.{Listener => CGListener}
-import akka.actor.FSM.Transition
-import akka.actor.FSM.CurrentState
-import com.ergodicity.core.SessionId
-import com.ergodicity.core.SessionsTracking.OngoingSession
-import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
-import akka.actor.FSM.SubscribeTransitionCallBack
 
 class SessionManagerSpec extends TestKit(ActorSystem("SessionManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -69,8 +63,13 @@ class SessionManagerSpec extends TestKit(ActorSystem("SessionManagerSpec", com.e
   val begin = new DateTime(2012, 1, 1, 10, 0)
   val end = begin.withHourOfDay(20)
 
+  val session = Session(Mocking.mockSession(sessionId.fut, sessionId.opt, begin, end))
+  val futures = FutSessContents(Mocking.mockFuture(sessionId.fut, 100, "FISIN", "FSISIN", "Future", 115, InstrumentState.Assigned.toInt)) :: Nil
+  val options = OptSessContents(Mocking.mockOption(sessionId.fut, 101, "OISIN", "OSISIN", "Option", 115)) :: Nil
+
+
   "SessionManager Service" must {
-    "assing session" in {
+    "support normal session lifecycle" in {
       val engine = TestActorRef(new TestEngine, "Engine")
       val services = TestActorRef(new TestServices(engine.underlyingActor), "Services")
 
@@ -84,24 +83,104 @@ class SessionManagerSpec extends TestKit(ActorSystem("SessionManagerSpec", com.e
 
       val sessions = new SessionsService(engine.underlyingActor.futInfoListenerStub, engine.underlyingActor.optInfoListenerStub)
 
-      val session = Session(Mocking.mockSession(sessionId.fut, sessionId.opt, begin, end))
-      val futures = FutSessContents(Mocking.mockFuture(sessionId.fut, 100, "FISIN", "FSISIN", "Future", 115, InstrumentState.Assigned.toInt)) :: Nil
-      val options = OptSessContents(Mocking.mockOption(sessionId.fut, 101, "OISIN", "OSISIN", "Option", 115)) :: Nil
-
-      sessions.assign(session, futures, options)
-
       val instrumentData = services.underlyingActor.service(InstrumentData.InstrumentData)
       instrumentData ! SubscribeOngoingSessions(self)
 
-      // -- Should track ongoing session
+      when("session assigned")
+      val assigned = sessions.assign(session, futures, options)
+
+      then("should receive ongoing session")
       val ongoing = receiveOne(500.millis).asInstanceOf[OngoingSession]
       assert(ongoing.id == sessionId)
 
-      // -- State should be in Assigned state
+      and("it should be in Assigned state")
       val sessionRef = ongoing.ref
       sessionRef ! SubscribeTransitionCallBack(self)
 
       expectMsg(CurrentState(sessionRef, SessionState.Assigned))
+
+      when("session started")
+      val evening = assigned.start()
+
+      then("should receive session transition")
+      expectMsg(Transition(sessionRef, SessionState.Assigned, SessionState.Online))
+
+      when("night comes over")
+      val suspended = evening.suspend()
+
+      then("session should be suspended")
+      expectMsg(Transition(sessionRef, SessionState.Online, SessionState.Suspended))
+
+      when("morning comes over")
+      val beforeIntClearing = suspended.resume()
+
+      then("session should be resumed")
+      expectMsg(Transition(sessionRef, SessionState.Suspended, SessionState.Online))
+
+      when("intraday clearing started")
+      val intradayClearing = beforeIntClearing.startIntradayClearing()
+
+      then("session should be suspended")
+      expectMsg(Transition(sessionRef, SessionState.Online, SessionState.Suspended))
+
+      when("intraday clearing finished")
+      val afterIntradayClearing = intradayClearing.stopIntradayClearing()
+
+      then("session should be resumed")
+      expectMsg(Transition(sessionRef, SessionState.Suspended, SessionState.Online))
+
+      when("clearing started")
+      val clearing = afterIntradayClearing.startClearing()
+
+      then("session shoudl be suspended")
+      expectMsg(Transition(sessionRef, SessionState.Online, SessionState.Suspended))
+
+      when("clearing completed")
+      val completed = clearing.complete()
+
+      then("session should be completed too")
+      expectMsg(Transition(sessionRef, SessionState.Suspended, SessionState.Completed))
+
+      assert(completed.id == sessionId)
+    }
+
+    "cancel session" in {
+      val engine = TestActorRef(new TestEngine, "Engine")
+      val services = TestActorRef(new TestServices(engine.underlyingActor), "Services")
+
+      services ! SubscribeTransitionCallBack(self)
+      expectMsg(CurrentState(services, ServicesState.Idle))
+
+      services ! StartServices
+
+      expectMsg(3.seconds, Transition(services, ServicesState.Idle, ServicesState.Starting))
+      expectMsg(10.seconds, Transition(services, ServicesState.Starting, ServicesState.Active))
+
+      val sessions = new SessionsService(engine.underlyingActor.futInfoListenerStub, engine.underlyingActor.optInfoListenerStub)
+
+      val instrumentData = services.underlyingActor.service(InstrumentData.InstrumentData)
+      instrumentData ! SubscribeOngoingSessions(self)
+
+      when("session assigned")
+      val assigned = sessions.assign(session, futures, options)
+
+      then("should receive ongoing session")
+      val ongoing = receiveOne(500.millis).asInstanceOf[OngoingSession]
+      assert(ongoing.id == sessionId)
+
+      and("it should be in Assigned state")
+      val sessionRef = ongoing.ref
+      sessionRef ! SubscribeTransitionCallBack(self)
+
+      expectMsg(CurrentState(sessionRef, SessionState.Assigned))
+
+      when("session cancelled")
+      val cancelled = assigned.cancel()
+
+      then("should update session state")
+      expectMsg(Transition(sessionRef, SessionState.Assigned, SessionState.Canceled))
+
+      assert(cancelled.id == sessionId)
     }
   }
 }
