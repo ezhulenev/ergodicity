@@ -73,6 +73,8 @@ class SessionsService(futInfo: ActorRef, optInfo: ActorRef) {
     SessionAssigned(id)
   }
 
+  private[service] def contents(id: SessionId) = sessions(id)
+
   private[SessionsService] def remove(id: SessionId) {
     sessions.remove(id)
   }

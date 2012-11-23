@@ -1,15 +1,21 @@
 package com.ergodicity.backtest
 
-import java.nio.{ByteOrder, ByteBuffer}
-import com.ergodicity.cgate.scheme.{Pos, OptInfo, FutInfo}
-import java.math
-import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
-import com.ergodicity.core.SessionsTracking.{OptSysEvent, FutSysEvent}
+import com.ergodicity.backtest.service.PositionsService.OpenedPosition
 import com.ergodicity.cgate.SysEvent.{UnknownEvent, IntradayClearingFinished, SessionDataReady}
-import com.ergodicity.core.position.{Position, PositionDynamics}
-import com.ergodicity.core.Security
-import com.ergodicity.backtest.service.PositionsService.{OpenedPosition, ManagedPosition}
-import com.sun.corba.se.impl.naming.namingutil.IIOPEndpointInfo
+import com.ergodicity.cgate.scheme._
+import com.ergodicity.core.SessionsTracking.{OptSysEvent, FutSysEvent}
+import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
+import java.math
+import java.nio.{ByteOrder, ByteBuffer}
+import com.ergodicity.backtest.service.TradesService.{OptionTrade, FutureTrade}
+import com.ergodicity.backtest.service.TradesService.FutureTrade
+import com.ergodicity.core.SessionsTracking.OptSysEvent
+import com.ergodicity.core.SessionsTracking.FutSysEvent
+import com.ergodicity.cgate.SysEvent.UnknownEvent
+import com.ergodicity.cgate.SysEvent.SessionDataReady
+import com.ergodicity.backtest.service.PositionsService.OpenedPosition
+import com.ergodicity.backtest.service.TradesService.OptionTrade
+import com.ergodicity.cgate.SysEvent.IntradayClearingFinished
 
 package object service {
 
@@ -19,6 +25,8 @@ package object service {
     val Option = 366
     val SysEvent = 105
     val Pos = 92
+    val FutTrade = 282
+    val OptTrade = 270
   }
 
   implicit def toJbd(v: BigDecimal): java.math.BigDecimal = new math.BigDecimal(v.toString())
@@ -176,7 +184,7 @@ package object service {
     }
   }
 
-  implicit def position(pos: OpenedPosition) = new {
+  implicit def openedPosition2plaza(pos: OpenedPosition) = new {
     val (security, position, dynamics) = (pos.security, pos.position, pos.dynamics)
 
     def asPlazaRecord = {
@@ -194,4 +202,43 @@ package object service {
       cgate
     }
   }
+
+  implicit def futureTrade2plaza(trade: FutureTrade) = new {
+    import scalaz.Scalaz._
+
+    def asPlazaRecord = {
+      val buff = allocate(Size.FutTrade)
+      val cgate = new FutTrade.deal(buff)
+
+      cgate.set_sess_id(trade.session.fut)
+      cgate.set_isin_id(trade.id.id)
+      cgate.set_id_deal(trade.underlying.tradeId)
+      cgate.set_price(trade.underlying.price)
+      cgate.set_amount(trade.underlying.amount)
+      cgate.set_moment(trade.underlying.time.getMillis)
+      cgate.set_nosystem(trade.underlying.nosystem ? 1.toByte | 0.toByte)
+
+      cgate
+    }
+  }
+
+  implicit def optionTrade2plaza(trade: OptionTrade) = new {
+    import scalaz.Scalaz._
+
+    def asPlazaRecord = {
+      val buff = allocate(Size.OptTrade)
+      val cgate = new OptTrade.deal(buff)
+
+      cgate.set_sess_id(trade.session.fut)
+      cgate.set_isin_id(trade.id.id)
+      cgate.set_id_deal(trade.underlying.tradeId)
+      cgate.set_price(trade.underlying.price)
+      cgate.set_amount(trade.underlying.amount)
+      cgate.set_moment(trade.underlying.time.getMillis)
+      cgate.set_nosystem(trade.underlying.nosystem ? 1.toByte | 0.toByte)
+
+      cgate
+    }
+  }
+
 }
