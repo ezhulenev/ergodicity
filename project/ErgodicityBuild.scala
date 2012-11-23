@@ -147,7 +147,7 @@ object ErgodicityBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val backtest = Seq(scalaz, marketDbApi, squeryl, h2Driver, postgresDriver, mockito) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
+  val backtest = Seq(scalaz, marketDbApi, squeryl, h2Driver, postgresDriver, mockito, scalaSTM) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val capture = Seq(sbinary, scalaz, finagleKestrel, marketDbApi, squeryl, h2Driver, postgresDriver, ostrich, scalaIO) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
@@ -174,7 +174,7 @@ object Dependency {
     val Mockito      = "1.9.0"
     val Scalaz       = "6.0.4"
     val Logback      = "1.0.3"
-    val ScalaSTM     = "0.4"
+    val ScalaSTM     = "0.6"
     val JodaTime     = "2.0"
     val JodaConvert  = "1.2"
     val SBinary      = "0.4.0"
@@ -197,7 +197,7 @@ object Dependency {
 
   val logback                = "ch.qos.logback"                    % "logback-classic"        % V.Logback
   val scalaz                 = "org.scalaz"                       %% "scalaz-core"            % V.Scalaz
-  val scalaSTM               = "org.scala-tools"                  %% "scala-stm"              % V.ScalaSTM
+  val scalaSTM               = "org.scala-stm"                    %% "scala-stm"              % V.ScalaSTM
   val jodaTime               = "joda-time"                         % "joda-time"              % V.JodaTime
   val jodaConvert            = "org.joda"                          % "joda-convert"           % V.JodaConvert
   val finagleCore            = "com.twitter"                       % "finagle-core"           % V.Finagle

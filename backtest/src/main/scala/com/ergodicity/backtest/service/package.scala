@@ -1,19 +1,15 @@
 package com.ergodicity.backtest
 
-import com.ergodicity.backtest.service.PositionsService.OpenedPosition
-import com.ergodicity.cgate.SysEvent.{UnknownEvent, IntradayClearingFinished, SessionDataReady}
+import service.PositionsService.ManagedPosition
 import com.ergodicity.cgate.scheme._
-import com.ergodicity.core.SessionsTracking.{OptSysEvent, FutSysEvent}
 import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
 import java.math
 import java.nio.{ByteOrder, ByteBuffer}
-import com.ergodicity.backtest.service.TradesService.{OptionTrade, FutureTrade}
 import com.ergodicity.backtest.service.TradesService.FutureTrade
 import com.ergodicity.core.SessionsTracking.OptSysEvent
 import com.ergodicity.core.SessionsTracking.FutSysEvent
 import com.ergodicity.cgate.SysEvent.UnknownEvent
 import com.ergodicity.cgate.SysEvent.SessionDataReady
-import com.ergodicity.backtest.service.PositionsService.OpenedPosition
 import com.ergodicity.backtest.service.TradesService.OptionTrade
 import com.ergodicity.cgate.SysEvent.IntradayClearingFinished
 
@@ -184,7 +180,7 @@ package object service {
     }
   }
 
-  implicit def openedPosition2plaza(pos: OpenedPosition) = new {
+  implicit def managedPosition2plaza(pos: ManagedPosition) = new {
     val (security, position, dynamics) = (pos.security, pos.position, pos.dynamics)
 
     def asPlazaRecord = {

@@ -31,4 +31,14 @@ object PositionDynamics {
 
 case class PositionDynamics(open: Int = 0, buys: Int = 0, sells: Int = 0, volume: BigDecimal = 0, lastDealId: Option[scala.Long] = None) {
   def aggregated = Position(open + buys - sells)
+
+  def bought(amount: Int, dealId: Long) = {
+    assert(amount > 0)
+    copy(buys = buys + amount, lastDealId = Some(dealId))
+  }
+
+  def sold(amount: Int, dealId: Long) = {
+    assert(amount > 0)
+    copy(sells = sells + amount, lastDealId = Some(dealId))
+  }
 }

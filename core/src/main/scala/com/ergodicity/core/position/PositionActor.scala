@@ -40,7 +40,7 @@ class PositionActor(security: Security) extends Actor with ActorLogging with Whe
 
   private def handleUpdates: Receive = {
     case UpdatePosition(to, d) if (to != d.aggregated) =>
-      throw new IllegalStateException()
+      throw new IllegalStateException("Positions = " + to + ", dynamics = " + d)
 
     case UpdatePosition(to, d) if (to != position || d != dynamics) =>
       log.debug("Position updated to " + to + ", dynamics = " + d)

@@ -2,69 +2,87 @@ package com.ergodicity.backtest.service
 
 import akka.actor.ActorRef
 import com.ergodicity.backtest.cgate.ListenerStubActor.Dispatch
-import com.ergodicity.backtest.service.PositionsService.{DiscardedPosition, OpenedPosition}
+import com.ergodicity.backtest.service.PositionsService.ManagedPosition
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.scheme.Pos
 import com.ergodicity.core.Security
 import com.ergodicity.core.position.{PositionDynamics, Position}
+import scala.concurrent.stm._
+import concurrent.stm.Ref
 
 object PositionsService {
 
-  sealed trait ManagedPosition
-
-  case class OpenedPosition(security: Security, position: Position, dynamics: PositionDynamics) extends ManagedPosition {
-
-    def bought(amount: Int, dealId: Long)(implicit service: PositionsService): OpenedPosition = {
-      assert(amount > 0, "Bought amount should be greater then 0")
-      val updatedPosition = position + Position(amount)
-      val updatedDynamics = dynamics.copy(buys = dynamics.buys + amount, lastDealId = Some(dealId))
-      service.dispatch(copy(position = updatedPosition, dynamics = updatedDynamics))
-    }
-
-    def sold(amount: Int, dealId: Long)(implicit service: PositionsService): OpenedPosition = {
-      assert(amount > 0, "Sold amount should be greater then 0")
-      val updatedPosition = position - Position(amount)
-      val updatedDynamics = dynamics.copy(sells = dynamics.sells + amount, lastDealId = Some(dealId))
-      service.dispatch(copy(position = updatedPosition, dynamics = updatedDynamics))
-    }
-
-    def toggleSession()(implicit service: PositionsService): OpenedPosition = {
-      service.dispatch(copy(dynamics = PositionDynamics(position.pos, buys = 0, sells = 0, lastDealId = None)))
-    }
-
-    def discard()(implicit service: PositionsService): DiscardedPosition = {
-      service.discard(this)
-    }
-  }
-
-  case class DiscardedPosition(security: Security) extends ManagedPosition
+  case class ManagedPosition(security: Security, position: Position, dynamics: PositionDynamics)
 
 }
 
-class PositionsService(pos: ActorRef) {
-  private[this] implicit val Service = this
-
+class PositionsService(pos: ActorRef, initialPositions: Map[Security, (Position, PositionDynamics)] = Map()) {
   private[this] val RemoveRecordReplAct = 1
 
-  def open(security: Security, position: Position = Position.flat, dynamics: PositionDynamics = PositionDynamics.empty) = {
-    val opened = new OpenedPosition(security, position, dynamics)
-    dispatch(opened)
+  private[this] val positions = Ref(initialPositions)
+
+  private[this] val toggled = false
+
+  // Dispatch initial positions
+  initialPositions.foreach {
+    case (security, (position, dynamics)) => dispatch(ManagedPosition(security, position, dynamics))
   }
 
-  private[PositionsService] def discard(position: OpenedPosition): DiscardedPosition = {
-    if (position.position != Position.flat) {
-      throw new IllegalStateException("Can't discard non flat position")
+  def bought(security: Security, amount: Int, dealId: Long) {
+    assert(amount > 0, "Bought amount should be greater then 0")
+    val (position, dynamics) = updatePosition(security, _ + Position(amount), _.bought(amount, dealId))
+    dispatch(ManagedPosition(security, position, dynamics))
+  }
+
+  def sold(security: Security, amount: Int, dealId: Long) {
+    assert(amount > 0, "Sold amount should be greater then 0")
+    val (position, dynamics) = updatePosition(security, _ - Position(amount), _.sold(amount, dealId))
+    dispatch(ManagedPosition(security, position, dynamics))
+  }
+
+  def discard(security: Security) {
+    atomic {
+      implicit txn =>
+        positions.transform {
+          case p if (!p.contains(security)) => p
+
+          case p if (p.contains(security) && p(security)._1 == Position.flat) =>
+            val (position, dynamics) = p(security)
+            dispatch(ManagedPosition(security, position, dynamics), RemoveRecordReplAct)
+            p - security
+
+          case _ => throw new IllegalStateException("Can't discard non flat position for " + security)
+        }
     }
-
-    val record = position.asPlazaRecord
-    record.set_replAct(RemoveRecordReplAct)
-    pos ! Dispatch(StreamData(Pos.position.TABLE_INDEX, record.getData) :: Nil)
-    DiscardedPosition(position.security)
   }
 
-  private[PositionsService] def dispatch(position: OpenedPosition): OpenedPosition = {
+  def toggleSession(): PositionsService = atomic {
+    assert(!toggled, "Service already toggled to another session")
+
+    implicit txn =>
+      val toggledPositions = positions() mapValues {
+        case (position, dynamics) =>
+          (position, PositionDynamics(position.pos, buys = 0, sells = 0, lastDealId = None))
+      }
+      new PositionsService(pos, toggledPositions)
+  }
+
+  private[this] def updatePosition(security: Security, updatePosition: Position => Position, updateDynamics: PositionDynamics => PositionDynamics): (Position, PositionDynamics) = atomic {
+    assert(!toggled, "Positions service toggled to another session")
+
+    implicit txn =>
+      positions.transform {
+        positions =>
+          val (position, dynamics) = positions.getOrElse(security, (Position.flat, PositionDynamics.empty))
+          positions + (security ->(updatePosition(position), updateDynamics(dynamics)))
+      }
+      positions() apply security
+  }
+
+
+  private[this] def dispatch(position: ManagedPosition, replAct: Long = 0) {
     val record = position.asPlazaRecord
+    record.set_replAct(replAct)
     pos ! Dispatch(StreamData(Pos.position.TABLE_INDEX, record.getData) :: Nil)
-    position
   }
 }

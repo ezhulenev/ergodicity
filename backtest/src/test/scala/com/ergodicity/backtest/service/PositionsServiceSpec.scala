@@ -27,7 +27,6 @@ import com.ergodicity.engine.{ServicesState, ServicesActor, Engine}
 import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
 import org.joda.time.DateTime
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import scala.Some
 
 class PositionsServiceSpec extends TestKit(ActorSystem("PositionsServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -114,35 +113,39 @@ class PositionsServiceSpec extends TestKit(ActorSystem("PositionsServiceSpec", c
 
       expectMsg(CurrentPosition(futureContract, Position.flat, PositionDynamics.empty))
 
-      implicit val positions = new PositionsService(engine.underlyingActor.posListenerStub)
+      val positions = new PositionsService(engine.underlyingActor.posListenerStub)
 
-      when("position opened and updated")
+      when("bought future")
       val dealId = 1111l
       val dealAmount = 10
 
-      val openedPos = positions.open(futureContract)
-      val longPos = openedPos.bought(dealAmount, dealId)
+      positions.bought(futureContract, dealAmount, dealId)
 
       then("should receive Transition notification")
       expectMsg(PositionTransition(futureContract, (Position.flat, PositionDynamics.empty), (Position(dealAmount), PositionDynamics(buys = dealAmount, lastDealId = Some(dealId)))))
 
       when("toggled session")
-      val toggled = longPos.toggleSession()
+      val toggled = positions.toggleSession()
 
       then("should notify with updated dynamics")
       expectMsg(PositionTransition(futureContract, (Position(dealAmount), PositionDynamics(buys = dealAmount, lastDealId = Some(dealId))), (Position(dealAmount), PositionDynamics(open = dealAmount))))
 
+      when("try discard opened position")
+      intercept[IllegalStateException] {
+        toggled.discard(futureContract)
+      }
+      then("should fail with Exception")
+
       when("position covered")
-      val covered = toggled.sold(dealAmount, dealId)
+      toggled.sold(futureContract, dealAmount, dealId)
 
       then("should notify on position update")
       expectMsg(PositionTransition(futureContract, (Position(dealAmount), PositionDynamics(open = dealAmount)), (Position.flat, PositionDynamics(open = dealAmount, sells = dealAmount, lastDealId = Some(dealId)))))
 
       when("position discarded")
-      val discarded = covered.discard()
+      toggled.discard(futureContract)
 
       then("do nothing")
-      assert(discarded.security == futureContract)
     }
   }
 }
