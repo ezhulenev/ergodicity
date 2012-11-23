@@ -22,7 +22,7 @@ import com.ergodicity.cgate.Protocol._
 object PositionsTracking {
   def apply(PosStream: ActorRef) = new PositionsTracking(PosStream)
 
-  case class GetPositionActor(security: Security)
+  case class GetTrackedPosition(security: Security)
 
   case class TrackedPosition(security: Security, positionActor: ActorRef)
 
@@ -68,7 +68,7 @@ class PositionsTracking(PosStream: ActorRef) extends Actor with FSM[PositionsTra
       currentPositions.map(_.map(_.tuple).toMap) map (Positions(_)) pipeTo sender
       stay()
 
-    case Event(GetPositionActor(security), _) =>
+    case Event(GetTrackedPosition(security), _) =>
       sender ! TrackedPosition(security, positions.getOrElseUpdate(security, createPosition(security)))
       stay()
 

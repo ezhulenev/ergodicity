@@ -40,22 +40,25 @@ class PositionActorSpec extends TestKit(ActorSystem("PositionActorSpec", ConfigW
     "handle position updates" in {
       val position = TestActorRef(new PositionActor(futureContract))
       position ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(futureContract, Position.flat))
+      expectMsg(CurrentPosition(futureContract, Position.flat, PositionDynamics.empty))
 
       val data1 = Position(10)
-      position ! UpdatePosition(data1, PositionDynamics(buys = 10))
+      val dynamics1 = PositionDynamics(buys = 10)
+      position ! UpdatePosition(data1, dynamics1)
       assert(position.underlyingActor.position == data1)
-      expectMsg(PositionTransition(futureContract, Position.flat, data1))
+      expectMsg(PositionTransition(futureContract, (Position.flat, PositionDynamics.empty), (data1, dynamics1)))
 
       val data2 = Position(-2)
-      position ! UpdatePosition(data2, PositionDynamics(open = 0, buys = 10, sells = 12))
+      val dynamics2 = PositionDynamics(open = 0, buys = 10, sells = 12)
+      position ! UpdatePosition(data2, dynamics2)
       assert(position.underlyingActor.position == data2)
-      expectMsg(PositionTransition(futureContract, data1, data2))
+      expectMsg(PositionTransition(futureContract, (data1, dynamics1), (data2, dynamics2)))
 
       val data3 = Position.flat
-      position ! UpdatePosition(Position.flat, PositionDynamics(open = 0, buys = 12, sells = 12))
+      val dynamics3 = PositionDynamics(open = 0, buys = 12, sells = 12)
+      position ! UpdatePosition(Position.flat, dynamics3)
       assert(position.underlyingActor.position == Position.flat)
-      expectMsg(PositionTransition(futureContract, data2, data3))
+      expectMsg(PositionTransition(futureContract, (data2, dynamics2), (data3, dynamics3)))
     }
   }
 }

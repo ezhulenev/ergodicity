@@ -1,19 +1,17 @@
 package com.ergodicity.core
 
-import akka.pattern._
-import akka.event.Logging
 import akka.actor.ActorSystem
-import java.util.concurrent.TimeUnit
 import akka.dispatch.Await
+import akka.event.Logging
+import akka.pattern._
 import akka.testkit.{TestFSMRef, ImplicitSender, TestKit}
 import com.ergodicity.cgate.DataStream
-import org.scalatest.{BeforeAndAfter, GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import com.ergodicity.core.PositionsTracking._
+import java.util.concurrent.TimeUnit
+import org.scalatest.{BeforeAndAfter, GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import position.PositionActor.{PositionTransition, CurrentPosition, SubscribePositionUpdates}
 import position.{PositionDynamics, Position}
 import session.SessionActor.AssignedContents
-import com.ergodicity.core.PositionsTracking.Positions
-import com.ergodicity.core.PositionsTracking.TrackedPosition
 
 class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll with BeforeAndAfter {
   val log = Logging(system, self)
@@ -41,7 +39,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
 
       val positionRef = underlying.positions(futureContract)
       positionRef ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(futureContract, Position(1)))
+      expectMsg(CurrentPosition(futureContract, Position(1), PositionDynamics(buys = 1)))
     }
 
     "close discarded positions" in {
@@ -55,7 +53,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
       then("should create actor for if")
       val positionRef = underlying.positions(futureContract)
       positionRef ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(futureContract, Position(1)))
+      expectMsg(CurrentPosition(futureContract, Position(1), PositionDynamics(buys = 1)))
 
       when("position discarded")
       positions ! PositionDiscarded(futureContract.id)
@@ -64,7 +62,7 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
       assert(underlying.positions.size == 1)
 
       and("notified on position transition")
-      expectMsg(PositionTransition(futureContract, Position(1), Position.flat))
+      expectMsg(PositionTransition(futureContract, (Position(1), PositionDynamics(buys = 1)), (Position.flat, PositionDynamics.empty)))
     }
 
     "update existing positions" in {
@@ -76,25 +74,25 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
 
       val positionRef = underlying.positions(futureContract)
       positionRef ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(futureContract, Position(1)))
+      expectMsg(CurrentPosition(futureContract, Position(1), PositionDynamics(buys = 1)))
 
       when("position updated")
       positions ! PositionUpdated(futureContract.id, Position(2), PositionDynamics(buys = 2))
 
       then("should get transtition notification")
-      expectMsg(PositionTransition(futureContract, Position(1), Position(2)))
+      expectMsg(PositionTransition(futureContract, (Position(1), PositionDynamics(buys = 1)), (Position(2), PositionDynamics(buys = 2))))
     }
 
     "create new positions if it doesn't exists" in {
       val positions = TestFSMRef(new PositionsTracking(TestFSMRef(new DataStream, "DataStream")), "Positions")
       val underlying = positions.underlyingActor.asInstanceOf[PositionsTracking]
 
-      val position = Await.result((positions ? GetPositionActor(futureContract)).mapTo[TrackedPosition], TimeOut.duration)
+      val position = Await.result((positions ? GetTrackedPosition(futureContract)).mapTo[TrackedPosition], TimeOut.duration)
 
       assert(underlying.positions.size == 1)
 
       position.positionActor ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(futureContract, Position.flat))
+      expectMsg(CurrentPosition(futureContract, Position.flat, PositionDynamics.empty))
     }
 
     "return existing position on track position event" in {
@@ -104,9 +102,9 @@ class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec",
       positions ! assignedContents
       positions ! PositionUpdated(futureContract.id, Position(1), PositionDynamics(buys = 1))
 
-      val trackedPosition = Await.result((positions ? GetPositionActor(futureContract)).mapTo[TrackedPosition], TimeOut.duration)
+      val trackedPosition = Await.result((positions ? GetTrackedPosition(futureContract)).mapTo[TrackedPosition], TimeOut.duration)
       trackedPosition.positionActor ! SubscribePositionUpdates(self)
-      expectMsg(CurrentPosition(futureContract, Position(1)))
+      expectMsg(CurrentPosition(futureContract, Position(1), PositionDynamics(buys = 1)))
     }
 
     "get all opened positions" in {

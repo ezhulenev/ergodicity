@@ -12,7 +12,7 @@ import com.ergodicity.cgate._
 import com.ergodicity.cgate.config.Replication.ReplicationMode.Combined
 import com.ergodicity.cgate.config.Replication.ReplicationParams
 import com.ergodicity.core.PositionsTracking
-import com.ergodicity.core.PositionsTracking.GetPositions
+import com.ergodicity.core.PositionsTracking.{GetTrackedPosition, GetPositions}
 import com.ergodicity.core.SessionsTracking.OngoingSession
 import com.ergodicity.core.SessionsTracking.OngoingSessionTransition
 import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
@@ -145,6 +145,10 @@ protected[service] class PortfolioService(pos: ListenerDecorator)
 
     case Event(GetPositions, _) =>
       Positions.tell(GetPositions, sender)
+      stay()
+
+    case Event(get@GetTrackedPosition(_), _) =>
+      Positions.tell(get, sender)
       stay()
   }
 

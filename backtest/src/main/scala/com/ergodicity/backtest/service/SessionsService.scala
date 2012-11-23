@@ -1,6 +1,6 @@
 package com.ergodicity.backtest.service
 
-import akka.actor.{ActorSystem, ActorRef}
+import akka.actor.ActorRef
 import com.ergodicity.backtest.cgate.ListenerStubActor.Dispatch
 import com.ergodicity.backtest.service.SessionsService.SessionAssigned
 import com.ergodicity.cgate.StreamEvent.StreamData
@@ -22,67 +22,44 @@ object SessionsService {
   trait Cancel {
     self: Session =>
 
-    protected def service: SessionsService
-
-    def cancel() = new SessionCancelled(service.update(id, SessionState.Canceled, IntradayClearingState.Undefined))(service)
+    def cancel()(implicit service: SessionsService) = SessionCancelled(service.update(id, SessionState.Canceled, IntradayClearingState.Undefined))
   }
 
-  class SessionAssigned(val id: SessionId)(implicit protected val service: SessionsService) extends Session with Cancel {
-
-    import service._
-
-    def start(): EveningSession = new EveningSession(update(id, SessionState.Online, IntradayClearingState.Oncoming))
+  case class SessionAssigned(id: SessionId) extends Session with Cancel {
+    def start()(implicit service: SessionsService): EveningSession = EveningSession(service.update(id, SessionState.Online, IntradayClearingState.Oncoming))
   }
 
-  class EveningSession(val id: SessionId)(implicit protected val service: SessionsService) extends Session with Cancel {
-
-    import service._
-
-    def suspend() = new SessionSuspended(update(id, SessionState.Suspended, IntradayClearingState.Oncoming))
+  case class EveningSession(id: SessionId) extends Session with Cancel {
+    def suspend()(implicit service: SessionsService) = SessionSuspended(service.update(id, SessionState.Suspended, IntradayClearingState.Oncoming))
   }
 
-  class SessionSuspended(val id: SessionId)(implicit protected val service: SessionsService) extends Session with Cancel {
-
-    import service._
-
-    def resume() = new SessionBeforeIntClearing(update(id, SessionState.Online, IntradayClearingState.Oncoming))
+  case class SessionSuspended(id: SessionId) extends Session with Cancel {
+    def resume()(implicit service: SessionsService) = SessionBeforeIntClearing(service.update(id, SessionState.Online, IntradayClearingState.Oncoming))
   }
 
-  class SessionBeforeIntClearing(val id: SessionId)(implicit protected val service: SessionsService) extends Session with Cancel {
-
-    import service._
-
-    def startIntradayClearing() = new SessionIntradayClearing(update(id, SessionState.Suspended, IntradayClearingState.Running))
+  case class SessionBeforeIntClearing(id: SessionId) extends Session with Cancel {
+    def startIntradayClearing()(implicit service: SessionsService) = SessionIntradayClearing(service.update(id, SessionState.Suspended, IntradayClearingState.Running))
   }
 
-  class SessionIntradayClearing(val id: SessionId)(implicit protected val service: SessionsService) extends Session {
-
-    import service._
-
-    def stopIntradayClearing() = new SessionAfterIntClearing(update(id, SessionState.Online, IntradayClearingState.Completed))
+  case class SessionIntradayClearing(id: SessionId) extends Session {
+    def stopIntradayClearing()(implicit service: SessionsService) = SessionAfterIntClearing(service.update(id, SessionState.Online, IntradayClearingState.Completed))
   }
 
-  class SessionAfterIntClearing(val id: SessionId)(implicit protected val service: SessionsService) extends Session with Cancel {
-
-    import service._
-
-    def startClearing() = new SessionClearing(update(id, SessionState.Suspended, IntradayClearingState.Completed))
+  case class SessionAfterIntClearing(id: SessionId) extends Session with Cancel {
+    def startClearing()(implicit service: SessionsService) = SessionClearing(service.update(id, SessionState.Suspended, IntradayClearingState.Completed))
   }
 
-  class SessionClearing(val id: SessionId)(implicit protected val service: SessionsService) extends Session {
-
-    import service._
-
-    def complete() = new SessionCompleted(update(id, SessionState.Completed, IntradayClearingState.Completed))
+  case class SessionClearing(id: SessionId) extends Session {
+    def complete()(implicit service: SessionsService) = SessionCompleted(service.update(id, SessionState.Completed, IntradayClearingState.Completed))
   }
 
-  class SessionCompleted(val id: SessionId)(implicit protected val service: SessionsService) extends Session
+  case class SessionCompleted(id: SessionId) extends Session
 
-  class SessionCancelled(val id: SessionId)(implicit protected val service: SessionsService) extends Session
+  case class SessionCancelled(id: SessionId) extends Session
 
 }
 
-class SessionsService(futInfo: ActorRef, optInfo: ActorRef)(implicit system: ActorSystem) {
+class SessionsService(futInfo: ActorRef, optInfo: ActorRef) {
   private[this] implicit val Service: SessionsService = this
 
   private[this] val sysEventsCounter = new AtomicInteger(0)
@@ -93,7 +70,7 @@ class SessionsService(futInfo: ActorRef, optInfo: ActorRef)(implicit system: Act
     val id = dispatch(session, futures, options) using(SessionState.Assigned, IntradayClearingState.Oncoming)
     sessions(id) = (session, futures, options)
     sessionDataReady(id)
-    new SessionAssigned(id)
+    SessionAssigned(id)
   }
 
   private[SessionsService] def remove(id: SessionId) {

@@ -22,7 +22,7 @@ import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
 import org.joda.time.DateTime
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 
-class SessionManagerSpec extends TestKit(ActorSystem("SessionManagerSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
+class SessionsServiceSpec extends TestKit(ActorSystem("SessionsServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   override def afterAll() {
@@ -81,7 +81,7 @@ class SessionManagerSpec extends TestKit(ActorSystem("SessionManagerSpec", com.e
       expectMsg(3.seconds, Transition(services, ServicesState.Idle, ServicesState.Starting))
       expectMsg(10.seconds, Transition(services, ServicesState.Starting, ServicesState.Active))
 
-      val sessions = new SessionsService(engine.underlyingActor.futInfoListenerStub, engine.underlyingActor.optInfoListenerStub)
+      implicit val sessions = new SessionsService(engine.underlyingActor.futInfoListenerStub, engine.underlyingActor.optInfoListenerStub)
 
       val instrumentData = services.underlyingActor.service(InstrumentData.InstrumentData)
       instrumentData ! SubscribeOngoingSessions(self)
@@ -156,7 +156,7 @@ class SessionManagerSpec extends TestKit(ActorSystem("SessionManagerSpec", com.e
       expectMsg(3.seconds, Transition(services, ServicesState.Idle, ServicesState.Starting))
       expectMsg(10.seconds, Transition(services, ServicesState.Starting, ServicesState.Active))
 
-      val sessions = new SessionsService(engine.underlyingActor.futInfoListenerStub, engine.underlyingActor.optInfoListenerStub)
+      implicit val sessions = new SessionsService(engine.underlyingActor.futInfoListenerStub, engine.underlyingActor.optInfoListenerStub)
 
       val instrumentData = services.underlyingActor.service(InstrumentData.InstrumentData)
       instrumentData ! SubscribeOngoingSessions(self)

@@ -150,9 +150,11 @@ class ListenerStubActor(replState: String = "") extends Actor with FSM[ListenerS
       subscriber = Some(s)
       goto(Binded(Closed))
 
+    case Event(Dispatch(data), pending) => stay() using (pending ++ data)
+
     case Event(FSM.StateTimeout, _) => throw new IllegalActorStateException("Timed out in Binding state")
 
-    case _ => throw new IllegalActorStateException("Actor is UnBinded")
+    case e => throw new IllegalActorStateException("Actor is UnBinded; Event = " + e)
   }
 
   when(Binded(Closed)) {
@@ -173,7 +175,7 @@ class ListenerStubActor(replState: String = "") extends Actor with FSM[ListenerS
 
     case Event(Dispatch(data), pending) => stay() using (pending ++ data)
 
-    case Event(GetStateCmd, _) => stay() replying(Closed)
+    case Event(GetStateCmd, _) => stay() replying (Closed)
   }
 
   when(Binded(Active)) {
@@ -190,7 +192,7 @@ class ListenerStubActor(replState: String = "") extends Actor with FSM[ListenerS
       notify(StreamEvent.TnCommit)
       stay()
 
-    case Event(GetStateCmd, _) => stay() replying(Active)
+    case Event(GetStateCmd, _) => stay() replying (Active)
   }
 
   private def notify(event: StreamEvent) {
