@@ -79,6 +79,8 @@ class PositionsServiceSpec extends TestKit(ActorSystem("PositionsServiceSpec", c
   val futures = FutSessContents(Mocking.mockFuture(sessionId.fut, futureContract.id.id, futureContract.isin.isin, futureContract.shortIsin.shortIsin, futureContract.name, 115, InstrumentState.Assigned.toInt)) :: Nil
   val options = OptSessContents(Mocking.mockOption(sessionId.fut, 101, "OISIN", "OSISIN", "Option", 115)) :: Nil
 
+  implicit val sessionContext = SessionContext(session, futures, options)
+
   implicit val timeout = Timeout(1.second)
 
   "Positions Service" must {
@@ -113,37 +115,44 @@ class PositionsServiceSpec extends TestKit(ActorSystem("PositionsServiceSpec", c
 
       expectMsg(CurrentPosition(futureContract, Position.flat, PositionDynamics.empty))
 
-      val positions = new PositionsService(engine.underlyingActor.posListenerStub)
+      val positions1 = new PositionsService(engine.underlyingActor.posListenerStub)
 
       when("bought future")
       val dealId = 1111l
       val dealAmount = 10
 
-      positions.bought(futureContract, dealAmount, dealId)
+      positions1.bought(futureContract, dealAmount, dealId)
 
       then("should receive Transition notification")
       expectMsg(PositionTransition(futureContract, (Position.flat, PositionDynamics.empty), (Position(dealAmount), PositionDynamics(buys = dealAmount, lastDealId = Some(dealId)))))
 
       when("toggled session")
-      val toggled = positions.toggleSession()
+      val positions2 = new PositionsService(engine.underlyingActor.posListenerStub, positions1.current)
 
       then("should notify with updated dynamics")
       expectMsg(PositionTransition(futureContract, (Position(dealAmount), PositionDynamics(buys = dealAmount, lastDealId = Some(dealId))), (Position(dealAmount), PositionDynamics(open = dealAmount))))
 
       when("try discard opened position")
       intercept[IllegalStateException] {
-        toggled.discard(futureContract)
+        positions2.discard(futureContract)
+      }
+      then("should fail with Exception")
+
+      when("try update position for not assigned instrument")
+      val notAssignedContract = futureContract.copy(isin = Isin("NotAssignedIsin"))
+      intercept[IllegalArgumentException] {
+        positions2.bought(notAssignedContract, 1, 1)
       }
       then("should fail with Exception")
 
       when("position covered")
-      toggled.sold(futureContract, dealAmount, dealId)
+      positions2.sold(futureContract, dealAmount, dealId)
 
       then("should notify on position update")
       expectMsg(PositionTransition(futureContract, (Position(dealAmount), PositionDynamics(open = dealAmount)), (Position.flat, PositionDynamics(open = dealAmount, sells = dealAmount, lastDealId = Some(dealId)))))
 
       when("position discarded")
-      toggled.discard(futureContract)
+      positions2.discard(futureContract)
 
       then("do nothing")
     }

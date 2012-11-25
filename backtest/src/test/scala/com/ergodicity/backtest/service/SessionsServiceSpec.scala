@@ -68,7 +68,7 @@ class SessionsServiceSpec extends TestKit(ActorSystem("SessionsServiceSpec", com
   val options = OptSessContents(Mocking.mockOption(sessionId.fut, 101, "OISIN", "OSISIN", "Option", 115)) :: Nil
 
 
-  "SessionManager Service" must {
+  "Sessions Service" must {
     "support normal session lifecycle" in {
       val engine = TestActorRef(new TestEngine, "Engine")
       val services = TestActorRef(new TestServices(engine.underlyingActor), "Services")

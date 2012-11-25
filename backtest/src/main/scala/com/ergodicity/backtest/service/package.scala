@@ -12,8 +12,11 @@ import com.ergodicity.cgate.SysEvent.UnknownEvent
 import com.ergodicity.cgate.SysEvent.SessionDataReady
 import com.ergodicity.backtest.service.TradesService.OptionTrade
 import com.ergodicity.cgate.SysEvent.IntradayClearingFinished
+import com.ergodicity.schema
 
 package object service {
+
+  case class SessionContext(session: schema.Session, futures: Seq[FutSessContents], options: Seq[OptSessContents])
 
   object Size {
     val Session = 144

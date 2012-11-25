@@ -41,4 +41,6 @@ case class PositionDynamics(open: Int = 0, buys: Int = 0, sells: Int = 0, volume
     assert(amount > 0)
     copy(sells = sells + amount, lastDealId = Some(dealId))
   }
+
+  def reset = PositionDynamics(aggregated.pos, buys = 0, sells = 0, volume = 0, lastDealId = None)
 }

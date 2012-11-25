@@ -2,8 +2,6 @@ package com.ergodicity.backtest.service
 
 import akka.actor.ActorRef
 import com.ergodicity.marketdb.model.TradePayload
-import com.ergodicity.schema
-import com.ergodicity.schema.{OptSessContents, FutSessContents}
 import scalaz.Scalaz._
 import com.ergodicity.core.{Isin, IsinId, SessionId}
 import com.ergodicity.backtest.service.TradesService.{OptionTrade, FutureTrade}
@@ -21,9 +19,9 @@ object TradesService {
 
 }
 
-class TradesService(futTrade: ActorRef, optTrade: ActorRef)(session: schema.Session, futures: Seq[FutSessContents], options: Seq[OptSessContents]) {
+class TradesService(futTrade: ActorRef, optTrade: ActorRef)(implicit context: SessionContext) {
 
-  val sessionId = SessionId(session.sess_id, session.opt_sess_id)
+  val sessionId = SessionId(context.session.sess_id, context.session.opt_sess_id)
 
   def dispatch(trades: TradePayload*) {
     val futures = trades.filter(isFuture)
@@ -40,26 +38,22 @@ class TradesService(futTrade: ActorRef, optTrade: ActorRef)(session: schema.Sess
     optTrade ! Dispatch(options)
   }
 
-  def toggleSession(session: schema.Session, futures: Seq[FutSessContents], options: Seq[OptSessContents]) = {
-    new TradesService(futTrade, optTrade)(session, futures, options)
-  }
-
   val isFuture: TradePayload => Boolean = mutableHashMapMemo {
-    trade => futures.exists(_.isin == trade.security.isin)
+    trade => context.futures.exists(_.isin == trade.security.isin)
   }
 
   val futureIsinId: Isin => IsinId = mutableHashMapMemo {
     isin =>
-      IsinId(futures.find(_.isin == isin).get.isin_id)
+      IsinId(context.futures.find(_.isin == isin).get.isin_id)
   }
 
   val isOption: TradePayload => Boolean = mutableHashMapMemo {
-    trade => options.exists(_.isin == trade.security.isin)
+    trade => context.options.exists(_.isin == trade.security.isin)
   }
 
   val optionIsinId: Isin => IsinId = mutableHashMapMemo {
     isin =>
-      IsinId(options.find(_.isin == isin).get.isin_id)
+      IsinId(context.options.find(_.isin == isin).get.isin_id)
   }
 
 }
