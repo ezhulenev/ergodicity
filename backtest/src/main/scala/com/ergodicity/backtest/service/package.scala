@@ -1,22 +1,22 @@
 package com.ergodicity.backtest
 
-import service.PositionsService.ManagedPosition
+import com.ergodicity.backtest.service.OrdersService.{OptionOrder, FutureOrder}
+import com.ergodicity.backtest.service.TradesService.FutureTrade
+import com.ergodicity.backtest.service.TradesService.OptionTrade
+import com.ergodicity.cgate.SysEvent.IntradayClearingFinished
+import com.ergodicity.cgate.SysEvent.SessionDataReady
+import com.ergodicity.cgate.SysEvent.UnknownEvent
 import com.ergodicity.cgate.scheme._
+import com.ergodicity.core.SessionsTracking.FutSysEvent
+import com.ergodicity.core.SessionsTracking.OptSysEvent
+import com.ergodicity.marketdb.model.OrderPayload
 import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
 import java.math
 import java.nio.{ByteOrder, ByteBuffer}
-import com.ergodicity.backtest.service.TradesService.FutureTrade
-import com.ergodicity.core.SessionsTracking.OptSysEvent
-import com.ergodicity.core.SessionsTracking.FutSysEvent
-import com.ergodicity.cgate.SysEvent.UnknownEvent
-import com.ergodicity.cgate.SysEvent.SessionDataReady
-import com.ergodicity.backtest.service.TradesService.OptionTrade
-import com.ergodicity.cgate.SysEvent.IntradayClearingFinished
-import com.ergodicity.schema
+import service.PositionsService.ManagedPosition
+import com.ergodicity.core.order.OrdersSnapshotActor.OrdersSnapshot
 
 package object service {
-
-  case class SessionContext(session: schema.Session, futures: Seq[FutSessContents], options: Seq[OptSessContents])
 
   object Size {
     val Session = 144
@@ -26,6 +26,8 @@ package object service {
     val Pos = 92
     val FutTrade = 282
     val OptTrade = 270
+    val OrdLog = 100
+    val OrdBook = 50
   }
 
   implicit def toJbd(v: BigDecimal): java.math.BigDecimal = new math.BigDecimal(v.toString())
@@ -203,6 +205,7 @@ package object service {
   }
 
   implicit def futureTrade2plaza(trade: FutureTrade) = new {
+
     import scalaz.Scalaz._
 
     def asPlazaRecord = {
@@ -222,6 +225,7 @@ package object service {
   }
 
   implicit def optionTrade2plaza(trade: OptionTrade) = new {
+
     import scalaz.Scalaz._
 
     def asPlazaRecord = {
@@ -240,4 +244,49 @@ package object service {
     }
   }
 
+  implicit def futureOrder2plaza(order: FutureOrder) = new {
+    def asPlazaRecord = order2plaza(order.session.fut, order.id.id, order.underlying)
+  }
+
+  implicit def optionOrder2plaza(order: OptionOrder) = new {
+    def asPlazaRecord = order2plaza(order.session.opt, order.id.id, order.underlying)
+  }
+
+  private[this] def order2plaza(sessionId: Int, isinId: Int, order: OrderPayload): OrdLog.orders_log = {
+    val Revision = 1
+
+    val buff = allocate(Size.OrdLog)
+    val cgate = new OrdLog.orders_log(buff)
+
+    cgate.set_replRev(Revision)
+    cgate.set_sess_id(sessionId)
+    cgate.set_isin_id(isinId)
+
+    import order._
+    cgate.set_id_ord(orderId)
+    cgate.set_moment(time.getMillis)
+    cgate.set_status(status)
+    cgate.set_action(action.toByte)
+    cgate.set_dir(dir.toByte)
+    cgate.set_price(price)
+    cgate.set_amount(amount)
+    cgate.set_amount_rest(amount_rest)
+    deal.foreach {
+      case (dealId, dealPrice) =>
+        cgate.set_id_deal(dealId)
+        cgate.set_deal_price(dealPrice)
+    }
+    cgate
+  }
+
+  implicit def ordersSnapshot2plaza(snapshot: OrdersSnapshot) = new {
+    def asPlazaRecord = {
+      assert(snapshot.orders.size == 0, "Can't dispatch non-empty snapshot")
+      val buff = allocate(Size.OrdBook)
+      val cgate = new OrdBook.info(buff)
+      cgate.set_logRev(snapshot.revision)
+      cgate.set_moment(snapshot.moment.getMillis)
+      cgate
+    }
+  }
 }

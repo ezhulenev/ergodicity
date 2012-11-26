@@ -100,4 +100,9 @@ object OrderDirection {
 
   case object Sell extends OrderDirection
 
+  implicit def toShort(direction: OrderDirection): Short = direction match {
+    case Buy => 1
+    case Sell => 2
+  }
+
 }

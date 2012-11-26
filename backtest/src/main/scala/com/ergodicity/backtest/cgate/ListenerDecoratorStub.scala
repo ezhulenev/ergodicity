@@ -20,6 +20,8 @@ import ru.micexrts.cgate.{Listener => CGListener, MessageType, CGateException, I
 import scala.Left
 import scala.Right
 import scala.Some
+import com.ergodicity.cgate.config.Replication.ReplicationParams
+import com.ergodicity.cgate.config.Replication.ReplicationMode.Snapshot
 
 object ListenerDecoratorStub {
 
@@ -27,6 +29,11 @@ object ListenerDecoratorStub {
 
   def wrap(actor: ActorRef) = {
     implicit val timeout = util.Timeout(1.second)
+
+    def open(i: InvocationOnMock) {
+      val config = i.getArguments.apply(0).asInstanceOf[String]
+      execCmd(OpenCmd(config))(i)
+    }
 
     def execCmd(cmd: Command)(i: InvocationOnMock) {
       Await.result((actor ? cmd).mapTo[Either[Unit, CGateException]], 1.second) fold(s => s, e => throw e)
@@ -37,7 +44,7 @@ object ListenerDecoratorStub {
     }
 
     val mock = Mockito.mock(classOf[CGListener])
-    doAnswer(execCmd(OpenCmd) _).when(mock).open(any())
+    doAnswer(open _).when(mock).open(any())
     doAnswer(execCmd(CloseCmd) _).when(mock).close()
     doAnswer(getState _).when(mock).getState
     mock
@@ -61,7 +68,7 @@ object ListenerStubActor {
 
   object Command {
 
-    case object OpenCmd extends Command
+    case class OpenCmd(config: String) extends Command
 
     case object CloseCmd extends Command
 
@@ -145,7 +152,7 @@ class ListenerStubActor(replState: String = "") extends Actor with FSM[ListenerS
 
   startWith(UnBinded, Seq.empty)
 
-  when(UnBinded, stateTimeout = 100.millis) {
+  when(UnBinded, stateTimeout = 500.millis) {
     case Event(Bind(s), _) =>
       subscriber = Some(s)
       goto(Binded(Closed))
@@ -158,17 +165,23 @@ class ListenerStubActor(replState: String = "") extends Actor with FSM[ListenerS
   }
 
   when(Binded(Closed)) {
-    case Event(OpenCmd, data) if (data.size == 0) =>
+    case Event(OpenCmd(config), data) =>
+      log.info("Open config = "+config)
       notify(StreamEvent.Open)
-      notify(StreamEvent.StreamOnline)
-      goto(Binded(Active)) replying (Left(()))
+      if (data.size > 0) {
+        notify(StreamEvent.TnBegin)
+        data.foreach(notify _)
+        notify(StreamEvent.TnCommit)
+      }
 
-    case Event(OpenCmd, data) if (data.size > 0) =>
-      notify(StreamEvent.Open)
-      notify(StreamEvent.TnBegin)
-      data.foreach(notify _)
-      notify(StreamEvent.TnCommit)
-      notify(StreamEvent.StreamOnline)
+      // If we open stream in Snapshot mode close it immediately after dispatching data
+      // if not, go to Online state
+      if (config.toLowerCase == ReplicationParams(Snapshot).apply()) {
+        self ! CloseCmd
+      } else {
+        notify(StreamEvent.StreamOnline)
+      }
+
       goto(Binded(Active)) replying (Left(()))
 
     case Event(CloseCmd, _) => stay() replying (Right(new CGateException("Listener already closed")))
@@ -184,7 +197,7 @@ class ListenerStubActor(replState: String = "") extends Actor with FSM[ListenerS
       notify(StreamEvent.Close)
       goto(Binded(Closed)) replying (Left(()))
 
-    case Event(OpenCmd, _) => stay() replying (Right(new CGateException("Listener already opened")))
+    case Event(OpenCmd(_), _) => stay() replying (Right(new CGateException("Listener already opened")))
 
     case Event(Dispatch(data), _) =>
       notify(StreamEvent.TnBegin)
