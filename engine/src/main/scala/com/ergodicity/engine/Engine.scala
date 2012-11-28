@@ -8,7 +8,7 @@ import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection, CG
 import akka.actor.SupervisorStrategy.Stop
 import akka.util.Timeout
 import com.ergodicity.cgate.config.Replication
-import com.ergodicity.cgate.ListenerDecorator
+import com.ergodicity.cgate.ListenerBinding
 
 
 object Engine {
@@ -128,46 +128,46 @@ object ReplicationScheme {
 
 object Listener {
   trait FutInfoListener {
-    def futInfoListener: ListenerDecorator
+    def futInfoListener: ListenerBinding
   }
 
   trait OptInfoListener {
-    def optInfoListener: ListenerDecorator
+    def optInfoListener: ListenerBinding
   }
 
   trait FutOrderBookListener {
-    def futOrderbookListener: ListenerDecorator
+    def futOrderbookListener: ListenerBinding
   }
 
   trait OptOrderBookListener {
-    def optOrderbookListener: ListenerDecorator
+    def optOrderbookListener: ListenerBinding
   }
 
   trait OrdLogListener {
-    def ordLogListener: ListenerDecorator
+    def ordLogListener: ListenerBinding
   }
 
   trait PosListener {
-    def posListener: ListenerDecorator
+    def posListener: ListenerBinding
   }
 
   trait FutTradesListener {
-    def futTradesListener: ListenerDecorator
+    def futTradesListener: ListenerBinding
   }
 
   trait OptTradesListener {
-    def optTradesListener: ListenerDecorator
+    def optTradesListener: ListenerBinding
   }
 
   trait FutOrdersListener {
-    def futOrdersListener: ListenerDecorator
+    def futOrdersListener: ListenerBinding
   }
 
   trait OptOrdersListener {
-    def optOrdersListener: ListenerDecorator
+    def optOrdersListener: ListenerBinding
   }
 
   trait RepliesListener {
-    def repliesListener: ListenerDecorator
+    def repliesListener: ListenerBinding
   }
 }

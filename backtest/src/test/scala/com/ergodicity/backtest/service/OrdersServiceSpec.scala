@@ -10,7 +10,7 @@ import akka.testkit._
 import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.backtest.Mocking
-import com.ergodicity.backtest.cgate.{DataStreamListenerStubActor, ConnectionStubActor, ListenerDecoratorStub, ConnectionStub}
+import com.ergodicity.backtest.cgate.{DataStreamListenerStubActor, ConnectionStubActor, ListenerBindingStub, ConnectionStub}
 import com.ergodicity.core._
 import com.ergodicity.core.session.InstrumentState
 import com.ergodicity.engine.Listener._
@@ -45,15 +45,15 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
   trait Listeners extends FutInfoListener with OptInfoListener with FutOrderBookListener with OptOrderBookListener with OrdLogListener {
     self: TestEngine =>
 
-    lazy val futInfoListener = ListenerDecoratorStub wrap futInfoListenerStub
+    lazy val futInfoListener = ListenerBindingStub wrap futInfoListenerStub
 
-    lazy val optInfoListener = ListenerDecoratorStub wrap optInfoListenerStub
+    lazy val optInfoListener = ListenerBindingStub wrap optInfoListenerStub
 
-    lazy val futOrderbookListener = ListenerDecoratorStub wrap futOrderBookListenerStub
+    lazy val futOrderbookListener = ListenerBindingStub wrap futOrderBookListenerStub
 
-    lazy val optOrderbookListener = ListenerDecoratorStub wrap optOrderBookListenerStub
+    lazy val optOrderbookListener = ListenerBindingStub wrap optOrderBookListenerStub
 
-    lazy val ordLogListener = ListenerDecoratorStub wrap ordLogListenerStub
+    lazy val ordLogListener = ListenerBindingStub wrap ordLogListenerStub
   }
 
   class TestEngine(implicit system: ActorSystem) extends Engine with Connections with Listeners {

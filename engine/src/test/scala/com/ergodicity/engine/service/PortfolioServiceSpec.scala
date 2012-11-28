@@ -4,7 +4,7 @@ import akka.actor.FSM.Transition
 import akka.actor._
 import akka.event.Logging
 import akka.testkit._
-import com.ergodicity.cgate.{ListenerDecorator, DataStreamState}
+import com.ergodicity.cgate.{ListenerBinding, DataStreamState}
 import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.engine.Services
 import com.ergodicity.engine.service.Service.{Stop, Start}
@@ -23,7 +23,7 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
   implicit val Id = Portfolio.Portfolio
 
   def createService(implicit services: Services = mock(classOf[Services])) = {
-    val posListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+    val posListener = ListenerBinding(_ => mock(classOf[CGListener]))
 
     Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
 

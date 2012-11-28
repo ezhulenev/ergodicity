@@ -48,7 +48,7 @@ object InstrumentDataState {
 
 }
 
-protected[service] class InstrumentDataService(underlyingFutInfoListener: ListenerDecorator, underlyingOptInfoListener: ListenerDecorator)
+protected[service] class InstrumentDataService(underlyingFutInfoListener: ListenerBinding, underlyingOptInfoListener: ListenerBinding)
                                               (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[InstrumentDataState, StreamStates] with Service {
 
   import InstrumentDataState._

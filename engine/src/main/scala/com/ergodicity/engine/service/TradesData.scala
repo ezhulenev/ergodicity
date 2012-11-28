@@ -58,7 +58,7 @@ object TradesDataState {
 
 }
 
-protected[service] class TradesDataService(futTrade: ListenerDecorator, optTrade: ListenerDecorator)
+protected[service] class TradesDataService(futTrade: ListenerBinding, optTrade: ListenerBinding)
                                           (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[TradesDataState, StreamStates] with Service {
 
   import TradesDataState._

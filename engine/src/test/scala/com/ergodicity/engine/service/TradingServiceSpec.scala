@@ -6,7 +6,7 @@ import akka.actor.{Terminated, Actor, ActorSystem}
 import akka.event.Logging
 import akka.testkit._
 import akka.util.duration._
-import com.ergodicity.cgate.{ListenerDecorator, DataStreamState}
+import com.ergodicity.cgate.{ListenerBinding, DataStreamState}
 import com.ergodicity.core._
 import com.ergodicity.core.broker.MarketCommand
 import com.ergodicity.core.broker.OrderId
@@ -36,9 +36,9 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
   "Trading Service" must {
     "initialized in Idle state" in {
       val publisher = mock(classOf[CGPublisher])
-      val futListener = ListenerDecorator(_ => mock(classOf[CGListener]))
-      val optListener = ListenerDecorator(_ => mock(classOf[CGListener]))
-      val repliesListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+      val futListener = ListenerBinding(_ => mock(classOf[CGListener]))
+      val optListener = ListenerBinding(_ => mock(classOf[CGListener]))
+      val repliesListener = ListenerBinding(_ => mock(classOf[CGListener]))
 
       implicit val services = mock(classOf[Services])
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
@@ -50,9 +50,9 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
 
     "start service" in {
       val publisher = mock(classOf[CGPublisher])
-      val futListener = ListenerDecorator(_ => mock(classOf[CGListener]))
-      val optListener = ListenerDecorator(_ => mock(classOf[CGListener]))
-      val repliesListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+      val futListener = ListenerBinding(_ => mock(classOf[CGListener]))
+      val optListener = ListenerBinding(_ => mock(classOf[CGListener]))
+      val repliesListener = ListenerBinding(_ => mock(classOf[CGListener]))
 
       implicit val services = mock(classOf[Services])
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
@@ -79,9 +79,9 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
 
     "stop service" in {
       val publisher = mock(classOf[CGPublisher])
-      val futListener = ListenerDecorator(_ => mock(classOf[CGListener]))
-      val optListener = ListenerDecorator(_ => mock(classOf[CGListener]))
-      val repliesListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+      val futListener = ListenerBinding(_ => mock(classOf[CGListener]))
+      val optListener = ListenerBinding(_ => mock(classOf[CGListener]))
+      val repliesListener = ListenerBinding(_ => mock(classOf[CGListener]))
 
       implicit val services = mock(classOf[Services])
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
@@ -110,9 +110,9 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
 
     "buy & sell future" in {
       val publisher = mock(classOf[CGPublisher])
-      val futListener = ListenerDecorator(_ => mock(classOf[CGListener]))
-      val optListener = ListenerDecorator(_ => mock(classOf[CGListener]))
-      val repliesListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+      val futListener = ListenerBinding(_ => mock(classOf[CGListener]))
+      val optListener = ListenerBinding(_ => mock(classOf[CGListener]))
+      val repliesListener = ListenerBinding(_ => mock(classOf[CGListener]))
 
       implicit val services = mock(classOf[Services])
       Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)

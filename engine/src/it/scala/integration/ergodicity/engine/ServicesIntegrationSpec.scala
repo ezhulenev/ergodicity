@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.testkit.{TestActorRef, TestKit}
 import akka.util.duration._
-import com.ergodicity.cgate.ListenerDecorator
+import com.ergodicity.cgate.ListenerBinding
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.config.{Replication, CGateConfig, FortsMessages}
 import com.ergodicity.engine.Listener._
@@ -71,13 +71,13 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
   trait Listeners extends FutInfoListener with OptInfoListener with FutTradesListener with OptTradesListener {
     self: Connections with Replication =>
 
-    val futInfoListener = ListenerDecorator(underlyingConnection, futInfoReplication)
+    val futInfoListener = ListenerBinding(underlyingConnection, futInfoReplication)
 
-    val optInfoListener = ListenerDecorator(underlyingConnection, optInfoReplication)
+    val optInfoListener = ListenerBinding(underlyingConnection, optInfoReplication)
 
-    val futTradesListener = ListenerDecorator(underlyingConnection, futTradesReplication)
+    val futTradesListener = ListenerBinding(underlyingConnection, futTradesReplication)
 
-    val optTradesListener = ListenerDecorator(underlyingConnection, optTradesReplication)
+    val optTradesListener = ListenerBinding(underlyingConnection, optTradesReplication)
   }
 
   trait Publisher extends UnderlyingPublisher {

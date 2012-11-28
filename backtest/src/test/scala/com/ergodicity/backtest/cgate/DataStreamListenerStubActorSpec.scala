@@ -25,7 +25,7 @@ class DataStreamListenerStubActorSpec extends TestKit(ActorSystem("DataStreamLis
     "open listener with empty data" in {
       val subscriber = TestProbe()
       val listenerActor = TestActorRef(new DataStreamListenerStubActor())
-      val listenerDecorator = ListenerDecoratorStub wrap listenerActor
+      val listenerDecorator = ListenerBindingStub wrap listenerActor
       listenerDecorator.bind(new DataStreamSubscriber(subscriber.ref))
       val listener = listenerDecorator.listener
 
@@ -41,7 +41,7 @@ class DataStreamListenerStubActorSpec extends TestKit(ActorSystem("DataStreamLis
     "open listener and dispatch data" in {
       val subscriber = TestProbe()
       val listenerActor = TestActorRef(new DataStreamListenerStubActor())
-      val listenerDecorator = ListenerDecoratorStub wrap listenerActor
+      val listenerDecorator = ListenerBindingStub wrap listenerActor
       listenerDecorator.bind(new DataStreamSubscriber(subscriber.ref))
       val listener = listenerDecorator.listener
 
@@ -62,7 +62,7 @@ class DataStreamListenerStubActorSpec extends TestKit(ActorSystem("DataStreamLis
 
     "throw exception opening Active listener" in {
       val listenerActor = TestFSMRef(new DataStreamListenerStubActor())
-      val listenerDecorator = ListenerDecoratorStub wrap listenerActor
+      val listenerDecorator = ListenerBindingStub wrap listenerActor
       val listener = listenerDecorator.listener
       listenerActor.setState(Binded(Active))
 
@@ -74,7 +74,7 @@ class DataStreamListenerStubActorSpec extends TestKit(ActorSystem("DataStreamLis
     "close Active listener" in {
       val subscriber = TestProbe()
       val listenerActor = TestFSMRef(new DataStreamListenerStubActor(replState = "CloseState"))
-      val listenerDecorator = ListenerDecoratorStub wrap listenerActor
+      val listenerDecorator = ListenerBindingStub wrap listenerActor
       listenerDecorator.bind(new DataStreamSubscriber(subscriber.ref))
       val listener = listenerDecorator.listener
       listenerActor.setState(Binded(Active))
@@ -90,7 +90,7 @@ class DataStreamListenerStubActorSpec extends TestKit(ActorSystem("DataStreamLis
 
     "fail close already Closed listener" in {
       val listenerActor = TestFSMRef(new DataStreamListenerStubActor())
-      val listenerDecorator = ListenerDecoratorStub wrap listenerActor
+      val listenerDecorator = ListenerBindingStub wrap listenerActor
       val listener = listenerDecorator.listener
 
       intercept[CGateException] {
@@ -100,7 +100,7 @@ class DataStreamListenerStubActorSpec extends TestKit(ActorSystem("DataStreamLis
 
     "get state" in {
       val listenerActor = TestFSMRef(new DataStreamListenerStubActor())
-      val listenerDecorator = ListenerDecoratorStub wrap listenerActor
+      val listenerDecorator = ListenerBindingStub wrap listenerActor
       val listener = listenerDecorator.listener
 
       assert(listener.getState == Closed.value)
@@ -112,7 +112,7 @@ class DataStreamListenerStubActorSpec extends TestKit(ActorSystem("DataStreamLis
     "dispatch data with opened listener" in {
       val subscriber = TestProbe()
       val listenerActor = TestFSMRef(new DataStreamListenerStubActor())
-      val listenerDecorator = ListenerDecoratorStub wrap listenerActor
+      val listenerDecorator = ListenerBindingStub wrap listenerActor
       listenerDecorator.bind(new DataStreamSubscriber(subscriber.ref))
       listenerActor.setState(Binded(Active))
 

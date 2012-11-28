@@ -5,7 +5,7 @@ import akka.actor._
 import akka.event.Logging
 import akka.testkit.TestActor.AutoPilot
 import akka.testkit._
-import com.ergodicity.cgate.{ListenerDecorator, DataStreamState}
+import com.ergodicity.cgate.{ListenerBinding, DataStreamState}
 import com.ergodicity.core.order.OrdersSnapshotActor.{OrdersSnapshot, GetOrdersSnapshot}
 import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.engine.Services
@@ -26,9 +26,9 @@ class OrdersDataServiceSpec  extends TestKit(ActorSystem("OrdersDataServiceSpec"
   implicit val Id = OrdersData.OrdersData
 
   def createService(implicit services: Services = mock(classOf[Services]), futuresSnapshot: ActorRef = system.deadLetters, optionsSnapshot:ActorRef = system.deadLetters) = {
-    val futOrderBookListener = ListenerDecorator(_ => mock(classOf[CGListener]))
-    val optOrderBookListener = ListenerDecorator(_ => mock(classOf[CGListener]))
-    val ordLogListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+    val futOrderBookListener = ListenerBinding(_ => mock(classOf[CGListener]))
+    val optOrderBookListener = ListenerBinding(_ => mock(classOf[CGListener]))
+    val ordLogListener = ListenerBinding(_ => mock(classOf[CGListener]))
 
     Mockito.when(services.apply(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
 

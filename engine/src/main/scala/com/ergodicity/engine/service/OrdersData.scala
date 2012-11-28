@@ -62,7 +62,7 @@ object OrdersDataState {
 
 }
 
-protected[service] class OrdersDataService(futOrderBook: ListenerDecorator, optOrderBook: ListenerDecorator, ordLog: ListenerDecorator)
+protected[service] class OrdersDataService(futOrderBook: ListenerBinding, optOrderBook: ListenerBinding, ordLog: ListenerBinding)
                                           (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[OrdersDataState, Unit] with Service {
 
   import OrdersDataState._

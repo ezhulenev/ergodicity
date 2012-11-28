@@ -4,7 +4,7 @@ import akka.actor.FSM.{CurrentState, Transition}
 import akka.actor.{FSM, Terminated, ActorSystem}
 import akka.event.Logging
 import akka.testkit._
-import com.ergodicity.cgate.{ListenerDecorator, DataStreamState}
+import com.ergodicity.cgate.{ListenerBinding, DataStreamState}
 import com.ergodicity.engine.Services
 import com.ergodicity.engine.Services.ServiceFailedException
 import com.ergodicity.engine.service.InstrumentDataState.Started
@@ -23,9 +23,9 @@ class InstrumentDataServiceSpec extends TestKit(ActorSystem("InstrumentDataServi
 
   implicit val Id = InstrumentData.InstrumentData
 
-  val futInfoListener = mock(classOf[ListenerDecorator])
+  val futInfoListener = mock(classOf[ListenerBinding])
   Mockito.when(futInfoListener.listener).thenReturn(mock(classOf[CGListener]))
-  val optInfoListener = mock(classOf[ListenerDecorator])
+  val optInfoListener = mock(classOf[ListenerBinding])
   Mockito.when(optInfoListener.listener).thenReturn(mock(classOf[CGListener]))
 
 

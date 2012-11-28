@@ -85,9 +85,9 @@ protected[service] object TradingState {
 
 protected[service] class TradingService(brokerCode: String,
                                         publisher: CGPublisher,
-                                        futOrders: ListenerDecorator,
-                                        optOrders: ListenerDecorator,
-                                        replies: ListenerDecorator)
+                                        futOrders: ListenerBinding,
+                                        optOrders: ListenerBinding,
+                                        replies: ListenerBinding)
                                        (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[TradingState, TradingStates] with Service {
 
   import TradingState._

@@ -58,7 +58,7 @@ object PortfolioState {
 
 }
 
-protected[service] class PortfolioService(pos: ListenerDecorator)
+protected[service] class PortfolioService(pos: ListenerBinding)
                                          (implicit val services: Services, id: ServiceId) extends Actor with LoggingFSM[PortfolioState, StreamState] with Service {
 
   import PortfolioState._

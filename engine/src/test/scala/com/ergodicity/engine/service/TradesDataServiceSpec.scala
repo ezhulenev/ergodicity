@@ -4,7 +4,7 @@ import akka.actor.FSM.Transition
 import akka.actor.{FSM, Terminated, ActorSystem}
 import akka.event.Logging
 import akka.testkit._
-import com.ergodicity.cgate.{ListenerDecorator, DataStreamState}
+import com.ergodicity.cgate.{ListenerBinding, DataStreamState}
 import com.ergodicity.core.session.SessionActor.AssignedContents
 import com.ergodicity.engine.Services
 import com.ergodicity.engine.Services.ServiceFailedException
@@ -24,8 +24,8 @@ class TradesDataServiceSpec extends TestKit(ActorSystem("TradesDataServiceSpec",
   implicit val Id = TradesData.TradesData
 
   def createService(implicit services: Services = mock(classOf[Services])) = {
-    val futTradeListener = ListenerDecorator(_ => mock(classOf[CGListener]))
-    val optTradeListener = ListenerDecorator(_ => mock(classOf[CGListener]))
+    val futTradeListener = ListenerBinding(_ => mock(classOf[CGListener]))
+    val optTradeListener = ListenerBinding(_ => mock(classOf[CGListener]))
 
     Mockito.when(services.service(InstrumentData.InstrumentData)).thenReturn(system.deadLetters)
 

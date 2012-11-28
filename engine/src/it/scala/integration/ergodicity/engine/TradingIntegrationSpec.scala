@@ -9,7 +9,7 @@ import akka.pattern.ask
 import akka.testkit.{TestActorRef, TestKit}
 import akka.util.Timeout
 import akka.util.duration._
-import com.ergodicity.cgate.ListenerDecorator
+import com.ergodicity.cgate.ListenerBinding
 import com.ergodicity.cgate.config.ConnectionConfig.Tcp
 import com.ergodicity.cgate.config._
 import com.ergodicity.core.FutureContract
@@ -86,18 +86,18 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
   trait Listeners extends FutInfoListener with OptInfoListener with FutTradesListener with OptTradesListener with FutOrdersListener with OptOrdersListener with RepliesListener with PosListener {
     self: Connections with Replication with Publisher =>
 
-    val futInfoListener = ListenerDecorator(underlyingConnection, futInfoReplication)
-    val optInfoListener = ListenerDecorator(underlyingConnection, optInfoReplication)
+    val futInfoListener = ListenerBinding(underlyingConnection, futInfoReplication)
+    val optInfoListener = ListenerBinding(underlyingConnection, optInfoReplication)
 
-    val futOrdersListener = ListenerDecorator(underlyingConnection, futOrdersReplication)
-    val optOrdersListener = ListenerDecorator(underlyingConnection, optOrdersReplication)
+    val futOrdersListener = ListenerBinding(underlyingConnection, futOrdersReplication)
+    val optOrdersListener = ListenerBinding(underlyingConnection, optOrdersReplication)
 
-    val futTradesListener = ListenerDecorator(underlyingConnection, futTradesReplication)
-    val optTradesListener = ListenerDecorator(underlyingConnection, optTradesReplication)
+    val futTradesListener = ListenerBinding(underlyingConnection, futTradesReplication)
+    val optTradesListener = ListenerBinding(underlyingConnection, optTradesReplication)
 
-    val posListener = ListenerDecorator(underlyingConnection, posReplication)
+    val posListener = ListenerBinding(underlyingConnection, posReplication)
 
-    val repliesListener = ListenerDecorator(underlyingTradingConnection, Replies(publisherName))
+    val repliesListener = ListenerBinding(underlyingTradingConnection, Replies(publisherName))
   }
 
 

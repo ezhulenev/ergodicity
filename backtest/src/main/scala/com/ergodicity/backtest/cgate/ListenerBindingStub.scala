@@ -22,7 +22,7 @@ import scala.Left
 import scala.Right
 import scala.Some
 
-object ListenerDecoratorStub {
+object ListenerBindingStub {
 
   import ListenerStubActor.Command
   import ListenerStubActor.Command._
@@ -49,7 +49,7 @@ object ListenerDecoratorStub {
     doAnswer(getState _).when(mock).getState
     mock
 
-    new ListenerDecorator(subscriber => {
+    new ListenerBinding(subscriber => {
       actor ! Bind(subscriber)
       mock
     })
