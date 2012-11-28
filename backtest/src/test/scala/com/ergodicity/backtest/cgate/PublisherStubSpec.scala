@@ -7,28 +7,16 @@ import akka.actor.{FSM, ActorSystem}
 import akka.event.Logging
 import akka.testkit._
 import com.ergodicity.cgate._
+import com.ergodicity.cgate.scheme.Message
+import com.ergodicity.core.Market.Futures
+import com.ergodicity.core.OrderType.GoodTillCancelled
+import com.ergodicity.core.broker.Broker
+import com.ergodicity.core.broker.Broker._
+import com.ergodicity.core.broker.Protocol._
+import com.ergodicity.core.{OrderDirection, Isin}
 import org.scalatest.matchers.ShouldMatchers
 import org.scalatest.{WordSpec, BeforeAndAfterAll}
-import ru.micexrts.cgate.{MessageKeyType, Publisher, CGateException}
-import org.mockito.Mockito._
-import akka.actor.FSM.Transition
-import akka.actor.FSM.CurrentState
-import akka.actor.FSM.SubscribeTransitionCallBack
-import ru.micexrts.cgate.messages.DataMessage
-import com.ergodicity.cgate.scheme.Message
-import java.nio.ByteBuffer
-import com.ergodicity.core.broker.Broker._
-import akka.actor.FSM.Transition
-import akka.actor.FSM.CurrentState
-import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.core.Market.Futures
-import com.ergodicity.core.{OrderDirection, Isin}
-import com.ergodicity.core.OrderType.GoodTillCancelled
-import com.ergodicity.core.broker.Protocol._
-import akka.actor.FSM.Transition
-import akka.actor.FSM.CurrentState
-import akka.actor.FSM.SubscribeTransitionCallBack
-import com.ergodicity.core.broker.Broker
+import ru.micexrts.cgate.CGateException
 
 class PublisherStubSpec extends TestKit(ActorSystem("PublisherStubSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with ShouldMatchers with BeforeAndAfterAll with ImplicitSender {
   val log = Logging(system, classOf[PublisherStubSpec])

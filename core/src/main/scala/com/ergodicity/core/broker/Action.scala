@@ -17,9 +17,9 @@ trait MarketCommand[A <: Action[R], R <: Reaction, M <: Market] {
 
 private[broker] object MarketCommand {
   def apply[A <: Action[R], R <: Reaction, M <: Market](action: A)(implicit protocol: Protocol[A, R, M]) = new MarketCommand[A, R, M] {
-    def encode(publisher: CGPublisher)(implicit config: Broker.Config) = protocol.serialize(action, publisher)
+    def encode(publisher: CGPublisher)(implicit config: Broker.Config) = protocol.request(action, publisher)
 
-    def decode(msgId: Int, data: ByteBuffer) = protocol.deserialize(msgId, data)
+    def decode(msgId: Int, data: ByteBuffer) = protocol.response(msgId, data)
 
     override def toString = action.toString
   }
@@ -56,16 +56,16 @@ case class Cancelled(num: Int) extends Reaction
 
 object Protocol {
 
-  trait Serialize[A <: Action[R], R <: Reaction] {
-    def serialize(action: A, publisher: CGPublisher)(implicit config: Broker.Config): DataMessage
+  trait Request[A <: Action[R], R <: Reaction] {
+    def request(action: A, publisher: CGPublisher)(implicit config: Broker.Config): DataMessage
   }
 
-  trait Deserialize[A <: Action[R], R <: Reaction] {
-    def deserialize(msgId: Int, data: ByteBuffer): R
+  trait Response[A <: Action[R], R <: Reaction] {
+    def response(msgId: Int, data: ByteBuffer): R
   }
 
-  trait Protocol[A <: Action[R], R <: Reaction, M <: Market] extends Serialize[A, R] with Deserialize[A, R] {
-    def deserialize(msgId: Int, data: ByteBuffer) = (failures orElse payload) apply msgId -> data
+  trait Protocol[A <: Action[R], R <: Reaction, M <: Market] extends Request[A, R] with Response[A, R] {
+    def response(msgId: Int, data: ByteBuffer) = (failures orElse payload) apply msgId -> data
 
     def payload: PartialFunction[(Int, ByteBuffer), R]
 
@@ -81,7 +81,7 @@ object Protocol {
   }
 
   implicit val FutAddOrder = new Protocol[AddOrder, OrderId, Futures] {
-    def serialize(action: AddOrder, publisher: CGPublisher)(implicit config: Broker.Config) = {
+    def request(action: AddOrder, publisher: CGPublisher)(implicit config: Broker.Config) = {
       val dataMsg = publisher.newMessage(MessageKeyType.KEY_ID, Message.FutAddOrder.MSG_ID).asInstanceOf[DataMessage]
       val command = new Message.FutAddOrder(dataMsg.getData)
 
@@ -106,7 +106,7 @@ object Protocol {
   }
 
   implicit val OptAddOrder = new Protocol[AddOrder, OrderId, Options] {
-    def serialize(action: AddOrder, publisher: CGPublisher)(implicit config: Broker.Config) = {
+    def request(action: AddOrder, publisher: CGPublisher)(implicit config: Broker.Config) = {
       val dataMsg = publisher.newMessage(MessageKeyType.KEY_ID, Message.OptAddOrder.MSG_ID).asInstanceOf[DataMessage]
       val command = new Message.OptAddOrder(dataMsg.getData)
 
@@ -131,7 +131,7 @@ object Protocol {
   }
 
   implicit val FutDelOrder = new Protocol[Cancel, Cancelled, Futures] {
-    def serialize(action: Cancel, publisher: CGPublisher)(implicit config: Broker.Config) = {
+    def request(action: Cancel, publisher: CGPublisher)(implicit config: Broker.Config) = {
       val dataMsg = publisher.newMessage(MessageKeyType.KEY_ID, Message.FutDelOrder.MSG_ID).asInstanceOf[DataMessage]
       val command = new Message.FutDelOrder(dataMsg.getData)
       command.set_order_id(action.order.id)
@@ -149,7 +149,7 @@ object Protocol {
   }
 
   implicit val OptDelOrder = new Protocol[Cancel, Cancelled, Options] {
-    def serialize(action: Cancel, publisher: CGPublisher)(implicit config: Broker.Config) = {
+    def request(action: Cancel, publisher: CGPublisher)(implicit config: Broker.Config) = {
       val dataMsg = publisher.newMessage(MessageKeyType.KEY_ID, Message.OptDelOrder.MSG_ID).asInstanceOf[DataMessage]
       val command = new Message.OptDelOrder(dataMsg.getData)
       command.set_order_id(action.order.id)
