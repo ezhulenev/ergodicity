@@ -2,14 +2,14 @@ package com.ergodicity.backtest.service
 
 import akka.actor.ActorRef
 import com.ergodicity.backtest.cgate.DataStreamListenerStubActor.DispatchData
-import com.ergodicity.backtest.service.OrdersService.{FutureOrder, OptionOrder}
+import com.ergodicity.backtest.service.OrderBooksService.{FutureOrder, OptionOrder}
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.scheme.{OrdBook, OrdLog}
 import com.ergodicity.core.{IsinId, SessionId}
 import com.ergodicity.marketdb.model.OrderPayload
 import com.ergodicity.core.order.OrderBooksTracking.Snapshots
 
-object OrdersService {
+object OrderBooksService {
 
   sealed trait Order
 
@@ -19,7 +19,7 @@ object OrdersService {
 
 }
 
-class OrdersService(ordLog: ActorRef, futOrderBook: ActorRef, optOrderBook: ActorRef)(implicit context: SessionContext) {
+class OrderBooksService(ordLog: ActorRef, futOrderBook: ActorRef, optOrderBook: ActorRef)(implicit context: SessionContext) {
 
   val sessionId = SessionId(context.session.sess_id, context.session.opt_sess_id)
 

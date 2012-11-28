@@ -27,7 +27,7 @@ import com.ergodicity.marketdb.model.{Security, OrderPayload}
 import com.ergodicity.marketdb.model
 import com.ergodicity.core.order.OrderState
 
-class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
+class OrderBooksServiceSpec extends TestKit(ActorSystem("OrderBooksServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   val SystemTrade = false
@@ -90,8 +90,8 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
 
   implicit val timeout = Timeout(1.second)
 
-  "Trades Service" must {
-    "dispatch trades from underlying MarketDb" in {
+  "OrderBooks Service" must {
+    "dispatch orders from underlying MarketDb" in {
       val engine = testkit.TestActorRef(new TestEngine, "Engine")
       val services = TestActorRef(new TestServices(engine.underlyingActor), "Services")
 
@@ -107,7 +107,7 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
       assigned.start()
 
       given("orders service")
-      val orders = new OrdersService(engine.underlyingActor.ordLogListenerStub, engine.underlyingActor.futOrderBookListenerStub, engine.underlyingActor.optOrderBookListenerStub)
+      val orders = new OrderBooksService(engine.underlyingActor.ordLogListenerStub, engine.underlyingActor.futOrderBookListenerStub, engine.underlyingActor.optOrderBookListenerStub)
       orders.dispatchSnapshots(Snapshots(OrdersSnapshot(0, new DateTime, Seq.empty), OrdersSnapshot(0, new DateTime, Seq.empty)))
 
       when("start services")

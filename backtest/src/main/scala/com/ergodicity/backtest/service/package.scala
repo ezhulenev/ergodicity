@@ -1,6 +1,6 @@
 package com.ergodicity.backtest
 
-import com.ergodicity.backtest.service.OrdersService.{OptionOrder, FutureOrder}
+import com.ergodicity.backtest.service.OrderBooksService.{OptionOrder, FutureOrder}
 import com.ergodicity.backtest.service.TradesService.FutureTrade
 import com.ergodicity.backtest.service.TradesService.OptionTrade
 import com.ergodicity.cgate.SysEvent.IntradayClearingFinished
