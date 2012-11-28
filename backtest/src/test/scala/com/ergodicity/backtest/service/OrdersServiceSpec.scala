@@ -10,7 +10,7 @@ import akka.testkit._
 import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.backtest.Mocking
-import com.ergodicity.backtest.cgate.{ListenerStubActor, ConnectionStubActor, ListenerDecoratorStub, ConnectionStub}
+import com.ergodicity.backtest.cgate.{DataStreamListenerStubActor, ConnectionStubActor, ListenerDecoratorStub, ConnectionStub}
 import com.ergodicity.core._
 import com.ergodicity.core.session.InstrumentState
 import com.ergodicity.engine.Listener._
@@ -61,15 +61,15 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
 
     val connectionStub = TestFSMRef(new ConnectionStubActor, "ConnectionStub")
 
-    val futInfoListenerStub = TestFSMRef(new ListenerStubActor, "FutInfoListenerActor")
+    val futInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "FutInfoListenerActor")
 
-    val optInfoListenerStub = TestFSMRef(new ListenerStubActor, "OptInfoListenerActor")
+    val optInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OptInfoListenerActor")
 
-    val futOrderBookListenerStub = TestFSMRef(new ListenerStubActor, "FutOrderBookListener")
+    val futOrderBookListenerStub = TestFSMRef(new DataStreamListenerStubActor, "FutOrderBookListener")
 
-    val optOrderBookListenerStub = TestFSMRef(new ListenerStubActor, "OptOrderBookListener")
+    val optOrderBookListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OptOrderBookListener")
 
-    val ordLogListenerStub = TestFSMRef(new ListenerStubActor, "OrdLogListenerStub")
+    val ordLogListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OrdLogListenerStub")
   }
 
   class TestServices(val engine: TestEngine) extends ServicesActor with ReplicationConnection with InstrumentData with OrdersData

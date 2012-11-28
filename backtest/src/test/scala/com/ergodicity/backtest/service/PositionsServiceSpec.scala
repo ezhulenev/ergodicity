@@ -11,7 +11,7 @@ import akka.testkit._
 import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.backtest.Mocking
-import com.ergodicity.backtest.cgate.{ConnectionStub, ConnectionStubActor, ListenerDecoratorStub, ListenerStubActor}
+import com.ergodicity.backtest.cgate.{ConnectionStub, ConnectionStubActor, ListenerDecoratorStub, DataStreamListenerStubActor}
 import com.ergodicity.core.PositionsTracking._
 import com.ergodicity.core._
 import com.ergodicity.core.position.PositionActor.CurrentPosition
@@ -58,11 +58,11 @@ class PositionsServiceSpec extends TestKit(ActorSystem("PositionsServiceSpec", c
 
     val connectionStub = TestFSMRef(new ConnectionStubActor, "ConnectionStub")
 
-    val futInfoListenerStub = TestFSMRef(new ListenerStubActor, "FutInfoListenerActor")
+    val futInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "FutInfoListenerActor")
 
-    val optInfoListenerStub = TestFSMRef(new ListenerStubActor, "OptInfoListenerActor")
+    val optInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OptInfoListenerActor")
 
-    val posListenerStub = TestFSMRef(new ListenerStubActor("PosListenerStub"))
+    val posListenerStub = TestFSMRef(new DataStreamListenerStubActor("PosListenerStub"))
   }
 
   // -- Backtest services

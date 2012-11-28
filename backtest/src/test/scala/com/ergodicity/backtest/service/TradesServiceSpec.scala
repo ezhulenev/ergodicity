@@ -9,7 +9,7 @@ import akka.testkit._
 import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.backtest.Mocking
-import com.ergodicity.backtest.cgate.{ConnectionStub, ConnectionStubActor, ListenerDecoratorStub, ListenerStubActor}
+import com.ergodicity.backtest.cgate.{ConnectionStub, ConnectionStubActor, ListenerDecoratorStub, DataStreamListenerStubActor}
 import com.ergodicity.core._
 import com.ergodicity.core.session.InstrumentState
 import com.ergodicity.engine.Listener._
@@ -59,13 +59,13 @@ class TradesServiceSpec extends TestKit(ActorSystem("TradesServiceSpec", com.erg
 
     val connectionStub = TestFSMRef(new ConnectionStubActor, "ConnectionStub")
 
-    val futInfoListenerStub = TestFSMRef(new ListenerStubActor, "FutInfoListenerActor")
+    val futInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "FutInfoListenerActor")
 
-    val optInfoListenerStub = TestFSMRef(new ListenerStubActor, "OptInfoListenerActor")
+    val optInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OptInfoListenerActor")
 
-    val futTradesListenerStub = TestFSMRef(new ListenerStubActor, "FutTradesListenerActor")
+    val futTradesListenerStub = TestFSMRef(new DataStreamListenerStubActor, "FutTradesListenerActor")
 
-    val optTradesListenerStub = TestFSMRef(new ListenerStubActor, "OptTradesListenerActor")
+    val optTradesListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OptTradesListenerActor")
   }
 
   // -- Backtest services

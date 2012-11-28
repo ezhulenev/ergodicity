@@ -1,7 +1,7 @@
 package com.ergodicity.backtest.service
 
 import akka.actor.ActorRef
-import com.ergodicity.backtest.cgate.ListenerStubActor.Dispatch
+import com.ergodicity.backtest.cgate.DataStreamListenerStubActor.DispatchData
 import com.ergodicity.backtest.service.OrdersService.{FutureOrder, OptionOrder}
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.scheme.{OrdBook, OrdLog}
@@ -24,8 +24,8 @@ class OrdersService(ordLog: ActorRef, futOrderBook: ActorRef, optOrderBook: Acto
   val sessionId = SessionId(context.session.sess_id, context.session.opt_sess_id)
 
   def dispatchSnapshots(snapshots: Snapshots) {
-    futOrderBook ! Dispatch(StreamData(OrdBook.info.TABLE_INDEX, snapshots.fut.asPlazaRecord.getData) :: Nil)
-    optOrderBook ! Dispatch(StreamData(OrdBook.info.TABLE_INDEX, snapshots.opt.asPlazaRecord.getData) :: Nil)
+    futOrderBook ! DispatchData(StreamData(OrdBook.info.TABLE_INDEX, snapshots.fut.asPlazaRecord.getData) :: Nil)
+    optOrderBook ! DispatchData(StreamData(OrdBook.info.TABLE_INDEX, snapshots.opt.asPlazaRecord.getData) :: Nil)
   }
 
   def dispatch(orders: OrderPayload*) {
@@ -40,6 +40,6 @@ class OrdersService(ordLog: ActorRef, futOrderBook: ActorRef, optOrderBook: Acto
       .map(order => OptionOrder(sessionId, context.isinId(order.security).get, order))
       .map(_.asPlazaRecord)
 
-    ordLog ! Dispatch((futures ++ options).map(r => StreamData(OrdLog.orders_log.TABLE_INDEX, r.getData)))
+    ordLog ! DispatchData((futures ++ options).map(r => StreamData(OrdLog.orders_log.TABLE_INDEX, r.getData)))
   }
 }

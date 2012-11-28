@@ -14,17 +14,17 @@ import org.scalatest.matchers.ShouldMatchers
 import org.scalatest.{WordSpec, BeforeAndAfterAll}
 import ru.micexrts.cgate.CGateException
 
-class ListenerDecoratorStubSpec extends TestKit(ActorSystem("ListenerDecoratorStubSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with ShouldMatchers with BeforeAndAfterAll with ImplicitSender {
-  val log = Logging(system, classOf[ListenerDecoratorStubSpec])
+class DataStreamListenerStubActorSpec extends TestKit(ActorSystem("DataStreamListenerStubActorSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with ShouldMatchers with BeforeAndAfterAll with ImplicitSender {
+  val log = Logging(system, classOf[DataStreamListenerStubActorSpec])
 
   override def afterAll() {
     system.shutdown()
   }
 
-  "ListenerDecorator Stub" must {
+  "DataStreamListenerStubActor Stub" must {
     "open listener with empty data" in {
       val subscriber = TestProbe()
-      val listenerActor = TestActorRef(new ListenerStubActor())
+      val listenerActor = TestActorRef(new DataStreamListenerStubActor())
       val listenerDecorator = ListenerDecoratorStub wrap listenerActor
       listenerDecorator.bind(new DataStreamSubscriber(subscriber.ref))
       val listener = listenerDecorator.listener
@@ -40,7 +40,7 @@ class ListenerDecoratorStubSpec extends TestKit(ActorSystem("ListenerDecoratorSt
 
     "open listener and dispatch data" in {
       val subscriber = TestProbe()
-      val listenerActor = TestActorRef(new ListenerStubActor())
+      val listenerActor = TestActorRef(new DataStreamListenerStubActor())
       val listenerDecorator = ListenerDecoratorStub wrap listenerActor
       listenerDecorator.bind(new DataStreamSubscriber(subscriber.ref))
       val listener = listenerDecorator.listener
@@ -49,7 +49,7 @@ class ListenerDecoratorStubSpec extends TestKit(ActorSystem("ListenerDecoratorSt
       expectMsg(CurrentState(listenerActor, Binded(Closed)))
 
       val dataMsg = StreamData(0, ByteBuffer.allocate(0))
-      listenerActor ! ListenerStubActor.Dispatch(dataMsg :: Nil)
+      listenerActor ! DataStreamListenerStubActor.DispatchData(dataMsg :: Nil)
 
       listener.open("Ebaka")
       subscriber.expectMsg(StreamEvent.Open)
@@ -61,7 +61,7 @@ class ListenerDecoratorStubSpec extends TestKit(ActorSystem("ListenerDecoratorSt
     }
 
     "throw exception opening Active listener" in {
-      val listenerActor = TestFSMRef(new ListenerStubActor())
+      val listenerActor = TestFSMRef(new DataStreamListenerStubActor())
       val listenerDecorator = ListenerDecoratorStub wrap listenerActor
       val listener = listenerDecorator.listener
       listenerActor.setState(Binded(Active))
@@ -73,7 +73,7 @@ class ListenerDecoratorStubSpec extends TestKit(ActorSystem("ListenerDecoratorSt
 
     "close Active listener" in {
       val subscriber = TestProbe()
-      val listenerActor = TestFSMRef(new ListenerStubActor(replState = "CloseState"))
+      val listenerActor = TestFSMRef(new DataStreamListenerStubActor(replState = "CloseState"))
       val listenerDecorator = ListenerDecoratorStub wrap listenerActor
       listenerDecorator.bind(new DataStreamSubscriber(subscriber.ref))
       val listener = listenerDecorator.listener
@@ -89,7 +89,7 @@ class ListenerDecoratorStubSpec extends TestKit(ActorSystem("ListenerDecoratorSt
     }
 
     "fail close already Closed listener" in {
-      val listenerActor = TestFSMRef(new ListenerStubActor())
+      val listenerActor = TestFSMRef(new DataStreamListenerStubActor())
       val listenerDecorator = ListenerDecoratorStub wrap listenerActor
       val listener = listenerDecorator.listener
 
@@ -99,7 +99,7 @@ class ListenerDecoratorStubSpec extends TestKit(ActorSystem("ListenerDecoratorSt
     }
 
     "get state" in {
-      val listenerActor = TestFSMRef(new ListenerStubActor())
+      val listenerActor = TestFSMRef(new DataStreamListenerStubActor())
       val listenerDecorator = ListenerDecoratorStub wrap listenerActor
       val listener = listenerDecorator.listener
 
@@ -111,13 +111,13 @@ class ListenerDecoratorStubSpec extends TestKit(ActorSystem("ListenerDecoratorSt
 
     "dispatch data with opened listener" in {
       val subscriber = TestProbe()
-      val listenerActor = TestFSMRef(new ListenerStubActor())
+      val listenerActor = TestFSMRef(new DataStreamListenerStubActor())
       val listenerDecorator = ListenerDecoratorStub wrap listenerActor
       listenerDecorator.bind(new DataStreamSubscriber(subscriber.ref))
       listenerActor.setState(Binded(Active))
 
       val dataMsg = StreamData(0, ByteBuffer.allocate(0))
-      listenerActor ! ListenerStubActor.Dispatch(dataMsg :: Nil)
+      listenerActor ! DataStreamListenerStubActor.DispatchData(dataMsg :: Nil)
 
       subscriber.expectMsg(TnBegin)
       subscriber.expectMsg(dataMsg)

@@ -5,11 +5,12 @@ import akka.dispatch.Await
 import akka.pattern.ask
 import akka.util
 import akka.util.duration._
-import com.ergodicity.backtest.cgate.ListenerStubActor.Command.Bind
-import com.ergodicity.backtest.cgate.ListenerStubActor.Command.{GetStateCmd, CloseCmd, OpenCmd}
 import com.ergodicity.backtest.cgate.ListenerStubState.Binded
 import com.ergodicity.backtest.cgate.ListenerStubState.UnBinded
 import com.ergodicity.cgate._
+import com.ergodicity.cgate.config.Replication.ReplicationMode.Snapshot
+import com.ergodicity.cgate.config.Replication.ReplicationParams
+import com.ergodicity.core.broker.ReplyEvent
 import java.nio.ByteBuffer
 import org.mockito.Matchers._
 import org.mockito.Mockito
@@ -20,12 +21,11 @@ import ru.micexrts.cgate.{Listener => CGListener, MessageType, CGateException, I
 import scala.Left
 import scala.Right
 import scala.Some
-import com.ergodicity.cgate.config.Replication.ReplicationParams
-import com.ergodicity.cgate.config.Replication.ReplicationMode.Snapshot
 
 object ListenerDecoratorStub {
 
-  import ListenerStubActor._
+  import ListenerStubActor.Command
+  import ListenerStubActor.Command._
 
   def wrap(actor: ActorRef) = {
     implicit val timeout = util.Timeout(1.second)
@@ -54,16 +54,11 @@ object ListenerDecoratorStub {
       mock
     })
   }
-
-  def apply()(implicit context: ActorContext) = wrap(context.actorOf(Props(new ListenerStubActor())))
-
-  def apply(name: String)(implicit context: ActorContext) = wrap(context.actorOf(Props(new ListenerStubActor()), name))
 }
 
 
 object ListenerStubActor {
 
-  // -- Listener actor commands
   sealed trait Command
 
   object Command {
@@ -78,9 +73,113 @@ object ListenerStubActor {
 
   }
 
-  case class Dispatch(data: Seq[StreamEvent.StreamData])
+}
 
-  // -- Convert StreamEvent into CGate Message
+sealed trait ListenerStubState
+
+object ListenerStubState {
+
+  case object UnBinded extends ListenerStubState
+
+  case class Binded(state: State) extends ListenerStubState
+
+}
+
+
+object ReplyStreamListenerStubActor {
+
+  case class DispatchReply(reply: ReplyEvent.ReplyData)
+
+  implicit def toCGateMessage(event: ReplyEvent) = {
+    def typeOf(t: Int) = {
+      val msg = Mockito.mock(classOf[Message])
+      Mockito.when(msg.getType).thenReturn(t)
+      msg
+    }
+
+    def dataMsg(userId: Int, msgId: Int, data: ByteBuffer) = {
+      val message = Mockito.mock(classOf[DataMessage])
+      Mockito.when(message.getType).thenReturn(MessageType.MSG_DATA)
+      Mockito.when(message.getUserId).thenReturn(userId)
+      Mockito.when(message.getMsgId).thenReturn(msgId)
+      Mockito.when(message.getData).thenReturn(data)
+      message
+    }
+
+    def timeoutMsg(userId: Int) = {
+      val message = Mockito.mock(classOf[P2MqTimeOutMessage])
+      Mockito.when(message.getType).thenReturn(MessageType.MSG_P2MQ_TIMEOUT)
+      Mockito.when(message.getUserId).thenReturn(userId)
+      message
+    }
+
+    import ReplyEvent._
+    event match {
+      case Open => typeOf(MessageType.MSG_OPEN)
+      case ReplyData(userId, messageId, data) => dataMsg(userId, messageId, data)
+      case TimeoutMessage(userId) => timeoutMsg(userId)
+      case msg@UnsupportedMessage(_) => throw new IllegalArgumentException("Unsupported msg = " + msg)
+    }
+  }
+}
+
+class ReplyStreamListenerStubActor() extends Actor with FSM[ListenerStubState, Seq[ReplyEvent.ReplyData]] {
+
+  import ListenerStubActor.Command._
+  import ReplyStreamListenerStubActor._
+
+  private[this] var subscriber: Option[ISubscriber] = None
+
+  startWith(UnBinded, Seq.empty)
+
+  when(UnBinded, stateTimeout = 500.millis) {
+    case Event(Bind(s), _) =>
+      subscriber = Some(s)
+      goto(Binded(Closed))
+
+    case Event(DispatchReply(data), pending) => stay() using (pending :+ data)
+
+    case Event(FSM.StateTimeout, _) => throw new IllegalActorStateException("Timed out in Binding state")
+
+    case e => throw new IllegalActorStateException("Actor is UnBinded; Event = " + e)
+  }
+
+  when(Binded(Closed)) {
+    case Event(OpenCmd(config), data) =>
+      log.info("Open config = " + config)
+      notify(ReplyEvent.Open)
+      data.foreach(notify _)
+      goto(Binded(Active)) replying (Left(()))
+
+    case Event(CloseCmd, _) => stay() replying (Right(new CGateException("Listener already closed")))
+
+    case Event(DispatchReply(data), pending) => stay() using (pending :+ data)
+
+    case Event(GetStateCmd, _) => stay() replying (Closed)
+  }
+
+  when(Binded(Active)) {
+    case Event(CloseCmd, _) => goto(Binded(Closed)) replying (Left(()))
+
+    case Event(OpenCmd(_), _) => stay() replying (Right(new CGateException("Listener already opened")))
+
+    case Event(DispatchReply(data), _) =>
+      notify(data)
+      stay()
+
+    case Event(GetStateCmd, _) => stay() replying (Active)
+  }
+
+  private def notify(event: ReplyEvent) {
+    // Subscriber should be never null
+    subscriber.get.onMessage(null, null, event)
+  }
+}
+
+object DataStreamListenerStubActor {
+
+  case class DispatchData(data: Seq[StreamEvent.StreamData])
+
   implicit def toCGateMessage(event: StreamEvent): Message = {
     def typeOf(t: Int) = {
       val msg = Mockito.mock(classOf[Message])
@@ -134,19 +233,10 @@ object ListenerStubActor {
   }
 }
 
-sealed trait ListenerStubState
+class DataStreamListenerStubActor(replState: String = "") extends Actor with FSM[ListenerStubState, Seq[StreamEvent.StreamData]] {
 
-object ListenerStubState {
-
-  case object UnBinded extends ListenerStubState
-
-  case class Binded(state: State) extends ListenerStubState
-
-}
-
-class ListenerStubActor(replState: String = "") extends Actor with FSM[ListenerStubState, Seq[StreamEvent.StreamData]] {
-
-  import ListenerStubActor._
+  import DataStreamListenerStubActor._
+  import ListenerStubActor.Command._
 
   private[this] var subscriber: Option[ISubscriber] = None
 
@@ -157,7 +247,7 @@ class ListenerStubActor(replState: String = "") extends Actor with FSM[ListenerS
       subscriber = Some(s)
       goto(Binded(Closed))
 
-    case Event(Dispatch(data), pending) => stay() using (pending ++ data)
+    case Event(DispatchData(data), pending) => stay() using (pending ++ data)
 
     case Event(FSM.StateTimeout, _) => throw new IllegalActorStateException("Timed out in Binding state")
 
@@ -166,7 +256,7 @@ class ListenerStubActor(replState: String = "") extends Actor with FSM[ListenerS
 
   when(Binded(Closed)) {
     case Event(OpenCmd(config), data) =>
-      log.info("Open config = "+config)
+      log.info("Open config = " + config)
       notify(StreamEvent.Open)
       if (data.size > 0) {
         notify(StreamEvent.TnBegin)
@@ -186,7 +276,7 @@ class ListenerStubActor(replState: String = "") extends Actor with FSM[ListenerS
 
     case Event(CloseCmd, _) => stay() replying (Right(new CGateException("Listener already closed")))
 
-    case Event(Dispatch(data), pending) => stay() using (pending ++ data)
+    case Event(DispatchData(data), pending) => stay() using (pending ++ data)
 
     case Event(GetStateCmd, _) => stay() replying (Closed)
   }
@@ -199,7 +289,7 @@ class ListenerStubActor(replState: String = "") extends Actor with FSM[ListenerS
 
     case Event(OpenCmd(_), _) => stay() replying (Right(new CGateException("Listener already opened")))
 
-    case Event(Dispatch(data), _) =>
+    case Event(DispatchData(data), _) =>
       notify(StreamEvent.TnBegin)
       data.foreach(notify _)
       notify(StreamEvent.TnCommit)

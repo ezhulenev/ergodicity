@@ -8,7 +8,7 @@ import akka.event.Logging
 import akka.testkit._
 import akka.util.duration._
 import com.ergodicity.backtest.Mocking
-import com.ergodicity.backtest.cgate.{ConnectionStub, ConnectionStubActor, ListenerDecoratorStub, ListenerStubActor}
+import com.ergodicity.backtest.cgate.{ConnectionStub, ConnectionStubActor, ListenerDecoratorStub, DataStreamListenerStubActor}
 import com.ergodicity.core.SessionId
 import com.ergodicity.core.SessionsTracking.OngoingSession
 import com.ergodicity.core.SessionsTracking.SubscribeOngoingSessions
@@ -50,9 +50,9 @@ class SessionsServiceSpec extends TestKit(ActorSystem("SessionsServiceSpec", com
 
     val connectionStub = TestFSMRef(new ConnectionStubActor, "ConnectionStub")
 
-    val futInfoListenerStub = TestFSMRef(new ListenerStubActor, "FutInfoListenerActor")
+    val futInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "FutInfoListenerActor")
 
-    val optInfoListenerStub = TestFSMRef(new ListenerStubActor, "OptInfoListenerActor")
+    val optInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OptInfoListenerActor")
   }
 
   // -- Backtest services

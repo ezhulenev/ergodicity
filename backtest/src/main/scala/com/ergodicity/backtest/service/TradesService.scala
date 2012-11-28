@@ -1,7 +1,7 @@
 package com.ergodicity.backtest.service
 
 import akka.actor.ActorRef
-import com.ergodicity.backtest.cgate.ListenerStubActor.Dispatch
+import com.ergodicity.backtest.cgate.DataStreamListenerStubActor.DispatchData
 import com.ergodicity.backtest.service.TradesService.{OptionTrade, FutureTrade}
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.scheme.{OptTrade, FutTrade}
@@ -35,8 +35,8 @@ class TradesService(futTrade: ActorRef, optTrade: ActorRef)(implicit context: Se
       .map(_.asPlazaRecord)
       .map(r => StreamData(OptTrade.deal.TABLE_INDEX, r.getData))
 
-    futTrade ! Dispatch(futures)
-    optTrade ! Dispatch(options)
+    futTrade ! DispatchData(futures)
+    optTrade ! DispatchData(options)
   }
 
 }

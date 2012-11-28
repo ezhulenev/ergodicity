@@ -86,6 +86,8 @@ object PublisherStubActor {
 
     case object GetStateCmd extends Command
 
+    case class Post(message: ru.micexrts.cgate.messages.Message)
+
   }
 
 }

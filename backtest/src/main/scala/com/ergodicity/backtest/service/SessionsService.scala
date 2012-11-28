@@ -1,7 +1,7 @@
 package com.ergodicity.backtest.service
 
 import akka.actor.ActorRef
-import com.ergodicity.backtest.cgate.ListenerStubActor.Dispatch
+import com.ergodicity.backtest.cgate.DataStreamListenerStubActor.DispatchData
 import com.ergodicity.backtest.service.SessionsService.SessionAssigned
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.SysEvent.SessionDataReady
@@ -98,9 +98,9 @@ class SessionsService(futInfo: ActorRef, optInfo: ActorRef) {
       futuresContents foreach (_.set_state(InstrumentState(state).toInt))
 
       // -- Dispatch Session details and contents
-      futInfo ! Dispatch(futuresContents.map(rec => StreamData(FutInfo.fut_sess_contents.TABLE_INDEX, rec.getData)))
-      optInfo ! Dispatch(optionsContents.map(rec => StreamData(OptInfo.opt_sess_contents.TABLE_INDEX, rec.getData)))
-      futInfo ! Dispatch(StreamData(FutInfo.session.TABLE_INDEX, sessionRecord.getData) :: Nil)
+      futInfo ! DispatchData(futuresContents.map(rec => StreamData(FutInfo.fut_sess_contents.TABLE_INDEX, rec.getData)))
+      optInfo ! DispatchData(optionsContents.map(rec => StreamData(OptInfo.opt_sess_contents.TABLE_INDEX, rec.getData)))
+      futInfo ! DispatchData(StreamData(FutInfo.session.TABLE_INDEX, sessionRecord.getData) :: Nil)
 
       id
     }
@@ -111,7 +111,7 @@ class SessionsService(futInfo: ActorRef, optInfo: ActorRef) {
     val futuresDataReady = FutSysEvent apply SessionDataReady(eventId, id.fut)
     val optionsDataReady = OptSysEvent apply SessionDataReady(eventId, id.opt)
 
-    futInfo ! Dispatch(StreamData(FutInfo.sys_events.TABLE_INDEX, futuresDataReady.asPlazaRecord.getData) :: Nil)
-    optInfo ! Dispatch(StreamData(OptInfo.sys_events.TABLE_INDEX, optionsDataReady.asPlazaRecord.getData) :: Nil)
+    futInfo ! DispatchData(StreamData(FutInfo.sys_events.TABLE_INDEX, futuresDataReady.asPlazaRecord.getData) :: Nil)
+    optInfo ! DispatchData(StreamData(OptInfo.sys_events.TABLE_INDEX, optionsDataReady.asPlazaRecord.getData) :: Nil)
   }
 }

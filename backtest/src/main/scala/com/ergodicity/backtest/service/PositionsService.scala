@@ -8,7 +8,7 @@ import collection.mutable
 import scalaz.Scalaz._
 import com.ergodicity.backtest.service.PositionsService.ManagedPosition
 import com.ergodicity.cgate.StreamEvent.StreamData
-import com.ergodicity.backtest.cgate.ListenerStubActor.Dispatch
+import com.ergodicity.backtest.cgate.DataStreamListenerStubActor.DispatchData
 
 object PositionsService {
 
@@ -65,7 +65,7 @@ class PositionsService(pos: ActorRef, initialPositions: Map[Security, (Position,
     }
     val record = position.asPlazaRecord
     record.set_replAct(replAct)
-    pos ! Dispatch(StreamData(Pos.position.TABLE_INDEX, record.getData) :: Nil)
+    pos ! DispatchData(StreamData(Pos.position.TABLE_INDEX, record.getData) :: Nil)
   }
 
   private[this] def assigned: Security => Boolean = mutableHashMapMemo {
