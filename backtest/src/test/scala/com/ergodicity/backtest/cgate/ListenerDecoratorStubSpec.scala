@@ -14,7 +14,7 @@ import org.scalatest.matchers.ShouldMatchers
 import org.scalatest.{WordSpec, BeforeAndAfterAll}
 import ru.micexrts.cgate.CGateException
 
-class ListenerDecoratorStubSpec extends TestKit(ActorSystem("ListenerDecoratorStubSpec")) with WordSpec with ShouldMatchers with BeforeAndAfterAll with ImplicitSender {
+class ListenerDecoratorStubSpec extends TestKit(ActorSystem("ListenerDecoratorStubSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with ShouldMatchers with BeforeAndAfterAll with ImplicitSender {
   val log = Logging(system, classOf[ListenerDecoratorStubSpec])
 
   override def afterAll() {

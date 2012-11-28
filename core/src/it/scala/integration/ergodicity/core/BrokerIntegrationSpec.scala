@@ -5,7 +5,7 @@ import akka.actor.{Props, Actor, ActorSystem}
 import AkkaIntegrationConfigurations._
 import akka.testkit.{ImplicitSender, TestKit}
 import java.util.concurrent.TimeUnit
-import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, Publisher => CGPublisher, P2TypeParser, CGate}
+import ru.micexrts.cgate.{Connection => CGConnection, Listener => CGListener, Publisher => CGPublisher, MessageKeyType, P2TypeParser, CGate}
 import com.ergodicity.cgate.{Error => _, _}
 import config.ConnectionConfig.Tcp
 import config.Replies.RepliesParams
@@ -25,6 +25,8 @@ import akka.actor.FSM.SubscribeTransitionCallBack
 import com.ergodicity.cgate.Connection.StartMessageProcessing
 import akka.util.Timeout
 import akka.dispatch.Await
+import ru.micexrts.cgate.messages.{DataMessage}
+import com.ergodicity.cgate.scheme.Message
 
 class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec", ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with BeforeAndAfterAll {
   val log = Logging(system, self)
@@ -80,6 +82,11 @@ class BrokerIntegrationSpec extends TestKit(ActorSystem("BrokerIntegrationSpec",
 
       // Open connections and track it's status
       connection ! Connection.Open
+
+      Thread.sleep(TimeUnit.SECONDS.toMillis(10))
+
+      val message = underlyingPublisher.newMessage(MessageKeyType.KEY_ID, Message.OptAddOrder.MSG_ID).asInstanceOf[DataMessage]
+      log.info("Message id = "+message.getMsgId)
 
       Thread.sleep(TimeUnit.DAYS.toMillis(10))
     }
