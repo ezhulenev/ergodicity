@@ -19,7 +19,7 @@ import org.scalatest.{WordSpec, BeforeAndAfterAll}
 import ru.micexrts.cgate.CGateException
 
 class PublisherStubSpec extends TestKit(ActorSystem("PublisherStubSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with ShouldMatchers with BeforeAndAfterAll with ImplicitSender {
-  val log = Logging(system, classOf[PublisherStubSpec])
+  val log = Logging(system, self)
 
   override def afterAll() {
     system.shutdown()

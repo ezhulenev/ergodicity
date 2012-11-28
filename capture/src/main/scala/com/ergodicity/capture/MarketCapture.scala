@@ -303,7 +303,7 @@ class MarketCapture(val replication: ReplicationScheme,
     val isin = safeIsin(record.get_isin_id())
     isin.map {
       isin =>
-        val deal: Option[BigDecimal] = if (record.get_id_deal() > 0) Some(record.get_deal_price()) else None
+        val deal: Option[(Long, BigDecimal)] = if (record.get_id_deal() > 0) Some(record.get_id_deal(), record.get_deal_price()) else None
         OrderPayload(Forts, MarketDbSecurity(isin.isin),
           record.get_id_ord(), new DateTime(record.get_moment()),
           record.get_status(), record.get_action(), record.get_dir(), record.get_price(), record.get_amount(), record.get_amount_rest(), deal)

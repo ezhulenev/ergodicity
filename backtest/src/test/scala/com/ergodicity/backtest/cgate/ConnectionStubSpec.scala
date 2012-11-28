@@ -12,7 +12,7 @@ import akka.actor.FSM.CurrentState
 import akka.actor.FSM.SubscribeTransitionCallBack
 
 class ConnectionStubSpec extends TestKit(ActorSystem("ConnectionStubSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with ShouldMatchers with BeforeAndAfterAll with ImplicitSender {
-  val log = Logging(system, classOf[ConnectionStubSpec])
+  val log = Logging(system, self)
 
   override def afterAll() {
     system.shutdown()
