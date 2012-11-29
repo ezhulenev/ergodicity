@@ -14,9 +14,29 @@ object PositionsService {
 
   case class ManagedPosition(security: Security, position: Position, dynamics: PositionDynamics)
 
+  implicit def managedPosition2plaza(pos: ManagedPosition) = new {
+    val (security, position, dynamics) = (pos.security, pos.position, pos.dynamics)
+
+    def asPlazaRecord = {
+      val buff = allocate(Size.Pos)
+
+      val cgate = new Pos.position(buff)
+      cgate.set_isin_id(security.id.id)
+      cgate.set_pos(position.pos)
+      cgate.set_open_qty(dynamics.open)
+      cgate.set_buys_qty(dynamics.buys)
+      cgate.set_sells_qty(dynamics.sells)
+      cgate.set_net_volume_rur(dynamics.volume)
+      dynamics.lastDealId.map(id => cgate.set_last_deal_id(id))
+
+      cgate
+    }
+  }
 }
 
 class PositionsService(pos: ActorRef, initialPositions: Map[Security, (Position, PositionDynamics)] = Map())(implicit context: SessionContext) {
+
+  import PositionsService._
 
   private[this] val RemoveRecordReplAct = 1
 

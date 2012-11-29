@@ -1,21 +1,36 @@
 package com.ergodicity.backtest.service
 
-import com.ergodicity.core.IsinId
+import com.ergodicity.core.{Isin, SessionId, IsinId}
 import com.ergodicity.marketdb.model.Security
 import com.ergodicity.schema
 import com.ergodicity.schema.{OptSessContents, FutSessContents}
 import scalaz.Scalaz._
 
 case class SessionContext(session: schema.Session, futures: Seq[FutSessContents], options: Seq[OptSessContents]) {
-  val isFuture: Security => Boolean = mutableHashMapMemo {
-    security => futures.exists(_.isin == security.isin)
+  val sessionId = SessionId(session.sess_id, session.opt_sess_id)
+
+  def isFuture(security: com.ergodicity.core.Security): Boolean = isFuture(security.isin)
+
+  def isOption(security: com.ergodicity.core.Security): Boolean = isOption(security.isin)
+
+  def isinId(security: com.ergodicity.core.Security): Option[IsinId] = isinId(security.isin)
+
+  def isFuture(security: Security): Boolean = isFuture(Isin(security.isin))
+
+  def isOption(security: Security): Boolean = isOption(Isin(security.isin))
+
+  def isinId(security: Security): Option[IsinId] = isinId(Isin(security.isin))
+
+
+  val isFuture: Isin => Boolean = mutableHashMapMemo {
+    isin => futures.exists(_.isin == isin.isin)
   }
 
-  val isOption: Security => Boolean = mutableHashMapMemo {
-    security => options.exists(_.isin == security.isin)
+  val isOption: Isin => Boolean = mutableHashMapMemo {
+    isin => options.exists(_.isin == isin.isin)
   }
 
-  val isinId: Security => Option[IsinId] = mutableHashMapMemo {
-    security => futures.find(_.isin === security.isin).map(f => IsinId(f.isin_id)) orElse options.find(_.isin === security.isin).map(o => IsinId(o.isin_id))
+  val isinId: Isin => Option[IsinId] = mutableHashMapMemo {
+    isin => futures.find(_.isin === isin.isin).map(f => IsinId(f.isin_id)) orElse options.find(_.isin === isin.isin).map(o => IsinId(o.isin_id))
   }
 }

@@ -16,6 +16,45 @@ object TradesService {
 
   case class OptionTrade(session: SessionId, id: IsinId, underlying: TradePayload)
 
+  implicit def futureTrade2plaza(trade: FutureTrade) = new {
+
+    import scalaz.Scalaz._
+
+    def asPlazaRecord = {
+      val buff = allocate(Size.FutTrade)
+      val cgate = new FutTrade.deal(buff)
+
+      cgate.set_sess_id(trade.session.fut)
+      cgate.set_isin_id(trade.id.id)
+      cgate.set_id_deal(trade.underlying.tradeId)
+      cgate.set_price(trade.underlying.price)
+      cgate.set_amount(trade.underlying.amount)
+      cgate.set_moment(trade.underlying.time.getMillis)
+      cgate.set_nosystem(trade.underlying.nosystem ? 1.toByte | 0.toByte)
+
+      cgate
+    }
+  }
+
+  implicit def optionTrade2plaza(trade: OptionTrade) = new {
+
+    import scalaz.Scalaz._
+
+    def asPlazaRecord = {
+      val buff = allocate(Size.OptTrade)
+      val cgate = new OptTrade.deal(buff)
+
+      cgate.set_sess_id(trade.session.fut)
+      cgate.set_isin_id(trade.id.id)
+      cgate.set_id_deal(trade.underlying.tradeId)
+      cgate.set_price(trade.underlying.price)
+      cgate.set_amount(trade.underlying.amount)
+      cgate.set_moment(trade.underlying.time.getMillis)
+      cgate.set_nosystem(trade.underlying.nosystem ? 1.toByte | 0.toByte)
+
+      cgate
+    }
+  }
 }
 
 class TradesService(futTrade: ActorRef, optTrade: ActorRef)(implicit context: SessionContext) {

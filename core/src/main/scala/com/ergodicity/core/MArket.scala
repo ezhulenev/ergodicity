@@ -89,6 +89,20 @@ object OrderType {
 
   case object FillOrKill extends OrderType
 
+  val GoodTillCancelledMask = 0x01
+  val ImmediateOrCancelMask = 0x02
+
+  def apply(status: Int) = status match {
+    case t if ((t & 0x01) > 0) => OrderType.GoodTillCancelled
+    case t if ((t & 0x02) > 0) => OrderType.ImmediateOrCancel
+    case t => throw new IllegalArgumentException("Illegal order type: " + t)
+  }
+
+  implicit def toInt(tp: OrderType) = tp match {
+    case GoodTillCancelled => GoodTillCancelledMask
+    case ImmediateOrCancel => ImmediateOrCancelMask
+    case FillOrKill => throw new IllegalArgumentException("Unsupported FillOrKill translation")
+  }
 }
 
 
