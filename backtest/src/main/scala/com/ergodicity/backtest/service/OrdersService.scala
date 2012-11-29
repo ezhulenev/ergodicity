@@ -1,12 +1,11 @@
 package com.ergodicity.backtest.service
 
 import akka.actor.ActorRef
-import com.ergodicity.backtest.cgate.DataStreamListenerStubActor.DispatchData
+import com.ergodicity.backtest.cgate.ReplicationStreamListenerStubActor.DispatchData
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.scheme.{OptOrder, FutOrder}
 import com.ergodicity.core._
 import org.joda.time.DateTime
-import scala.concurrent.stm._
 
 object OrdersService {
 
@@ -18,6 +17,9 @@ object OrdersService {
 
   class ManagedOrder(orderId: Long, dir: OrderDirection, security: Security, amount: Int, price: BigDecimal, orderType: OrderType, time: DateTime)
                     (implicit context: SessionContext, service: OrdersService) {
+    private[this] def check(assertion: Boolean, message: String = "Check error") {
+      if (!assertion) throw new RuntimeException(message)
+    }
 
     object Action {
       val Cancel: Short = 0
@@ -25,24 +27,21 @@ object OrdersService {
       val Fill: Short = 2
     }
 
-    val rest = Ref(amount)
+    var rest = amount
 
     dispatch(OrderEvent(orderId, time, orderType.toInt, Action.Create, dir.toShort, price, amount, amount, None))
 
     def fill(time: DateTime, amount: Int, deal: (Long, BigDecimal)) {
-      atomic {
-        implicit txn =>
-          rest.transform(_ - amount)
-          dispatch(OrderEvent(orderId, time, orderType.toInt, Action.Fill, dir.toShort, price, amount, rest.get, Some(deal)))
-      }
+      check(rest - amount > 0, "Rest amount after fill could not be less then zero")
+      rest -= amount
+      dispatch(OrderEvent(orderId, time, orderType.toInt, Action.Fill, dir.toShort, price, amount, rest, Some(deal)))
+
     }
 
     def cancel(time: DateTime) {
-      atomic {
-        implicit txn =>
-          dispatch(OrderEvent(orderId, time, orderType.toInt, Action.Cancel, dir.toShort, price, rest.get, 0, None))
-          rest.transform(_ => 0)
-      }
+      check(rest > 0, "Rest amount should be greater then zero")
+      dispatch(OrderEvent(orderId, time, orderType.toInt, Action.Cancel, dir.toShort, price, rest, 0, None))
+      rest = 0
     }
 
     private[this] def dispatch(event: OrderEvent) {
@@ -119,6 +118,8 @@ object OrdersService {
 class OrdersService(futOrders: ActorRef, optOrders: ActorRef)(implicit context: SessionContext) {
 
   import OrdersService._
+
+  private[this] implicit val self = this
 
   def create(orderId: Long, dir: OrderDirection, security: Security, amount: Int, price: BigDecimal, orderType: OrderType, time: DateTime) =
     new ManagedOrder(orderId, dir, security, amount, price, orderType, time)

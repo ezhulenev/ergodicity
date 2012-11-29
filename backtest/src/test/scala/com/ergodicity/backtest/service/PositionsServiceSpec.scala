@@ -11,7 +11,7 @@ import akka.testkit._
 import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.backtest.Mocking
-import com.ergodicity.backtest.cgate.{ConnectionStub, ConnectionStubActor, ListenerBindingStub, DataStreamListenerStubActor}
+import com.ergodicity.backtest.cgate.{ConnectionStub, ConnectionStubActor, ListenerBindingStub, ReplicationStreamListenerStubActor}
 import com.ergodicity.core.PositionsTracking._
 import com.ergodicity.core._
 import com.ergodicity.core.position.PositionActor.CurrentPosition
@@ -58,11 +58,11 @@ class PositionsServiceSpec extends TestKit(ActorSystem("PositionsServiceSpec", c
 
     val connectionStub = TestFSMRef(new ConnectionStubActor, "ConnectionStub")
 
-    val futInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "FutInfoListenerActor")
+    val futInfoListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor, "FutInfoListenerActor")
 
-    val optInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OptInfoListenerActor")
+    val optInfoListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor, "OptInfoListenerActor")
 
-    val posListenerStub = TestFSMRef(new DataStreamListenerStubActor("PosListenerStub"))
+    val posListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor("PosListenerStub"))
   }
 
   // -- Backtest services
@@ -91,7 +91,7 @@ class PositionsServiceSpec extends TestKit(ActorSystem("PositionsServiceSpec", c
       services ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(services, ServicesState.Idle))
 
-      given("portfolio service")
+      given("engine's portfolio service")
       val portfolio = services.underlyingActor.service(Portfolio.Portfolio)
 
       given("assigned session")

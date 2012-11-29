@@ -1,7 +1,7 @@
 package com.ergodicity.backtest.service
 
 import akka.actor.ActorRef
-import com.ergodicity.backtest.cgate.DataStreamListenerStubActor.DispatchData
+import com.ergodicity.backtest.cgate.ReplicationStreamListenerStubActor.DispatchData
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.scheme.{OrdBook, OrdLog}
 import com.ergodicity.core.SessionId

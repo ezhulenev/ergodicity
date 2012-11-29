@@ -19,7 +19,7 @@ import scala.Right
 
 object PublisherStub {
 
-  import Command._
+  import PublisherStubActor.Command._
 
   private[PublisherStub] object DataMessageStub {
 
@@ -64,11 +64,18 @@ object PublisherStub {
       DataMessageStub(msgId)
     }
 
+    def post(i: InvocationOnMock) {
+      val msg = i.getArguments.apply(0).asInstanceOf[ru.micexrts.cgate.messages.Message]
+      val mode = i.getArguments.apply(1).asInstanceOf[Int]
+      actor ! Post(msg, mode)
+    }
+
     val mock = Mockito.mock(classOf[CGPublisher])
     doAnswer(execCmd(OpenCmd) _).when(mock).open(any())
     doAnswer(execCmd(CloseCmd) _).when(mock).close()
     doAnswer(getState _).when(mock).getState
     doAnswer(newMessage _).when(mock).newMessage(any(), any())
+    doAnswer(post _).when(mock).post(any(), any())
     mock
   }
 }
@@ -86,7 +93,7 @@ object PublisherStubActor {
 
     case object GetStateCmd extends Command
 
-    case class Post(message: ru.micexrts.cgate.messages.Message)
+    case class Post(message: ru.micexrts.cgate.messages.Message, mode: Int)
 
   }
 

@@ -8,7 +8,7 @@ import collection.mutable
 import scalaz.Scalaz._
 import com.ergodicity.backtest.service.PositionsService.ManagedPosition
 import com.ergodicity.cgate.StreamEvent.StreamData
-import com.ergodicity.backtest.cgate.DataStreamListenerStubActor.DispatchData
+import com.ergodicity.backtest.cgate.ReplicationStreamListenerStubActor.DispatchData
 
 object PositionsService {
 

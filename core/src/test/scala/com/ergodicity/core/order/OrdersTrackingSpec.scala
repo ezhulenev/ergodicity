@@ -1,13 +1,12 @@
 package com.ergodicity.core.order
 
-import akka.actor.{Terminated, PoisonPill, ActorSystem}
+import akka.actor.{Terminated, ActorSystem}
 import akka.event.Logging
 import akka.util.duration._
 import akka.testkit._
 import com.ergodicity.core.AkkaConfigurations._
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import com.ergodicity.core.{SessionId, OrderDirection, IsinId}
-import com.ergodicity.core.OrderType.GoodTillCancelled
 import akka.actor.FSM.Transition
 import com.ergodicity.core.order.OrdersTracking.OrderRef
 import akka.actor.FSM.CurrentState

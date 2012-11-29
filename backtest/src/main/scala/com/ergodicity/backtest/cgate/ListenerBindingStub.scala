@@ -146,7 +146,6 @@ class ReplyStreamListenerStubActor() extends Actor with FSM[ListenerStubState, S
 
   when(Binded(Closed)) {
     case Event(OpenCmd(config), data) =>
-      log.info("Open config = " + config)
       notify(ReplyEvent.Open)
       data.foreach(notify _)
       goto(Binded(Active)) replying (Left(()))
@@ -176,7 +175,7 @@ class ReplyStreamListenerStubActor() extends Actor with FSM[ListenerStubState, S
   }
 }
 
-object DataStreamListenerStubActor {
+object ReplicationStreamListenerStubActor {
 
   case class DispatchData(data: Seq[StreamEvent.StreamData])
 
@@ -233,9 +232,9 @@ object DataStreamListenerStubActor {
   }
 }
 
-class DataStreamListenerStubActor(replState: String = "") extends Actor with FSM[ListenerStubState, Seq[StreamEvent.StreamData]] {
+class ReplicationStreamListenerStubActor(replState: String = "") extends Actor with FSM[ListenerStubState, Seq[StreamEvent.StreamData]] {
 
-  import DataStreamListenerStubActor._
+  import ReplicationStreamListenerStubActor._
   import ListenerStubActor.Command._
 
   private[this] var subscriber: Option[ISubscriber] = None
@@ -256,7 +255,6 @@ class DataStreamListenerStubActor(replState: String = "") extends Actor with FSM
 
   when(Binded(Closed)) {
     case Event(OpenCmd(config), data) =>
-      log.info("Open config = " + config)
       notify(StreamEvent.Open)
       if (data.size > 0) {
         notify(StreamEvent.TnBegin)

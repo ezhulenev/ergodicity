@@ -10,7 +10,7 @@ import akka.testkit._
 import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.backtest.Mocking
-import com.ergodicity.backtest.cgate.{DataStreamListenerStubActor, ConnectionStubActor, ListenerBindingStub, ConnectionStub}
+import com.ergodicity.backtest.cgate.{ReplicationStreamListenerStubActor, ConnectionStubActor, ListenerBindingStub, ConnectionStub}
 import com.ergodicity.core._
 import com.ergodicity.core.session.InstrumentState
 import com.ergodicity.engine.Listener._
@@ -61,15 +61,15 @@ class OrderBooksServiceSpec extends TestKit(ActorSystem("OrderBooksServiceSpec",
 
     val connectionStub = TestFSMRef(new ConnectionStubActor, "ConnectionStub")
 
-    val futInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "FutInfoListenerActor")
+    val futInfoListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor, "FutInfoListenerActor")
 
-    val optInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OptInfoListenerActor")
+    val optInfoListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor, "OptInfoListenerActor")
 
-    val futOrderBookListenerStub = TestFSMRef(new DataStreamListenerStubActor, "FutOrderBookListener")
+    val futOrderBookListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor, "FutOrderBookListener")
 
-    val optOrderBookListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OptOrderBookListener")
+    val optOrderBookListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor, "OptOrderBookListener")
 
-    val ordLogListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OrdLogListenerStub")
+    val ordLogListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor, "OrdLogListenerStub")
   }
 
   class TestServices(val engine: TestEngine) extends ServicesActor with ReplicationConnection with InstrumentData with OrdersData
@@ -98,7 +98,7 @@ class OrderBooksServiceSpec extends TestKit(ActorSystem("OrderBooksServiceSpec",
       services ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(services, ServicesState.Idle))
 
-      given("trades data service")
+      given("engine's orders data service")
       val ordersData = services.underlyingActor.service(OrdersData.OrdersData)
 
       given("assigned session")
@@ -106,9 +106,9 @@ class OrderBooksServiceSpec extends TestKit(ActorSystem("OrderBooksServiceSpec",
       val assigned = sessions.assign(session, futures, options)
       assigned.start()
 
-      given("orders service")
-      val orders = new OrderBooksService(engine.underlyingActor.ordLogListenerStub, engine.underlyingActor.futOrderBookListenerStub, engine.underlyingActor.optOrderBookListenerStub)
-      orders.dispatchSnapshots(Snapshots(OrdersSnapshot(0, new DateTime, Seq.empty), OrdersSnapshot(0, new DateTime, Seq.empty)))
+      given("backtest orders service")
+      val orderBooks = new OrderBooksService(engine.underlyingActor.ordLogListenerStub, engine.underlyingActor.futOrderBookListenerStub, engine.underlyingActor.optOrderBookListenerStub)
+      orderBooks.dispatchSnapshots(Snapshots(OrdersSnapshot(0, new DateTime, Seq.empty), OrdersSnapshot(0, new DateTime, Seq.empty)))
 
       when("start services")
       services ! StartServices
@@ -124,7 +124,7 @@ class OrderBooksServiceSpec extends TestKit(ActorSystem("OrderBooksServiceSpec",
       val order = OrderPayload(model.Market("Forts"), Security(futureContract.isin.isin), orderId, new DateTime, Status, AddOrder, OrderDirection.Buy.toShort, 100, 1, 100, None)
 
       when("dispatch market db order payload")
-      orders.dispatch(order)
+      orderBooks.dispatch(order)
 
       then("order actor should be created in Active state")
       Thread.sleep(500)

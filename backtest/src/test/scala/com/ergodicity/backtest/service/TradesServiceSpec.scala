@@ -6,10 +6,9 @@ import akka.actor.FSM.SubscribeTransitionCallBack
 import akka.actor.FSM.Transition
 import akka.event.Logging
 import akka.testkit._
-import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.backtest.Mocking
-import com.ergodicity.backtest.cgate.{ConnectionStub, ConnectionStubActor, ListenerBindingStub, DataStreamListenerStubActor}
+import com.ergodicity.backtest.cgate.{ConnectionStub, ConnectionStubActor, ListenerBindingStub, ReplicationStreamListenerStubActor}
 import com.ergodicity.core._
 import com.ergodicity.core.session.InstrumentState
 import com.ergodicity.engine.Listener._
@@ -59,13 +58,13 @@ class TradesServiceSpec extends TestKit(ActorSystem("TradesServiceSpec", com.erg
 
     val connectionStub = TestFSMRef(new ConnectionStubActor, "ConnectionStub")
 
-    val futInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "FutInfoListenerActor")
+    val futInfoListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor, "FutInfoListenerActor")
 
-    val optInfoListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OptInfoListenerActor")
+    val optInfoListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor, "OptInfoListenerActor")
 
-    val futTradesListenerStub = TestFSMRef(new DataStreamListenerStubActor, "FutTradesListenerActor")
+    val futTradesListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor, "FutTradesListenerActor")
 
-    val optTradesListenerStub = TestFSMRef(new DataStreamListenerStubActor, "OptTradesListenerActor")
+    val optTradesListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor, "OptTradesListenerActor")
   }
 
   // -- Backtest services
@@ -85,7 +84,7 @@ class TradesServiceSpec extends TestKit(ActorSystem("TradesServiceSpec", com.erg
 
   implicit val sessionContext = SessionContext(session, futures, options)
 
-  implicit val timeout = Timeout(1.second)
+  implicit val timeout = akka.util.Timeout(1.second)
 
   "Trades Service" must {
     "dispatch trades from underlying MarketDb" in {
@@ -95,7 +94,7 @@ class TradesServiceSpec extends TestKit(ActorSystem("TradesServiceSpec", com.erg
       services ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(services, ServicesState.Idle))
 
-      given("trades data service")
+      given("engine's trades data service")
       val tradesData = services.underlyingActor.service(TradesData.TradesData)
 
       given("assigned session")
@@ -110,7 +109,7 @@ class TradesServiceSpec extends TestKit(ActorSystem("TradesServiceSpec", com.erg
       expectMsg(3.seconds, Transition(services, ServicesState.Idle, ServicesState.Starting))
       expectMsg(10.seconds, Transition(services, ServicesState.Starting, ServicesState.Active))
 
-      given("trades service")
+      given("backtest trades service")
       val trades = new TradesService(engine.underlyingActor.futTradesListenerStub, engine.underlyingActor.optTradesListenerStub)
 
       when("subscribe for trades")
