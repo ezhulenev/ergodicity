@@ -1,5 +1,7 @@
 package com.ergodicity.core
 
+import scala.IllegalArgumentException
+
 sealed trait Market
 
 object Market {
@@ -113,6 +115,12 @@ object OrderDirection {
   case object Buy extends OrderDirection
 
   case object Sell extends OrderDirection
+
+  def apply(dir: Int) = dir match {
+    case 1 => Buy
+    case 2 => Sell
+    case _ => throw new IllegalArgumentException("Unsupported direction = " + dir)
+  }
 
   implicit def toShort(direction: OrderDirection): Short = direction match {
     case Buy => 1

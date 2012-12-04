@@ -26,9 +26,9 @@ private[broker] object MarketCommand {
 }
 
 
-private[broker] sealed trait Action[R <: Reaction]
+sealed trait Action[R <: Reaction]
 
-private[broker] object Action {
+object Action {
 
   case class AddOrder(isin: Isin, amount: Int, price: BigDecimal, orderType: OrderType, direction: OrderDirection) extends Action[OrderId]
 
@@ -38,7 +38,7 @@ private[broker] object Action {
 
 sealed abstract class BrokerException(message: String) extends RuntimeException(message)
 
-case class BrokerTimedOutException() extends BrokerException("Broker timed out")
+case object BrokerTimedOutException extends BrokerException("Broker timed out")
 
 case class BrokerErrorException(message: String) extends BrokerException(message)
 
@@ -65,9 +65,9 @@ object Protocol {
   }
 
   trait Protocol[A <: Action[R], R <: Reaction, M <: Market] extends Request[A, R] with Response[A, R] {
-    def response(msgId: Int, data: ByteBuffer) = (failures orElse payload) apply msgId -> data
+    def response(msgId: Int, data: ByteBuffer) = (failures orElse parseResponse) apply msgId -> data
 
-    def payload: PartialFunction[(Int, ByteBuffer), R]
+    def parseResponse: PartialFunction[(Int, ByteBuffer), R]
 
     protected def failures: PartialFunction[(Int, ByteBuffer), R] = {
       case (Message.FORTS_MSG99.MSG_ID, data) =>
@@ -95,7 +95,7 @@ object Protocol {
       dataMsg
     }
 
-    def payload: PartialFunction[(Int, ByteBuffer), OrderId] = {
+    def parseResponse: PartialFunction[(Int, ByteBuffer), OrderId] = {
       case (Message.FORTS_MSG101.MSG_ID, data) =>
         val msg = new Message.FORTS_MSG101(data)
         if (msg.get_code() == 0)
@@ -120,7 +120,7 @@ object Protocol {
       dataMsg
     }
 
-    def payload: PartialFunction[(Int, ByteBuffer), OrderId] = {
+    def parseResponse: PartialFunction[(Int, ByteBuffer), OrderId] = {
       case (Message.FORTS_MSG109.MSG_ID, data) =>
         val msg = new Message.FORTS_MSG109(data)
         if (msg.get_code() == 0)
@@ -138,7 +138,7 @@ object Protocol {
       dataMsg
     }
 
-    def payload: PartialFunction[(Int, ByteBuffer), Cancelled] = {
+    def parseResponse: PartialFunction[(Int, ByteBuffer), Cancelled] = {
       case (Message.FORTS_MSG102.MSG_ID, data) =>
         val msg = new Message.FORTS_MSG102(data)
         if (msg.get_code() == 0)
@@ -156,7 +156,7 @@ object Protocol {
       dataMsg
     }
 
-    def payload: PartialFunction[(Int, ByteBuffer), Cancelled] = {
+    def parseResponse: PartialFunction[(Int, ByteBuffer), Cancelled] = {
       case (Message.FORTS_MSG110.MSG_ID, data) =>
         val msg = new Message.FORTS_MSG110(data)
         if (msg.get_code() == 0)

@@ -18,7 +18,7 @@ object OrdersService {
   class ManagedOrder(orderId: Long, dir: OrderDirection, security: Security, amount: Int, price: BigDecimal, orderType: OrderType, time: DateTime)
                     (implicit context: SessionContext, service: OrdersService) {
     private[this] def check(assertion: Boolean, message: String = "Check error") {
-      if (!assertion) throw new RuntimeException(message)
+      if (!assertion) throw new IllegalStateException(message)
     }
 
     object Action {
@@ -32,7 +32,7 @@ object OrdersService {
     dispatch(OrderEvent(orderId, time, orderType.toInt, Action.Create, dir.toShort, price, amount, amount, None))
 
     def fill(time: DateTime, amount: Int, deal: (Long, BigDecimal)) {
-      check(rest - amount > 0, "Rest amount after fill could not be less then zero")
+      check(rest - amount >= 0, "Rest amount after fill could not be less then zero")
       rest -= amount
       dispatch(OrderEvent(orderId, time, orderType.toInt, Action.Fill, dir.toShort, price, amount, rest, Some(deal)))
 

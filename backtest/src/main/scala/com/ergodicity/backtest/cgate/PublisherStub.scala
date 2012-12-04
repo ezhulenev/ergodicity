@@ -4,7 +4,7 @@ import akka.actor.{ActorRef, FSM, Actor}
 import akka.dispatch.Await
 import akka.pattern.ask
 import akka.util.duration._
-import com.ergodicity.backtest.cgate.PublisherStubActor.Command
+import com.ergodicity.backtest.cgate.PublisherStubActor.{PublisherContext, Command}
 import com.ergodicity.cgate.scheme.Message
 import com.ergodicity.cgate.{Active, Opening, Closed, State}
 import java.nio.ByteBuffer
@@ -13,9 +13,14 @@ import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
 import ru.micexrts.cgate.messages.DataMessage
-import ru.micexrts.cgate.{Publisher => CGPublisher, CGateException}
+import ru.micexrts.cgate.{Publisher => CGPublisher, PublishFlag, CGateException}
 import scala.Left
 import scala.Right
+import com.ergodicity.backtest.service.{SessionContext, RepliesService, OrdersService}
+import com.ergodicity.core.broker.{OrderId, Action, Reaction, BrokerException}
+import com.ergodicity.core.{OrderDirection, Isin, OrderType, broker}
+import com.ergodicity.core.Market.{Options, Futures}
+import com.ergodicity.core.broker.Action.AddOrder
 
 object PublisherStub {
 
@@ -25,7 +30,9 @@ object PublisherStub {
 
     def size(id: Int) = id match {
       case Message.FutAddOrder.MSG_ID => 150
+      case Message.FutDelOrder.MSG_ID => 26
       case Message.OptAddOrder.MSG_ID => 150
+      case Message.OptDelOrder.MSG_ID => 26
       case _ => throw new IllegalArgumentException("Unsupported message id = " + id)
     }
 
@@ -65,7 +72,7 @@ object PublisherStub {
     }
 
     def post(i: InvocationOnMock) {
-      val msg = i.getArguments.apply(0).asInstanceOf[ru.micexrts.cgate.messages.Message]
+      val msg = i.getArguments.apply(0).asInstanceOf[ru.micexrts.cgate.messages.DataMessage]
       val mode = i.getArguments.apply(1).asInstanceOf[Int]
       actor ! Post(msg, mode)
     }
@@ -93,17 +100,37 @@ object PublisherStubActor {
 
     case object GetStateCmd extends Command
 
-    case class Post(message: ru.micexrts.cgate.messages.Message, mode: Int)
+    case class Post(message: ru.micexrts.cgate.messages.DataMessage, mode: Int)
 
   }
 
+  case class PublisherContext(strategy: PublisherStrategy, futures: RepliesService[Futures], options: RepliesService[Options])(implicit val sessionContext: SessionContext)
+
 }
 
-class PublisherStubActor extends Actor with FSM[State, Unit] {
+trait PublisherStrategy {
+  type ActionReaction = PartialFunction[broker.Action[_], Either[BrokerException, Reaction]]
+
+  import com.ergodicity.core.broker
+
+  def apply[R <: Reaction](action: broker.Action[R]): Either[BrokerException, R]
+}
+
+object PublisherStrategy {
+  object ExecuteImmediately extends PublisherStrategy {
+    def apply[R <: Reaction](action: Action[R]) = action match {
+      case broker.Action.AddOrder(isin, amount, price, orderType, direction) => Right(OrderId(1).asInstanceOf[R])
+      case _ => throw new IllegalArgumentException("Unhandled action = " + action)
+    }
+  }
+}
+
+
+class PublisherStubActor(replies: ActorRef, orders: OrdersService) extends Actor with FSM[State, Option[PublisherContext]] {
 
   import PublisherStubActor.Command._
 
-  startWith(Closed, ())
+  startWith(Closed, None)
 
   when(Closed) {
     case Event(OpenCmd, _) => goto(Opening) replying (Left(()))
@@ -127,6 +154,20 @@ class PublisherStubActor extends Actor with FSM[State, Unit] {
 
   whenUnhandled {
     case Event(GetStateCmd, _) => stay() replying (stateName.value)
+
+    case Event(context: PublisherContext, _) => stay() using Some(context)
+
+    case Event(Post(message, PublishFlag.NEED_REPLY), Some(publisherContext: PublisherContext)) if (message.getMsgId == Message.FutAddOrder.MSG_ID) =>
+      import publisherContext._
+      val userId = message.getUserId
+
+      val addOrder = new Message.FutAddOrder(message.getData)
+      val (isin, orderType, direction) = (Isin(addOrder.get_isin()), OrderType(addOrder.get_type()), OrderDirection(addOrder.get_dir()))
+      val reaction = strategy.apply(AddOrder(isin, addOrder.get_amount(), BigDecimal(addOrder.get_price()), orderType, direction))
+
+      reaction.fold(e => futures.fail[OrderId](userId, e), order => futures.reply(userId, order))
+
+      stay()
   }
 }
 

@@ -104,7 +104,7 @@ class BrokerSpec extends TestKit(ActorSystem("BrokerSpec", AkkaConfigurations.Co
       val response = broker ? Buy[Futures](Isin("isin"), 1, BigDecimal(100), OrderType.GoodTillCancelled)
       broker ! TimeoutMessage(1)
 
-      intercept[BrokerTimedOutException] {
+      intercept[BrokerException] {
         Await.result(response, 1.second)
       }
     }

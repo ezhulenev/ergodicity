@@ -56,7 +56,7 @@ object Broker {
     }
 
     def timedOut() {
-      ref ! Status.Failure(new BrokerTimedOutException)
+      ref ! Status.Failure(BrokerTimedOutException)
     }
   }
 

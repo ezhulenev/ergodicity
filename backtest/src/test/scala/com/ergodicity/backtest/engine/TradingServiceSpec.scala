@@ -1,4 +1,4 @@
-package com.ergodicity.backtest.service
+package com.ergodicity.backtest.engine
 
 import akka.actor.ActorSystem
 import akka.actor.FSM.CurrentState
@@ -11,9 +11,8 @@ import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.backtest.Mocking
 import com.ergodicity.backtest.cgate._
-import com.ergodicity.core.OrderType.ImmediateOrCancel
+import com.ergodicity.backtest.service.{OrdersService, SessionContext, SessionsService}
 import com.ergodicity.core._
-import com.ergodicity.core.order.{Fill, Create, Order, OrderState}
 import com.ergodicity.core.session.InstrumentState
 import com.ergodicity.engine.Listener._
 import com.ergodicity.engine.Services.StartServices
@@ -23,9 +22,9 @@ import com.ergodicity.engine.{ServicesActor, Engine, ServicesState}
 import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
 import org.joda.time.DateTime
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import com.ergodicity.core.order.OrderActor.{OrderEvent, SubscribeOrderEvents}
+import com.ergodicity.engine.service.Trading.Buy
 
-class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
+class TradingServiceSpec  extends TestKit(ActorSystem("TradingServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   val SystemTrade = false
@@ -83,60 +82,28 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
 
   implicit val timeout = Timeout(1.second)
 
-  "OrderBooks Service" must {
-    "dispatch orders from underlying MarketDb" in {
+  "Trading Service" must {
+    "execute commands" in {
       val engine = testkit.TestActorRef(new TestEngine, "Engine")
       val services = TestActorRef(new TestServices(engine.underlyingActor), "Services")
 
       services ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(services, ServicesState.Idle))
 
-      given("engine's trading service")
-      val trading = services.underlyingActor.service(Trading.Trading)
-
-      given("assigned session")
       implicit val sessions = new SessionsService(engine.underlyingActor.futInfoListenerStub, engine.underlyingActor.optInfoListenerStub)
       val assigned = sessions.assign(session, futures, options)
       assigned.start()
 
-      given("backtest orders service")
-      val orders = new OrdersService(engine.underlyingActor.futOrdersListenerStub, engine.underlyingActor.optOrdersListenerStub)
-
-      when("start services")
       services ! StartServices
-
-      then("all services should start")
       expectMsg(3.seconds, Transition(services, ServicesState.Idle, ServicesState.Starting))
       expectMsg(10.seconds, Transition(services, ServicesState.Starting, ServicesState.Active))
 
-      when("create order")
-      val orderId = 123l
-      val managedOrder = orders.create(orderId, OrderDirection.Buy, futureContract, 1, 100, ImmediateOrCancel, new DateTime)
+      given("engine trading service")
+      val trading = services.underlyingActor.service(Trading.Trading)
 
-      then("order actor should be created in Active state")
-      Thread.sleep(500)
-      val orderActor = system.actorFor("/user/Services/Trading/OrdersTracking/"+orderId)
-      orderActor ! SubscribeTransitionCallBack(self)
-      expectMsg(CurrentState(orderActor, OrderState.Active))
+      trading ! Buy(futureContract, 1, 100)
 
-      when("subscribe for order events")
-      orderActor ! SubscribeOrderEvents(self)
-
-      then("should receive Create event")
-      val order = Order(orderId, sessionId.fut, futureContract.id, OrderDirection.Buy, 100, 1, ImmediateOrCancel.toInt)
-      expectMsg(OrderEvent(order, Create(order)))
-
-      when("order filled")
-      managedOrder.fill(new DateTime, 1, (12345l, 100))
-
-      then("should receive fill notification")
-      expectMsg(OrderEvent(order, Fill(1, 0, Some((12345l, 100)))))
-
-      when("try to fill already filled order")
-      then("should get exception")
-      intercept[IllegalStateException] {
-        managedOrder.fill(new DateTime, 1, (12345l, 100))
-      }
+      Thread.sleep(10000)
     }
   }
 }

@@ -17,6 +17,8 @@ import com.ergodicity.core.{OrderDirection, Isin}
 import org.scalatest.matchers.ShouldMatchers
 import org.scalatest.{WordSpec, BeforeAndAfterAll}
 import ru.micexrts.cgate.CGateException
+import com.ergodicity.backtest.service.OrdersService
+import org.mockito.Mockito
 
 class PublisherStubSpec extends TestKit(ActorSystem("PublisherStubSpec", com.ergodicity.engine.EngineSystemConfig)) with WordSpec with ShouldMatchers with BeforeAndAfterAll with ImplicitSender {
   val log = Logging(system, self)
@@ -27,7 +29,7 @@ class PublisherStubSpec extends TestKit(ActorSystem("PublisherStubSpec", com.erg
 
   "Publisher Stub Actor" must {
     "open publisher" in {
-      val publisherActor = TestActorRef(new PublisherStubActor())
+      val publisherActor = TestActorRef(new PublisherStubActor(system.deadLetters, Mockito.mock(classOf[OrdersService])))
       val publisher = PublisherStub wrap publisherActor
 
       publisherActor ! SubscribeTransitionCallBack(self)
@@ -41,7 +43,7 @@ class PublisherStubSpec extends TestKit(ActorSystem("PublisherStubSpec", com.erg
     }
 
     "throw exception opening Active publisher" in {
-      val publisherActor = TestFSMRef(new PublisherStubActor())
+      val publisherActor = TestFSMRef(new PublisherStubActor(system.deadLetters, Mockito.mock(classOf[OrdersService])))
       publisherActor.setState(Active)
       val publisher = PublisherStub wrap publisherActor
 
@@ -51,7 +53,7 @@ class PublisherStubSpec extends TestKit(ActorSystem("PublisherStubSpec", com.erg
     }
 
     "close Active publisher" in {
-      val publisherActor = TestFSMRef(new PublisherStubActor())
+      val publisherActor = TestFSMRef(new PublisherStubActor(system.deadLetters, Mockito.mock(classOf[OrdersService])))
       val publisher = PublisherStub wrap publisherActor
 
       publisherActor.setState(Active)
@@ -64,7 +66,7 @@ class PublisherStubSpec extends TestKit(ActorSystem("PublisherStubSpec", com.erg
     }
 
     "fail close already Closed publisher" in {
-      val publisherActor = TestFSMRef(new PublisherStubActor())
+      val publisherActor = TestFSMRef(new PublisherStubActor(system.deadLetters, Mockito.mock(classOf[OrdersService])))
       val publisher = PublisherStub wrap publisherActor
 
       publisherActor.setState(Closed)
@@ -75,7 +77,7 @@ class PublisherStubSpec extends TestKit(ActorSystem("PublisherStubSpec", com.erg
     }
 
     "get state" in {
-      val publisherActor = TestFSMRef(new PublisherStubActor())
+      val publisherActor = TestFSMRef(new PublisherStubActor(system.deadLetters, Mockito.mock(classOf[OrdersService])))
       val publisher = PublisherStub wrap publisherActor
 
       assert(publisher.getState == Closed.value)

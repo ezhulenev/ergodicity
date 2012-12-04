@@ -90,6 +90,8 @@ object ReplyStreamListenerStubActor {
 
   case class DispatchReply(reply: ReplyEvent.ReplyData)
 
+  case class DispatchTimeout(timeout: ReplyEvent.TimeoutMessage)
+
   implicit def toCGateMessage(event: ReplyEvent) = {
     def typeOf(t: Int) = {
       val msg = Mockito.mock(classOf[Message])
@@ -123,7 +125,7 @@ object ReplyStreamListenerStubActor {
   }
 }
 
-class ReplyStreamListenerStubActor() extends Actor with FSM[ListenerStubState, Seq[ReplyEvent.ReplyData]] {
+class ReplyStreamListenerStubActor() extends Actor with FSM[ListenerStubState, Seq[ReplyEvent]] {
 
   import ListenerStubActor.Command._
   import ReplyStreamListenerStubActor._
@@ -138,6 +140,8 @@ class ReplyStreamListenerStubActor() extends Actor with FSM[ListenerStubState, S
       goto(Binded(Closed))
 
     case Event(DispatchReply(data), pending) => stay() using (pending :+ data)
+
+    case Event(DispatchTimeout(timeout), pending) => stay() using (pending :+ timeout)
 
     case Event(FSM.StateTimeout, _) => throw new IllegalActorStateException("Timed out in Binding state")
 
@@ -154,6 +158,8 @@ class ReplyStreamListenerStubActor() extends Actor with FSM[ListenerStubState, S
 
     case Event(DispatchReply(data), pending) => stay() using (pending :+ data)
 
+    case Event(DispatchTimeout(timeout), pending) => stay() using (pending :+ timeout)
+
     case Event(GetStateCmd, _) => stay() replying (Closed)
   }
 
@@ -164,6 +170,10 @@ class ReplyStreamListenerStubActor() extends Actor with FSM[ListenerStubState, S
 
     case Event(DispatchReply(data), _) =>
       notify(data)
+      stay()
+
+    case Event(DispatchTimeout(timeout), _) =>
+      notify(timeout)
       stay()
 
     case Event(GetStateCmd, _) => stay() replying (Active)
