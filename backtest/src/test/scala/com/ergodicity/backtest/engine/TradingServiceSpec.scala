@@ -10,19 +10,25 @@ import akka.testkit._
 import akka.util.Timeout
 import akka.util.duration._
 import com.ergodicity.backtest.Mocking
+import com.ergodicity.backtest.cgate.PublisherStubActor.PublisherContext
 import com.ergodicity.backtest.cgate._
-import com.ergodicity.backtest.service.{OrdersService, SessionContext, SessionsService}
+import com.ergodicity.backtest.service.{RepliesService, OrdersService, SessionContext, SessionsService}
+import com.ergodicity.core.Market.{Futures, Options}
+import com.ergodicity.core.OrderType.ImmediateOrCancel
 import com.ergodicity.core._
+import com.ergodicity.core.broker.Action.AddOrder
+import com.ergodicity.core.broker.{BrokerTimedOutException, OrderId}
 import com.ergodicity.core.session.InstrumentState
 import com.ergodicity.engine.Listener._
 import com.ergodicity.engine.Services.StartServices
+import com.ergodicity.engine.service.Trading.Buy
 import com.ergodicity.engine.service.{Trading, InstrumentData, ReplicationConnection}
 import com.ergodicity.engine.underlying.{UnderlyingPublisher, UnderlyingConnection}
 import com.ergodicity.engine.{ServicesActor, Engine, ServicesState}
 import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
 import org.joda.time.DateTime
+import org.mockito.Mockito
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import com.ergodicity.engine.service.Trading.Buy
 
 class TradingServiceSpec  extends TestKit(ActorSystem("TradingServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -83,7 +89,7 @@ class TradingServiceSpec  extends TestKit(ActorSystem("TradingServiceSpec", com.
   implicit val timeout = Timeout(1.second)
 
   "Trading Service" must {
-    "execute commands" in {
+    "forward commands to publisher strategy" in {
       val engine = testkit.TestActorRef(new TestEngine, "Engine")
       val services = TestActorRef(new TestServices(engine.underlyingActor), "Services")
 
@@ -101,9 +107,50 @@ class TradingServiceSpec  extends TestKit(ActorSystem("TradingServiceSpec", com.
       given("engine trading service")
       val trading = services.underlyingActor.service(Trading.Trading)
 
-      trading ! Buy(futureContract, 1, 100)
+      val publisherStrategy = Mockito.mock(classOf[PublisherStrategy])
+      val futuresReplies = Mockito.mock(classOf[RepliesService[Futures]])
+      val optionsReplies = Mockito.mock(classOf[RepliesService[Options]])
 
-      Thread.sleep(10000)
+      given("mocked publisher strategy")
+      Mockito.when(publisherStrategy.apply(AddOrder(futureContract.isin, 1, 100, ImmediateOrCancel, OrderDirection.Buy))).thenReturn(Right(OrderId(1)))
+      Mockito.when(publisherStrategy.apply(AddOrder(optionContract.isin, 1, 100, ImmediateOrCancel, OrderDirection.Buy))).thenReturn(Right(OrderId(2)))
+      Mockito.when(publisherStrategy.apply(AddOrder(futureContract.isin, 1, 101, ImmediateOrCancel, OrderDirection.Buy))).thenReturn(Left(BrokerTimedOutException))
+      Mockito.when(publisherStrategy.apply(AddOrder(optionContract.isin, 1, 101, ImmediateOrCancel, OrderDirection.Buy))).thenReturn(Left(BrokerTimedOutException))
+
+      and("publisher context")
+      engine.underlyingActor.publisherStub ! PublisherContext(publisherStrategy, futuresReplies, optionsReplies)
+
+      when("buy future contract")
+      trading ! Buy(futureContract, 1, 100)
+      Thread.sleep(100)
+
+      then("should process broker Action with underlying strategy")
+      Mockito.verify(publisherStrategy).apply(AddOrder(futureContract.isin, 1, 100, ImmediateOrCancel, OrderDirection.Buy))
+      Mockito.verify(futuresReplies).reply(1, OrderId(1))
+
+      when("buy option contract")
+      trading ! Buy(optionContract, 1, 100)
+      Thread.sleep(100)
+
+      then("should process broker Action with underlying strategy")
+      Mockito.verify(publisherStrategy).apply(AddOrder(optionContract.isin, 1, 100, ImmediateOrCancel, OrderDirection.Buy))
+      Mockito.verify(optionsReplies).reply(2, OrderId(2))
+
+      when("fail buy future contract")
+      trading ! Buy(futureContract, 1, 101)
+      Thread.sleep(100)
+
+      then("should process failure with underlying strategy")
+      Mockito.verify(publisherStrategy).apply(AddOrder(futureContract.isin, 1, 101, ImmediateOrCancel, OrderDirection.Buy))
+      Mockito.verify(futuresReplies).fail[OrderId](3, BrokerTimedOutException)
+
+      when("fail buy option contract")
+      trading ! Buy(optionContract, 1, 101)
+      Thread.sleep(100)
+
+      then("should process failure with underlying strategy")
+      Mockito.verify(publisherStrategy).apply(AddOrder(optionContract.isin, 1, 101, ImmediateOrCancel, OrderDirection.Buy))
+      Mockito.verify(optionsReplies).fail[OrderId](4, BrokerTimedOutException)
     }
   }
 }

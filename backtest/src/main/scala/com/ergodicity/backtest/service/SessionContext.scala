@@ -21,7 +21,6 @@ case class SessionContext(session: schema.Session, futures: Seq[FutSessContents]
 
   def isinId(security: Security): Option[IsinId] = isinId(Isin(security.isin))
 
-
   val isFuture: Isin => Boolean = mutableHashMapMemo {
     isin => futures.exists(_.isin == isin.isin)
   }

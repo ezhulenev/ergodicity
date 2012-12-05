@@ -4,9 +4,17 @@ import akka.actor.{ActorRef, FSM, Actor}
 import akka.dispatch.Await
 import akka.pattern.ask
 import akka.util.duration._
-import com.ergodicity.backtest.cgate.PublisherStubActor.{PublisherContext, Command}
+import com.ergodicity.backtest.cgate.PublisherStubActor.Command
+import com.ergodicity.backtest.cgate.PublisherStubActor.PublisherContext
+import com.ergodicity.backtest.service.SessionContext
+import com.ergodicity.backtest.service.{RepliesService, OrdersService}
 import com.ergodicity.cgate.scheme.Message
 import com.ergodicity.cgate.{Active, Opening, Closed, State}
+import com.ergodicity.core.Market.{Options, Futures}
+import com.ergodicity.core.broker.Action.AddOrder
+import com.ergodicity.core.broker.Action.Cancel
+import com.ergodicity.core.broker._
+import com.ergodicity.core.{OrderDirection, Isin, OrderType, broker}
 import java.nio.ByteBuffer
 import org.mockito.Matchers._
 import org.mockito.Mockito
@@ -16,11 +24,9 @@ import ru.micexrts.cgate.messages.DataMessage
 import ru.micexrts.cgate.{Publisher => CGPublisher, PublishFlag, CGateException}
 import scala.Left
 import scala.Right
-import com.ergodicity.backtest.service.{SessionContext, RepliesService, OrdersService}
-import com.ergodicity.core.broker.{OrderId, Action, Reaction, BrokerException}
-import com.ergodicity.core.{OrderDirection, Isin, OrderType, broker}
-import com.ergodicity.core.Market.{Options, Futures}
-import com.ergodicity.core.broker.Action.AddOrder
+import scala.Some
+import akka.util.Timeout
+import org.joda.time.DateTime
 
 object PublisherStub {
 
@@ -56,7 +62,7 @@ object PublisherStub {
   }
 
   def wrap(actor: ActorRef) = {
-    implicit val timeout = akka.util.Timeout(1.second)
+    implicit val timeout = Timeout(1.second)
 
     def execCmd(cmd: Command)(i: InvocationOnMock) {
       Await.result((actor ? cmd).mapTo[Either[Unit, CGateException]], 1.second) fold(s => s, e => throw e)
@@ -117,14 +123,36 @@ trait PublisherStrategy {
 }
 
 object PublisherStrategy {
-  object ExecuteImmediately extends PublisherStrategy {
+
+  class ExecuteOnDeclaredPrice(orders: OrdersService, startOrderId: Long = 1, startDealId: Long = 1)(implicit context: SessionContext) extends PublisherStrategy {
+    var currentOrderId = startOrderId
+    var currentDealId = startDealId
+
     def apply[R <: Reaction](action: Action[R]) = action match {
-      case broker.Action.AddOrder(isin, amount, price, orderType, direction) => Right(OrderId(1).asInstanceOf[R])
-      case _ => throw new IllegalArgumentException("Unhandled action = " + action)
+      case broker.Action.AddOrder(isin, amount, price, orderType, direction) if (context.isFuture(isin)) =>
+        val (orderId, dealId) = (getOrderId, getDealId)
+        val order = orders.create(orderId, direction, isin, amount, price, orderType, new DateTime)
+        order.fill(new DateTime, amount, (dealId, price))
+        Right(OrderId(orderId).asInstanceOf[R])
+
+      case broker.Action.Cancel(OrderId(id)) =>
+        Left(ActionFailedException(1, "No order with id = " + id))
+    }
+
+    def getOrderId = {
+      val next = currentOrderId
+      currentOrderId += 1
+      next
+    }
+
+    def getDealId = {
+      val next = currentDealId
+      currentDealId += 1
+      next
     }
   }
-}
 
+}
 
 class PublisherStubActor(replies: ActorRef, orders: OrdersService) extends Actor with FSM[State, Option[PublisherContext]] {
 
@@ -157,15 +185,47 @@ class PublisherStubActor(replies: ActorRef, orders: OrdersService) extends Actor
 
     case Event(context: PublisherContext, _) => stay() using Some(context)
 
-    case Event(Post(message, PublishFlag.NEED_REPLY), Some(publisherContext: PublisherContext)) if (message.getMsgId == Message.FutAddOrder.MSG_ID) =>
-      import publisherContext._
+    case Event(Post(message, PublishFlag.NEED_REPLY), Some(publisherContext)) if (message.getMsgId == Message.FutAddOrder.MSG_ID) =>
       val userId = message.getUserId
-
       val addOrder = new Message.FutAddOrder(message.getData)
       val (isin, orderType, direction) = (Isin(addOrder.get_isin()), OrderType(addOrder.get_type()), OrderDirection(addOrder.get_dir()))
-      val reaction = strategy.apply(AddOrder(isin, addOrder.get_amount(), BigDecimal(addOrder.get_price()), orderType, direction))
 
+      import publisherContext._
+      val reaction = strategy.apply(AddOrder(isin, addOrder.get_amount(), BigDecimal(addOrder.get_price()), orderType, direction))
       reaction.fold(e => futures.fail[OrderId](userId, e), order => futures.reply(userId, order))
+
+      stay()
+
+    case Event(Post(message, PublishFlag.NEED_REPLY), Some(publisherContext)) if (message.getMsgId == Message.FutDelOrder.MSG_ID) =>
+      val userId = message.getUserId
+      val delOrder = new Message.FutDelOrder(message.getData)
+      val orderId = delOrder.get_order_id()
+
+      import publisherContext._
+      val reaction = strategy.apply(Cancel(OrderId(orderId)))
+      reaction.fold(e => futures.fail[Cancelled](userId, e), order => futures.reply(userId, order))
+
+      stay()
+
+    case Event(Post(message, PublishFlag.NEED_REPLY), Some(publisherContext)) if (message.getMsgId == Message.OptAddOrder.MSG_ID) =>
+      val userId = message.getUserId
+      val addOrder = new Message.OptAddOrder(message.getData)
+      val (isin, orderType, direction) = (Isin(addOrder.get_isin()), OrderType(addOrder.get_type()), OrderDirection(addOrder.get_dir()))
+
+      import publisherContext._
+      val reaction = strategy.apply(AddOrder(isin, addOrder.get_amount(), BigDecimal(addOrder.get_price()), orderType, direction))
+      reaction.fold(e => options.fail[OrderId](userId, e), order => options.reply(userId, order))
+
+      stay()
+
+    case Event(Post(message, PublishFlag.NEED_REPLY), Some(publisherContext)) if (message.getMsgId == Message.OptDelOrder.MSG_ID) =>
+      val userId = message.getUserId
+      val delOrder = new Message.OptDelOrder(message.getData)
+      val orderId = delOrder.get_order_id()
+
+      import publisherContext._
+      val reaction = strategy.apply(Cancel(OrderId(orderId)))
+      reaction.fold(e => options.fail[Cancelled](userId, e), order => options.reply(userId, order))
 
       stay()
   }

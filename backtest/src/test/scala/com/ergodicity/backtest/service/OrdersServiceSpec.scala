@@ -111,7 +111,7 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
 
       when("create order")
       val orderId = 123l
-      val managedOrder = orders.create(orderId, OrderDirection.Buy, futureContract, 1, 100, ImmediateOrCancel, new DateTime)
+      val managedOrder = orders.create(orderId, OrderDirection.Buy, futureContract.isin, 1, 100, ImmediateOrCancel, new DateTime)
 
       then("order actor should be created in Active state")
       Thread.sleep(500)

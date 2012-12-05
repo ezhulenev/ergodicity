@@ -15,7 +15,7 @@ object OrdersService {
 
   case class OptionOrder(session: SessionId, id: IsinId, event: OrderEvent)
 
-  class ManagedOrder(orderId: Long, dir: OrderDirection, security: Security, amount: Int, price: BigDecimal, orderType: OrderType, time: DateTime)
+  class ManagedOrder(orderId: Long, dir: OrderDirection, isin: Isin, amount: Int, price: BigDecimal, orderType: OrderType, time: DateTime)
                     (implicit context: SessionContext, service: OrdersService) {
     private[this] def check(assertion: Boolean, message: String = "Check error") {
       if (!assertion) throw new IllegalStateException(message)
@@ -45,10 +45,10 @@ object OrdersService {
     }
 
     private[this] def dispatch(event: OrderEvent) {
-      if (context.isFuture(security)) {
-        service.dispatch(FutureOrder(context.sessionId, context.isinId(security).get, event))
-      } else if (context.isOption(security)) {
-        service.dispatch(OptionOrder(context.sessionId, context.isinId(security).get, event))
+      if (context.isFuture(isin)) {
+        service.dispatch(FutureOrder(context.sessionId, context.isinId(isin).get, event))
+      } else if (context.isOption(isin)) {
+        service.dispatch(OptionOrder(context.sessionId, context.isinId(isin).get, event))
       } else throw new IllegalStateException("Can't assign security to Futures either Options")
     }
   }
@@ -121,8 +121,8 @@ class OrdersService(futOrders: ActorRef, optOrders: ActorRef)(implicit context: 
 
   private[this] implicit val self = this
 
-  def create(orderId: Long, dir: OrderDirection, security: Security, amount: Int, price: BigDecimal, orderType: OrderType, time: DateTime) =
-    new ManagedOrder(orderId, dir, security, amount, price, orderType, time)
+  def create(orderId: Long, dir: OrderDirection, isin: Isin, amount: Int, price: BigDecimal, orderType: OrderType, time: DateTime) =
+    new ManagedOrder(orderId, dir, isin, amount, price, orderType, time)
 
   private[OrdersService] def dispatch(future: FutureOrder) {
     futOrders ! DispatchData(StreamData(FutOrder.orders_log.TABLE_INDEX, future.asPlazaRecord.getData) :: Nil)
