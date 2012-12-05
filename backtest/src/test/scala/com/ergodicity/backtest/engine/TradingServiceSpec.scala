@@ -1,36 +1,47 @@
 package com.ergodicity.backtest.engine
 
 import akka.actor.ActorSystem
-import akka.actor.FSM.CurrentState
-import akka.actor.FSM.SubscribeTransitionCallBack
-import akka.actor.FSM.Transition
 import akka.event.Logging
 import akka.testkit
 import akka.testkit._
 import akka.util.Timeout
 import akka.util.duration._
+import akka.pattern.ask
 import com.ergodicity.backtest.Mocking
-import com.ergodicity.backtest.cgate.PublisherStubActor.PublisherContext
 import com.ergodicity.backtest.cgate._
-import com.ergodicity.backtest.service.{RepliesService, OrdersService, SessionContext, SessionsService}
+import com.ergodicity.backtest.service.{RepliesService, OrdersService, SessionsService}
 import com.ergodicity.core.Market.{Futures, Options}
 import com.ergodicity.core.OrderType.ImmediateOrCancel
 import com.ergodicity.core._
 import com.ergodicity.core.broker.Action.AddOrder
-import com.ergodicity.core.broker.{BrokerTimedOutException, OrderId}
+import broker._
 import com.ergodicity.core.session.InstrumentState
 import com.ergodicity.engine.Listener._
 import com.ergodicity.engine.Services.StartServices
-import com.ergodicity.engine.service.Trading.Buy
+import com.ergodicity.engine.service.Trading.OrderExecution
 import com.ergodicity.engine.service.{Trading, InstrumentData, ReplicationConnection}
 import com.ergodicity.engine.underlying.{UnderlyingPublisher, UnderlyingConnection}
 import com.ergodicity.engine.{ServicesActor, Engine, ServicesState}
 import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
+import order.OrderActor
 import org.joda.time.DateTime
 import org.mockito.Mockito
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
+import akka.dispatch.Await
+import scala.Left
+import akka.actor.FSM.Transition
+import scala.Some
+import com.ergodicity.backtest.service.SessionContext
+import com.ergodicity.core.OptionContract
+import com.ergodicity.core.FutureContract
+import akka.actor.FSM.CurrentState
+import com.ergodicity.engine.service.Trading.Buy
+import com.ergodicity.core.SessionId
+import scala.Right
+import com.ergodicity.backtest.cgate.PublisherStubActor.PublisherContext
+import akka.actor.FSM.SubscribeTransitionCallBack
 
-class TradingServiceSpec  extends TestKit(ActorSystem("TradingServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
+class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
 
   val SystemTrade = false
@@ -151,6 +162,57 @@ class TradingServiceSpec  extends TestKit(ActorSystem("TradingServiceSpec", com.
       then("should process failure with underlying strategy")
       Mockito.verify(publisherStrategy).apply(AddOrder(optionContract.isin, 1, 101, ImmediateOrCancel, OrderDirection.Buy))
       Mockito.verify(optionsReplies).fail[OrderId](4, BrokerTimedOutException)
+    }
+
+    "support ExecuteOnDeclaredPrice strategy" in {
+      implicit val timeout = Timeout(1.second)
+
+      val engine = testkit.TestActorRef(new TestEngine, "Engine")
+      val services = TestActorRef(new TestServices(engine.underlyingActor), "Services")
+
+      services ! SubscribeTransitionCallBack(self)
+      expectMsg(CurrentState(services, ServicesState.Idle))
+
+      implicit val sessions = new SessionsService(engine.underlyingActor.futInfoListenerStub, engine.underlyingActor.optInfoListenerStub)
+      val assigned = sessions.assign(session, futures, options)
+      assigned.start()
+
+      services ! StartServices
+      expectMsg(3.seconds, Transition(services, ServicesState.Idle, ServicesState.Starting))
+      expectMsg(10.seconds, Transition(services, ServicesState.Starting, ServicesState.Active))
+
+      given("engine trading service")
+      val trading = services.underlyingActor.service(Trading.Trading)
+
+      val orders = new OrdersService(engine.underlyingActor.futOrdersListenerStub, engine.underlyingActor.optOrdersListenerStub)
+      val publisherStrategy = new PublisherStrategy.ExecuteOnDeclaredPrice(orders)
+      val futuresReplies = new RepliesService[Futures](engine.underlyingActor.repliesListenerStub)
+      val optionsReplies = new RepliesService[Options](engine.underlyingActor.repliesListenerStub)
+
+      and("publisher context")
+      engine.underlyingActor.publisherStub ! PublisherContext(publisherStrategy, futuresReplies, optionsReplies)
+
+      when("buy future contract")
+      val execution = Await.result((trading ? Buy(futureContract, 1, 100)).mapTo[OrderExecution], 1.second)
+
+      then("get successfull order execution")
+      assert(execution.security == futureContract)
+      execution.subscribeOrderEvents(self)
+      expectMsg(OrderActor.OrderEvent(execution.order, order.Create(execution.order)))
+      expectMsg(OrderActor.OrderEvent(execution.order, order.Fill(1, 0, Some(1, 100))))
+
+      when("try to cancel order")
+      then("should fail with exception")
+      intercept[ActionFailedException] {
+        Await.result(execution.cancel, 1.second)
+      }
+
+      when("try to buy not assigned contract")
+      then("should fail with exception")
+      intercept[ActionFailedException] {
+        val badContract = FutureContract(IsinId(111), Isin("BadIsin"), ShortIsin("Bad"), "SomeNotAssignedFuture")
+        Await.result((trading ? Buy(badContract, 1, 100)).mapTo[OrderExecution], 1.second)
+      }
     }
   }
 }

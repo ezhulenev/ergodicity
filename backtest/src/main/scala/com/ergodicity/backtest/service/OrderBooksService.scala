@@ -4,7 +4,7 @@ import akka.actor.ActorRef
 import com.ergodicity.backtest.cgate.ReplicationStreamListenerStubActor.DispatchData
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.scheme.{OrdBook, OrdLog}
-import com.ergodicity.core.SessionId
+import com.ergodicity.core.{Isin, SessionId}
 import com.ergodicity.core.order.OrderBooksTracking.Snapshots
 import com.ergodicity.core.order.OrdersSnapshotActor.OrdersSnapshot
 import com.ergodicity.marketdb.model.OrderPayload
@@ -78,14 +78,14 @@ class OrderBooksService(ordLog: ActorRef, futOrderBook: ActorRef, optOrderBook: 
 
   def dispatch(orders: OrderPayload*) {
     val futures = orders
-      .filter(order => context.isFuture(order.security))
-      .map(order => FutureOrder(sessionId, context.isinId(order.security).get, order))
+      .filter(order => context.isFuture(Isin(order.security.isin)))
+      .map(order => FutureOrder(sessionId, context.isinId(Isin(order.security.isin)).get, order))
       .map(_.asPlazaRecord)
 
 
     val options = orders
-      .filter(order => context.isOption(order.security))
-      .map(order => OptionOrder(sessionId, context.isinId(order.security).get, order))
+      .filter(order => context.isOption(Isin(order.security.isin)))
+      .map(order => OptionOrder(sessionId, context.isinId(Isin(order.security.isin)).get, order))
       .map(_.asPlazaRecord)
 
     ordLog ! DispatchData((futures ++ options).map(r => StreamData(OrdLog.orders_log.TABLE_INDEX, r.getData)))

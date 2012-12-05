@@ -129,11 +129,14 @@ object PublisherStrategy {
     var currentDealId = startDealId
 
     def apply[R <: Reaction](action: Action[R]) = action match {
-      case broker.Action.AddOrder(isin, amount, price, orderType, direction) if (context.isFuture(isin)) =>
+      case broker.Action.AddOrder(isin, amount, price, orderType, direction) if (context.assigned(isin)) =>
         val (orderId, dealId) = (getOrderId, getDealId)
         val order = orders.create(orderId, direction, isin, amount, price, orderType, new DateTime)
         order.fill(new DateTime, amount, (dealId, price))
         Right(OrderId(orderId).asInstanceOf[R])
+
+      case broker.Action.AddOrder(isin, _, _, _, _) if (!context.assigned(isin)) =>
+        Left(ActionFailedException(1, "Isin not assigned for session; Isin = " + isin))
 
       case broker.Action.Cancel(OrderId(id)) =>
         Left(ActionFailedException(1, "No order with id = " + id))

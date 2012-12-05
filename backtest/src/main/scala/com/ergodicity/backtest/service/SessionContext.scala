@@ -9,17 +9,7 @@ import scalaz.Scalaz._
 case class SessionContext(session: schema.Session, futures: Seq[FutSessContents], options: Seq[OptSessContents]) {
   val sessionId = SessionId(session.sess_id, session.opt_sess_id)
 
-  def isFuture(security: com.ergodicity.core.Security): Boolean = isFuture(security.isin)
-
-  def isOption(security: com.ergodicity.core.Security): Boolean = isOption(security.isin)
-
-  def isinId(security: com.ergodicity.core.Security): Option[IsinId] = isinId(security.isin)
-
-  def isFuture(security: Security): Boolean = isFuture(Isin(security.isin))
-
-  def isOption(security: Security): Boolean = isOption(Isin(security.isin))
-
-  def isinId(security: Security): Option[IsinId] = isinId(Isin(security.isin))
+  val assigned: Isin => Boolean = isin => isFuture(isin) || isOption(isin)
 
   val isFuture: Isin => Boolean = mutableHashMapMemo {
     isin => futures.exists(_.isin == isin.isin)

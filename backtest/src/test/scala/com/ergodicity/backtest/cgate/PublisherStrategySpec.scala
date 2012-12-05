@@ -53,6 +53,16 @@ class PublisherStrategySpec extends TestKit(ActorSystem("PublisherStrategySpec",
       Mockito.verify(managedOrder).fill(any(), any(), any())
     }
 
+    "fail if Isin not assigned" in {
+      val orders = Mockito.mock(classOf[OrdersService])
+      val strategy = new PublisherStrategy.ExecuteOnDeclaredPrice(orders)
+
+      val buy = broker.Action.AddOrder(Isin("NoSuchIsin"), 1, 100, OrderType.ImmediateOrCancel, OrderDirection.Buy)
+      val orderId = strategy.apply(buy)
+
+      assert(orderId.isLeft)
+    }
+
     "fail cancel any order" in {
       val orders = Mockito.mock(classOf[OrdersService])
       val strategy = new PublisherStrategy.ExecuteOnDeclaredPrice(orders)

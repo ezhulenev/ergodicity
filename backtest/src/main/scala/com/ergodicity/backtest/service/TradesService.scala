@@ -5,7 +5,7 @@ import com.ergodicity.backtest.cgate.ReplicationStreamListenerStubActor.Dispatch
 import com.ergodicity.backtest.service.TradesService.{OptionTrade, FutureTrade}
 import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.scheme.{OptTrade, FutTrade}
-import com.ergodicity.core.{IsinId, SessionId}
+import com.ergodicity.core.{Isin, IsinId, SessionId}
 import com.ergodicity.marketdb.model.TradePayload
 
 object TradesService {
@@ -63,14 +63,14 @@ class TradesService(futTrade: ActorRef, optTrade: ActorRef)(implicit context: Se
 
   def dispatch(trades: TradePayload*) {
     val futures = trades
-      .filter(trade => context.isFuture(trade.security))
-      .map(trade => FutureTrade(sessionId, context.isinId(trade.security).get, trade))
+      .filter(trade => context.isFuture(Isin(trade.security.isin)))
+      .map(trade => FutureTrade(sessionId, context.isinId(Isin(trade.security.isin)).get, trade))
       .map(_.asPlazaRecord)
       .map(r => StreamData(FutTrade.deal.TABLE_INDEX, r.getData))
 
     val options = trades
-      .filter(trade => context.isOption(trade.security))
-      .map(trade => OptionTrade(sessionId, context.isinId(trade.security).get, trade))
+      .filter(trade => context.isOption(Isin(trade.security.isin)))
+      .map(trade => OptionTrade(sessionId, context.isinId(Isin(trade.security.isin)).get, trade))
       .map(_.asPlazaRecord)
       .map(r => StreamData(OptTrade.deal.TABLE_INDEX, r.getData))
 
