@@ -16,7 +16,7 @@ import session.SessionActor.AssignedContents
 class PositionsTrackingSpec extends TestKit(ActorSystem("PositionsTrackingSpec", AkkaConfigurations.ConfigWithDetailedLogging)) with ImplicitSender with WordSpec with GivenWhenThen with BeforeAndAfterAll with BeforeAndAfter {
   val log = Logging(system, self)
 
-  implicit val TimeOut = akka.util.Timeout(100, TimeUnit.MILLISECONDS)
+  implicit val TimeOut = akka.util.Timeout(200, TimeUnit.MILLISECONDS)
 
   override def afterAll() {
     system.shutdown()

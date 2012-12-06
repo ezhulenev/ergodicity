@@ -135,7 +135,7 @@ object PublisherStrategy {
         order.fill(new DateTime, amount, (dealId, price))
         Right(OrderId(orderId).asInstanceOf[R])
 
-      case broker.Action.AddOrder(isin, _, _, _, _) if (!context.assigned(isin)) =>
+      case broker.Action.AddOrder(isin, _, _, _, _) =>
         Left(ActionFailedException(1, "Isin not assigned for session; Isin = " + isin))
 
       case broker.Action.Cancel(OrderId(id)) =>
