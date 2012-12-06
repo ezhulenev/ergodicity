@@ -33,6 +33,9 @@ class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec",
 
     val replicationConnectionStub = TestFSMRef(new ConnectionStubActor, "ReplicationConStub")
     val tradingConnectionStub = TestFSMRef(new ConnectionStubActor, "TradingConnStub")
+
+    val Services = system.deadLetters
+    val Strategies = system.deadLetters
   }
 
   // -- Backtest services

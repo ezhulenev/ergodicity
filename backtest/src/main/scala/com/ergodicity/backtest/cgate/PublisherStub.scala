@@ -157,7 +157,7 @@ object PublisherStrategy {
 
 }
 
-class PublisherStubActor(replies: ActorRef, orders: OrdersService) extends Actor with FSM[State, Option[PublisherContext]] {
+class PublisherStubActor extends Actor with FSM[State, Option[PublisherContext]] {
 
   import PublisherStubActor.Command._
 

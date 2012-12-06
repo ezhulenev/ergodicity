@@ -88,7 +88,10 @@ class ServicesIntegrationSpec extends TestKit(ActorSystem("ServicesIntegrationSp
     val underlyingPublisher = new CGPublisher(underlyingTradingConnection, messagesConfig())
   }
 
-  class IntegrationEngine extends Engine with Connections with Replication with Listeners with Publisher
+  class IntegrationEngine extends Engine with Connections with Replication with Listeners with Publisher {
+    val Services = system.deadLetters
+    val Strategies = system.deadLetters
+  }
 
   class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection /*with TradingConnection*/ with InstrumentData /*with Portfolio with Trading */ /*with OrdersData*/ with TradesData
 

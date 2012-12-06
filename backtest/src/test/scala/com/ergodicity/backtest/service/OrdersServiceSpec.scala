@@ -35,6 +35,9 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
   }
 
   class TestEngine(implicit system: ActorSystem) extends Engine with UnderlyingConnection with UnderlyingPublisher with FutInfoListener with OptInfoListener with FutOrdersListener with OptOrdersListener with RepliesListener {
+    val Services = system.deadLetters
+    val Strategies = system.deadLetters
+
     // Connection Stub
     val connectionStub = TestFSMRef(new ConnectionStubActor, "ConnectionStub")
 
@@ -54,7 +57,7 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
 
     // Publisher and replies stream stubs
     val repliesListenerStub = TestFSMRef(new ReplyStreamListenerStubActor, "RepliesListenerStub")
-    val publisherStub = TestFSMRef(new PublisherStubActor(repliesListenerStub, new OrdersService(futOrdersListenerStub, optOrdersListenerStub)), "PublisherStub")
+    val publisherStub = TestFSMRef(new PublisherStubActor, "PublisherStub")
 
     // Listeners
     lazy val repliesListener = ListenerBindingStub wrap repliesListenerStub

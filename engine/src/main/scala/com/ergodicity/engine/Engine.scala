@@ -1,14 +1,16 @@
 package com.ergodicity.engine
 
-import akka.actor._
-import akka.util.duration._
-import com.ergodicity.engine.Engine.StartEngine
-import akka.actor.FSM.{Transition, CurrentState}
-import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection, CGateException, ISubscriber}
+import akka.actor.FSM.{UnsubscribeTransitionCallBack, SubscribeTransitionCallBack, Transition}
 import akka.actor.SupervisorStrategy.Stop
+import akka.actor._
 import akka.util.Timeout
-import com.ergodicity.cgate.config.Replication
+import akka.util.duration._
 import com.ergodicity.cgate.ListenerBinding
+import com.ergodicity.cgate.config.Replication
+import com.ergodicity.engine.Engine.{StartTrading, StartEngine}
+import com.ergodicity.engine.Services.StartServices
+import com.ergodicity.engine.StrategyEngine.StartStrategies
+import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection, CGateException}
 
 
 object Engine {
@@ -17,6 +19,8 @@ object Engine {
   val TradingDispatcher = "engine.dispatchers.publisherDispatcher"
 
   case object StartEngine
+
+  case object StartTrading
 
   case object StopEngine
 }
@@ -27,11 +31,17 @@ object EngineState {
 
   case object Idle extends EngineState
 
-  case object Starting extends EngineState
+  case object StartingServices extends EngineState
+
+  case object StartingStrategies extends EngineState
+
+  case object Ready extends EngineState
 
   case object Active extends EngineState
 
-  case object Stopping extends EngineState
+  case object StoppingStrategies extends EngineState
+
+  case object StoppingServices extends EngineState
 
 }
 
@@ -51,36 +61,47 @@ trait Engine extends Actor with FSM[EngineState, EngineData] {
     case _: CGateException ⇒ Stop
   }
 
-  import EngineState._
   import EngineData._
+  import EngineState._
+
+  def Services: ActorRef
+  def Strategies: ActorRef
 
   startWith(Idle, Blank)
 
   when(Idle) {
     case Event(StartEngine, _) =>
-      //Services ! StartServices$
-      //Services ! SubscribeTransitionCallBack(self)
-      goto(Starting)
+      log.info("Staring engine")
+      Services ! StartServices
+      Services ! SubscribeTransitionCallBack(self)
+      goto(StartingServices)
   }
 
-  when(Starting) {
-    case Event(CurrentState(_, ServicesState.Active), _) =>
-      //Services ! UnsubscribeTransitionCallBack(self)
-      goto(Active)
-
+  when(StartingServices) {
     case Event(Transition(_, _, ServicesState.Active), _) =>
-      //Services ! UnsubscribeTransitionCallBack(self)
+      Services ! UnsubscribeTransitionCallBack(self)
+      Strategies ! StartStrategies
+      goto(StartingStrategies)
+
+  }
+
+  when(StartingStrategies) {
+    case Event(Transition(_, _, StrategyEngineState.StrategiesReady), _) =>
+      Strategies ! UnsubscribeTransitionCallBack(self)
+      goto(Ready)
+  }
+
+  when(Ready) {
+    case Event(StartTrading, _) =>
       goto(Active)
   }
 
   when(Active) {
-    case Event(StopEvent, _) =>
-      //Services ! StopServices$
-      stay()
+    case Event(StopEvent, _) => stay()
   }
 
   onTransition {
-    case Starting -> Active => log.info("Engine started")
+    case StartingServices -> Ready => log.info("Engine ready")
   }
 }
 

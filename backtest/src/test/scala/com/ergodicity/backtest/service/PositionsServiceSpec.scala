@@ -56,6 +56,9 @@ class PositionsServiceSpec extends TestKit(ActorSystem("PositionsServiceSpec", c
   class TestEngine extends Engine with Connections with Listeners {
     self: TestEngine =>
 
+    val Services = system.deadLetters
+    val Strategies = system.deadLetters
+
     val connectionStub = TestFSMRef(new ConnectionStubActor, "ConnectionStub")
 
     val futInfoListenerStub = TestFSMRef(new ReplicationStreamListenerStubActor, "FutInfoListenerActor")
