@@ -13,11 +13,12 @@ import com.ergodicity.core.order.OrdersSnapshotActor.OrdersSnapshot
 import com.ergodicity.core.session.InstrumentState
 import com.ergodicity.core.{Mocking => _, _}
 import com.ergodicity.engine.Services.StartServices
-import com.ergodicity.engine.ServicesState
+import com.ergodicity.engine.{EngineState, ServicesState}
 import com.ergodicity.schema.{Session, OptSessContents, FutSessContents}
 import org.joda.time.DateTime
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import com.ergodicity.engine.strategy.StrategiesFactory
+import com.ergodicity.engine.strategy.{CoverAllPositions, StrategiesFactory}
+import com.ergodicity.engine.Engine.StartEngine
 
 class BacktestEngineSpec extends TestKit(ActorSystem("BacktestEngineSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -44,16 +45,16 @@ class BacktestEngineSpec extends TestKit(ActorSystem("BacktestEngineSpec", com.e
 
   implicit val timeout = akka.util.Timeout(1.second)
 
-  "Backtest Services" must {
-    "start all services" in {
+  "Backtest Engine" must {
+    "start services & strategies" in {
+      given("Backtest Engine with CoverAllPositions Strategy")
       lazy val engine = new BacktestEngine(system) {
-        val strategies = StrategiesFactory.empty
+        val strategies = CoverAllPositions()
       }
       val engineActor = TestActorRef(engine, "Engine")
-      val services = TestActorRef(new BacktestServices(engine), "Services")
 
-      services ! SubscribeTransitionCallBack(self)
-      expectMsg(CurrentState(services, ServicesState.Idle))
+      engineActor ! SubscribeTransitionCallBack(self)
+      expectMsg(CurrentState(engineActor, EngineState.Idle))
 
       given("assigned session")
       implicit val sessions = new SessionsService(engine.futInfoListenerStub, engine.optInfoListenerStub)
@@ -64,12 +65,13 @@ class BacktestEngineSpec extends TestKit(ActorSystem("BacktestEngineSpec", com.e
       val orderBooks = new OrderBooksService(engine.ordLogListenerStub, engine.futOrderBookListenerStub, engine.optOrderBookListenerStub)
       orderBooks.dispatchSnapshots(Snapshots(OrdersSnapshot(0, new DateTime, Seq.empty), OrdersSnapshot(0, new DateTime, Seq.empty)))
 
-      when("start services")
-      services ! StartServices
+      when("start engine")
+      engineActor ! StartEngine
 
-      then("all services should start")
-      expectMsg(3.seconds, Transition(services, ServicesState.Idle, ServicesState.Starting))
-      expectMsg(10.seconds, Transition(services, ServicesState.Starting, ServicesState.Active))
+      then("engine should start Services & Strategies")
+      expectMsg(3.seconds, Transition(engineActor, EngineState.Idle, EngineState.StartingServices))
+      expectMsg(10.seconds, Transition(engineActor, EngineState.StartingServices, EngineState.StartingStrategies))
+      expectMsg(3.seconds, Transition(engineActor, EngineState.StartingStrategies, EngineState.Ready))
     }
   }
 }

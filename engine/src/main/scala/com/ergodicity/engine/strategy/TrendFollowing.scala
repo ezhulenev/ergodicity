@@ -153,7 +153,7 @@ class TrendFollowingStrategy(isin: Isin, config: TrendFollowingConfig)
   }
 
   onTransition {
-    case WaitingPositionManager -> Ready => engine.reportReady(Map())
+    case WaitingPositionManager -> Ready => engine.strategyLoaded(Map())
     case _ -> Bullish =>
       log.info("Go to BULLISH trend")
       positionManager acquire Position(1)

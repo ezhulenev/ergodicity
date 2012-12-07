@@ -90,7 +90,7 @@ class CoverAllPositionsSpec extends TestKit(ActorSystem("CoverAllPositionsSpec",
       assert(underlying.positions(futureContract1) == Position(1))
       assert(underlying.positions(futureContract2) == Position(-3))
 
-      verify(engine).reportReady(Map[Security, Position](futureContract1 -> Position(1), futureContract2 -> Position(-3)))(CoverAllPositions.CoverAllPositions)
+      verify(engine).strategyLoaded(Map[Security, Position](futureContract1 -> Position(1), futureContract2 -> Position(-3)))(CoverAllPositions.CoverAllPositions)
 
       strategy.stop()
     }

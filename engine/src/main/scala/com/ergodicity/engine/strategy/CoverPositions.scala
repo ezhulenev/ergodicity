@@ -106,7 +106,7 @@ abstract class CoverPositions(implicit id: StrategyId, val engine: StrategyEngin
   override def preStart() {
     log.info("Started CoverPositions")
     log.debug("Going to cover positions = " + positions)
-    engine.reportReady(positions)
+    engine.strategyLoaded(positions)
   }
 
   startWith(Ready, RemainingPositions(positions))
@@ -115,10 +115,12 @@ abstract class CoverPositions(implicit id: StrategyId, val engine: StrategyEngin
     case Event(Start, _) if (positions nonEmpty) =>
       log.info("Start strategy. Positions to cover = " + positions)
       positions.keys.map(_.isin) foreach watchInstrument
+      engine.strategyStarted
       goto(CoveringPositions)
 
     case Event(Start, _) if (positions isEmpty) =>
       log.info("Start strategy. No open positions to cover")
+      engine.strategyStarted
       goto(PositionsCovered)
   }
 
@@ -131,10 +133,16 @@ abstract class CoverPositions(implicit id: StrategyId, val engine: StrategyEngin
         goto(PositionsCovered)
       else
         stay() using updated
+
+    case Event(Stop, remaining) =>
+      engine.strategyStopped(remaining.positions)
+      stop(FSM.Shutdown)
   }
 
   when(PositionsCovered) {
-    case Event(Stop, _) => stop(FSM.Shutdown)
+    case Event(Stop, _) =>
+      engine.strategyStopped(Map())
+      stop(FSM.Shutdown)
   }
 
   whenUnhandled {

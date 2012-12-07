@@ -102,8 +102,8 @@ class TradingIntegrationSpec extends TestKit(ActorSystem("TradingIntegrationSpec
 
 
   class IntegrationEngine extends Engine with Connections with Replication with Publisher with Listeners {
-    val Services = system.deadLetters
-    val Strategies = system.deadLetters
+    val ServicesActor = system.deadLetters
+    val StrategiesActor = system.deadLetters
   }
 
   class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection with TradingConnection with InstrumentData with Portfolio with Trading

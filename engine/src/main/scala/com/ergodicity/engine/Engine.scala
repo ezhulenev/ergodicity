@@ -1,16 +1,16 @@
 package com.ergodicity.engine
 
-import akka.actor.FSM.{UnsubscribeTransitionCallBack, SubscribeTransitionCallBack, Transition}
+import akka.actor.FSM.{SubscribeTransitionCallBack, Transition}
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor._
-import akka.util.Timeout
+import akka.util
 import akka.util.duration._
 import com.ergodicity.cgate.ListenerBinding
 import com.ergodicity.cgate.config.Replication
-import com.ergodicity.engine.Engine.{StartTrading, StartEngine}
-import com.ergodicity.engine.Services.StartServices
-import com.ergodicity.engine.StrategyEngine.StartStrategies
-import ru.micexrts.cgate.{Listener => CGListener, Connection => CGConnection, CGateException}
+import com.ergodicity.engine.Engine.{StopEngine, StartTrading, StartEngine}
+import com.ergodicity.engine.Services.{StopServices, StartServices}
+import com.ergodicity.engine.StrategyEngine.{StopStrategies, LoadStrategies, StartStrategies}
+import ru.micexrts.cgate.CGateException
 
 
 object Engine {
@@ -23,6 +23,7 @@ object Engine {
   case object StartTrading
 
   case object StopEngine
+
 }
 
 sealed trait EngineState
@@ -45,59 +46,71 @@ object EngineState {
 
 }
 
-sealed trait EngineData
+trait Engine extends Actor with FSM[EngineState, Option[(ActorRef, ActorRef)]] {
 
-object EngineData {
-
-  case object Blank extends EngineData
-
-}
-
-trait Engine extends Actor with FSM[EngineState, EngineData] {
-
-  implicit val timeout = Timeout(1.second)
+  implicit val timeout = util.Timeout(1.second)
 
   override val supervisorStrategy = AllForOneStrategy() {
     case _: CGateException ⇒ Stop
   }
 
-  import EngineData._
   import EngineState._
 
-  def Services: ActorRef
-  def Strategies: ActorRef
+  def ServicesActor: ActorRef
 
-  startWith(Idle, Blank)
+  def StrategiesActor: ActorRef
+
+  startWith(Idle, None)
 
   when(Idle) {
-    case Event(StartEngine, _) =>
-      log.info("Staring engine")
-      Services ! StartServices
-      Services ! SubscribeTransitionCallBack(self)
-      goto(StartingServices)
+    case Event(StartEngine, None) =>
+      log.info("Start engine")
+      val services = ServicesActor
+      val strategies = StrategiesActor
+      services ! SubscribeTransitionCallBack(self)
+      strategies ! SubscribeTransitionCallBack(self)
+      services ! StartServices
+      goto(StartingServices) using Some(services, strategies)
   }
 
   when(StartingServices) {
-    case Event(Transition(_, _, ServicesState.Active), _) =>
-      Services ! UnsubscribeTransitionCallBack(self)
-      Strategies ! StartStrategies
+    case Event(Transition(_, _, ServicesState.Active), Some((_, strategies))) =>
+      strategies ! LoadStrategies
       goto(StartingStrategies)
 
   }
 
   when(StartingStrategies) {
-    case Event(Transition(_, _, StrategyEngineState.StrategiesReady), _) =>
-      Strategies ! UnsubscribeTransitionCallBack(self)
+    case Event(Transition(_, _, StrategyEngineState.StrategiesReady), Some((_, _))) =>
       goto(Ready)
   }
 
   when(Ready) {
-    case Event(StartTrading, _) =>
+    case Event(StartTrading, Some((_, strategies))) =>
+      strategies ! StartStrategies
       goto(Active)
   }
 
   when(Active) {
-    case Event(StopEvent, _) => stay()
+    case Event(StopEngine, Some((_, strategies))) =>
+      log.info("Stop Engine")
+      context.watch(strategies)
+      strategies ! StopStrategies
+      goto(StoppingStrategies)
+  }
+
+  when(StoppingStrategies) {
+    case Event(Terminated(ref), Some((services, strategies))) if (ref == strategies) =>
+      log.info("Strategies stopped")
+      context.watch(services)
+      services ! StopServices
+      goto(StoppingServices)
+  }
+
+  when(StoppingServices) {
+    case Event(Terminated(ref), Some((services, _))) if (ref == services) =>
+      log.info("Services stopped")
+      stop(FSM.Shutdown)
   }
 
   onTransition {
@@ -106,6 +119,7 @@ trait Engine extends Actor with FSM[EngineState, EngineData] {
 }
 
 object ReplicationScheme {
+
   trait FutInfoReplication {
     def futInfoReplication: Replication
   }
@@ -145,9 +159,11 @@ object ReplicationScheme {
   trait OrdLogReplication {
     def ordLogReplication: Replication
   }
+
 }
 
 object Listener {
+
   trait FutInfoListener {
     def futInfoListener: ListenerBinding
   }

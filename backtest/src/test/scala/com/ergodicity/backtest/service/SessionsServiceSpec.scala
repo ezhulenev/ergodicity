@@ -48,8 +48,8 @@ class SessionsServiceSpec extends TestKit(ActorSystem("SessionsServiceSpec", com
   class TestEngine extends Engine with Connections with Listeners {
     self: TestEngine =>
 
-    val Services = system.deadLetters
-    val Strategies = system.deadLetters
+    val ServicesActor = system.deadLetters
+    val StrategiesActor = system.deadLetters
 
     val connectionStub = TestFSMRef(new ConnectionStubActor, "ConnectionStub")
 

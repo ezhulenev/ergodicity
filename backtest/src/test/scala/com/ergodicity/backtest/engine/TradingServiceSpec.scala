@@ -51,8 +51,8 @@ class TradingServiceSpec extends TestKit(ActorSystem("TradingServiceSpec", com.e
   }
 
   class TestEngine(implicit system: ActorSystem) extends Engine with UnderlyingConnection with UnderlyingPublisher with FutInfoListener with OptInfoListener with FutOrdersListener with OptOrdersListener with RepliesListener {
-    val Services = system.deadLetters
-    val Strategies = system.deadLetters
+    val ServicesActor = system.deadLetters
+    val StrategiesActor = system.deadLetters
 
     // Connection Stub
     val connectionStub = TestFSMRef(new ConnectionStubActor, "ConnectionStub")

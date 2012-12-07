@@ -70,8 +70,8 @@ abstract class BacktestEngine(system: ActorSystem) extends Engine with Connectio
 
   // Services & Strategies
   implicit lazy val underlyingServices = new BacktestServices(this)
-  lazy val Services = actorOf(Props(underlyingServices), "Services")
-  lazy val Strategies = actorOf(Props(new StrategyEngineActor(strategies)), "StrategiesEngine")
+  lazy val ServicesActor = actorOf(Props(underlyingServices), "Services")
+  lazy val StrategiesActor = actorOf(Props(new StrategyEngineActor(strategies)), "StrategiesEngine")
 }
 
 class BacktestServices(val engine: BacktestEngine) extends ServicesActor with ReplicationConnection with TradingConnection with InstrumentData with Portfolio with TradesData with OrdersData with Trading

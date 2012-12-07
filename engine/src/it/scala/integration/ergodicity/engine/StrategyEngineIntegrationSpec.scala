@@ -12,7 +12,7 @@ import com.ergodicity.cgate.config._
 import com.ergodicity.engine.Listener._
 import com.ergodicity.engine.ReplicationScheme._
 import com.ergodicity.engine.Services.StartServices
-import com.ergodicity.engine.StrategyEngine.{StartStrategies, PrepareStrategies}
+import com.ergodicity.engine.StrategyEngine.{StartStrategies, LoadStrategies}
 import com.ergodicity.engine._
 import com.ergodicity.engine.service._
 import com.ergodicity.engine.underlying._
@@ -91,8 +91,8 @@ class StrategyEngineIntegrationSpec extends TestKit(ActorSystem("StrategyEngineI
   }
 
   class IntegrationEngine extends Engine with Connections with Replication with Publisher with Listeners {
-    val Services = system.deadLetters
-    val Strategies = system.deadLetters
+    val ServicesActor = system.deadLetters
+    val StrategiesActor = system.deadLetters
   }
 
   class IntegrationServices(val engine: IntegrationEngine) extends ServicesActor with ReplicationConnection with TradingConnection with InstrumentData with Portfolio with Trading with TradesData
@@ -118,7 +118,7 @@ class StrategyEngineIntegrationSpec extends TestKit(ActorSystem("StrategyEngineI
         protected def receive = {
           case Transition(_, _, ServicesState.Active) =>
             log.info("All services activated; Prepare engine")
-            strategyEngine ! PrepareStrategies
+            strategyEngine ! LoadStrategies
         }
       }))
 

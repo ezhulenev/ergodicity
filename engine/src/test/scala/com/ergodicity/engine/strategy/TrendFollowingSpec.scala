@@ -78,7 +78,7 @@ class TrendFollowingSpec extends TestKit(ActorSystem("TrendFollowing", com.ergod
       val strategy = TestFSMRef(new TrendFollowingStrategy(isin1, config), "TrendFollowingStrategy")
       awaitCond(strategy.stateName == TrendFollowingState.Ready)
 
-      verify(engine).reportReady(Map())
+      verify(engine).strategyLoaded(Map())
     }
   }
 

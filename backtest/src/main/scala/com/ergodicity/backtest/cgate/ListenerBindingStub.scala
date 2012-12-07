@@ -134,7 +134,7 @@ class ReplyStreamListenerStubActor() extends Actor with FSM[ListenerStubState, S
 
   startWith(UnBinded, Seq.empty)
 
-  when(UnBinded, stateTimeout = 500.millis) {
+  when(UnBinded, stateTimeout = 1.second) {
     case Event(Bind(s), _) =>
       subscriber = Some(s)
       goto(Binded(Closed))
@@ -251,7 +251,7 @@ class ReplicationStreamListenerStubActor(replState: String = "") extends Actor w
 
   startWith(UnBinded, Seq.empty)
 
-  when(UnBinded, stateTimeout = 500.millis) {
+  when(UnBinded, stateTimeout = 1.second) {
     case Event(Bind(s), _) =>
       subscriber = Some(s)
       goto(Binded(Closed))
