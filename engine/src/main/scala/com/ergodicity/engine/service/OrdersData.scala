@@ -3,7 +3,6 @@ package com.ergodicity.engine.service
 import akka.actor.FSM.CurrentState
 import akka.actor.FSM.SubscribeTransitionCallBack
 import akka.actor.FSM.Transition
-import akka.actor.FSM.UnsubscribeTransitionCallBack
 import akka.actor.{FSM, Props, LoggingFSM, Actor}
 import akka.pattern.ask
 import akka.pattern.pipe
@@ -168,9 +167,7 @@ protected[service] class OrdersDataService(futOrderBook: ListenerBinding, optOrd
   }
 
   onTransition {
-    case StartingOrderBooks -> Started =>
-      OrdLogStream ! UnsubscribeTransitionCallBack(self)
-      services.serviceStarted
+    case StartingOrderBooks -> Started => services.serviceStarted
   }
 
   whenUnhandled {

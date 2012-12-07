@@ -34,9 +34,11 @@ object EngineState {
 
   case object StartingServices extends EngineState
 
-  case object StartingStrategies extends EngineState
+  case object LoadingStrategies extends EngineState
 
   case object Ready extends EngineState
+
+  case object StartingStrategies extends EngineState
 
   case object Active extends EngineState
 
@@ -76,11 +78,11 @@ trait Engine extends Actor with FSM[EngineState, Option[(ActorRef, ActorRef)]] {
   when(StartingServices) {
     case Event(Transition(_, _, ServicesState.Active), Some((_, strategies))) =>
       strategies ! LoadStrategies
-      goto(StartingStrategies)
+      goto(LoadingStrategies)
 
   }
 
-  when(StartingStrategies) {
+  when(LoadingStrategies) {
     case Event(Transition(_, _, StrategyEngineState.StrategiesReady), Some((_, _))) =>
       goto(Ready)
   }
@@ -88,6 +90,11 @@ trait Engine extends Actor with FSM[EngineState, Option[(ActorRef, ActorRef)]] {
   when(Ready) {
     case Event(StartTrading, Some((_, strategies))) =>
       strategies ! StartStrategies
+      goto(StartingStrategies)
+  }
+
+  when(StartingStrategies) {
+    case Event(Transition(_, _, StrategyEngineState.Active), _) =>
       goto(Active)
   }
 
@@ -207,4 +214,5 @@ object Listener {
   trait RepliesListener {
     def repliesListener: ListenerBinding
   }
+
 }

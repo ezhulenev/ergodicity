@@ -1,9 +1,9 @@
 package com.ergodicity.backtest
 
-import akka.actor.ActorSystem
 import akka.actor.FSM.CurrentState
 import akka.actor.FSM.SubscribeTransitionCallBack
 import akka.actor.FSM.Transition
+import akka.actor.{Terminated, ActorSystem}
 import akka.event.Logging
 import akka.testkit._
 import akka.util.duration._
@@ -12,13 +12,12 @@ import com.ergodicity.core.order.OrderBooksTracking.Snapshots
 import com.ergodicity.core.order.OrdersSnapshotActor.OrdersSnapshot
 import com.ergodicity.core.session.InstrumentState
 import com.ergodicity.core.{Mocking => _, _}
-import com.ergodicity.engine.Services.StartServices
-import com.ergodicity.engine.{EngineState, ServicesState}
+import com.ergodicity.engine.Engine.{StopEngine, StartTrading, StartEngine}
+import com.ergodicity.engine.EngineState
+import com.ergodicity.engine.strategy.CoverAllPositions
 import com.ergodicity.schema.{Session, OptSessContents, FutSessContents}
 import org.joda.time.DateTime
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
-import com.ergodicity.engine.strategy.{CoverAllPositions, StrategiesFactory}
-import com.ergodicity.engine.Engine.StartEngine
 
 class BacktestEngineSpec extends TestKit(ActorSystem("BacktestEngineSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -68,10 +67,26 @@ class BacktestEngineSpec extends TestKit(ActorSystem("BacktestEngineSpec", com.e
       when("start engine")
       engineActor ! StartEngine
 
-      then("engine should start Services & Strategies")
+      then("engine should start Services & load Strategies")
       expectMsg(3.seconds, Transition(engineActor, EngineState.Idle, EngineState.StartingServices))
-      expectMsg(10.seconds, Transition(engineActor, EngineState.StartingServices, EngineState.StartingStrategies))
-      expectMsg(3.seconds, Transition(engineActor, EngineState.StartingStrategies, EngineState.Ready))
+      expectMsg(10.seconds, Transition(engineActor, EngineState.StartingServices, EngineState.LoadingStrategies))
+      expectMsg(3.seconds, Transition(engineActor, EngineState.LoadingStrategies, EngineState.Ready))
+
+      when("start trading")
+      engineActor ! StartTrading
+
+      then("engine should start strategies")
+      expectMsg(3.seconds, Transition(engineActor, EngineState.Ready, EngineState.StartingStrategies))
+      expectMsg(3.seconds, Transition(engineActor, EngineState.StartingStrategies, EngineState.Active))
+
+      when("stop engine")
+      watch(engineActor)
+      engineActor ! StopEngine
+
+      then("engine should be stopped")
+      expectMsg(3.seconds, Transition(engineActor, EngineState.Active, EngineState.StoppingStrategies))
+      expectMsg(3.seconds, Transition(engineActor, EngineState.StoppingStrategies, EngineState.StoppingServices))
+      expectMsg(20.seconds, Terminated(engineActor))
     }
   }
 }
