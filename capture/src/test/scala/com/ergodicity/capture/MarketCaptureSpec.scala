@@ -4,6 +4,7 @@ import org.mockito.Mockito._
 import org.mockito.Matchers._
 import org.scalatest.{WordSpec, BeforeAndAfterAll}
 import akka.testkit._
+import akka.util.duration._
 import akka.actor._
 import com.ergodicity.cgate.config.Replication
 import java.io.File
@@ -46,14 +47,11 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
   trait Repo extends MarketCaptureRepository with ReplicationStateRepository with SessionRepository with FutSessionContentsRepository with OptSessionContentsRepository
 
   override def beforeAll() {
-    val props = CGateConfig(new File("cgate/scheme/cgate_dev.ini"), "11111111")
-    CGate.open(props())
     initialize()
   }
 
   override def afterAll() {
     system.shutdown()
-    CGate.close()
   }
 
   "MarketCapture" must {
@@ -101,7 +99,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
         def underlyingConnection = mock(classOf[CGConnection])
       }, "MarketCapture")
 
-      Thread.sleep(300)
+      Thread.sleep(1.second.toMillis)
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
       marketCapture ! FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(gmkFuture)))
@@ -118,7 +116,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
         def underlyingConnection = mock(classOf[CGConnection])
       }, "MarketCapture")
 
-      Thread.sleep(300)
+      Thread.sleep(1.second.toMillis)
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
       marketCapture ! OptionsContents(Map(rtsOption.get_isin_id() -> com.ergodicity.core.session.Implicits.OptionInstrument.security(rtsOption)))
@@ -137,7 +135,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
         def underlyingConnection = mock(classOf[CGConnection])
       }, "MarketCapture")
 
-      Thread.sleep(300)
+      Thread.sleep(1.second.toMillis)
 
       marketCapture.setState(CaptureState.InitializingMarketContents)
       marketCapture ! FuturesContents(Map(gmkFuture.get_isin_id() -> com.ergodicity.core.session.Implicits.FutureInstrument.security(gmkFuture)))
@@ -164,7 +162,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
       doNothing().when(conn).close()
       doNothing().when(conn).dispose()
 
-      Thread.sleep(300)
+      Thread.sleep(1.second.toMillis)
 
       watch(marketCapture)
 
@@ -179,7 +177,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
       verify(repository).setReplicationState("FORTS_OPTTRADE_REPL", "OptTradeState")
       verify(repository).setReplicationState("FORTS_ORDLOG_REPL", "OrdLogState")
 
-      Thread.sleep(100)
+      Thread.sleep(1.second.toMillis)
       verify(conn).close()
       verify(conn).dispose()
     }
@@ -201,7 +199,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
 
       protected def receive = whenUnhandled
     }, "Guardian")
-    Thread.sleep(100)
+    Thread.sleep(1.second.toMillis)
     guardian
   }
 
@@ -233,7 +231,7 @@ class MarketCaptureSpec extends TestKit(ActorSystem("MarketCaptureSpec")) with W
     Class.forName("org.h2.Driver")
     SessionFactory.concreteFactory = Some(() =>
       SQRLSession.create(
-        java.sql.DriverManager.getConnection("jdbc:h2:~/MarketCaptureSpec", "sa", ""),
+        java.sql.DriverManager.getConnection("jdbc:h2:~/MarketCaptureSpec2", "sa", ""),
         new H2Adapter)
     )
 

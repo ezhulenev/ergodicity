@@ -39,6 +39,8 @@ class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec",
       val service = TestActorRef(new ConnectionService(underlyingConnection), "ConnectionService")
       service ! CurrentState(service.underlyingActor.Connection, com.ergodicity.cgate.Active)
 
+      Thread.sleep(100)
+
       verify(services).serviceStarted(Id)
     }
 
@@ -52,10 +54,8 @@ class ConnectionServiceSpec extends TestKit(ActorSystem("ConnectionServiceSpec",
       watch(service)
       service ! Service.Stop
 
-      Thread.sleep(1200)
-
-      verify(services).serviceStopped(Id)
       expectMsg(Terminated(service))
+      verify(services).serviceStopped(Id)
     }
   }
 }

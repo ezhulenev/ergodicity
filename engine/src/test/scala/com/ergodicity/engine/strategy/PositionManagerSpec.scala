@@ -120,19 +120,19 @@ class PositionManagerSpec extends TestKit(ActorSystem("PositionManagerSpec", com
       then("should but required contracts")
       trading.expectMsg(Buy(futureContract1, 10, parameters1.lastClQuote + parameters1.limits.upper))
       and("go to Balancing state")
-      assert(positionManager.stateName == PositionManagerState.Balancing)
+      awaitCond(positionManager.stateName == PositionManagerState.Balancing)
 
       when("order filled")
       positionManager ! OrderEvent(order, Fill(10, 0, None))
       then("should go to Balanced state")
       expectMsg(PositionBalanced(isin1, Position(10)))
-      assert(positionManager.stateName == PositionManagerState.Balanced)
+      awaitCond(positionManager.stateName == PositionManagerState.Balanced)
 
-      assert(positionManager.underlyingActor.asInstanceOf[PositionManagerActor].orders.size == 1)
+      awaitCond(positionManager.underlyingActor.asInstanceOf[PositionManagerActor].orders.size == 1)
       when("order cancelled")
       positionManager ! OrderEvent(order, Cancel(0))
       then("should remove it from internal storage")
-      assert(positionManager.underlyingActor.asInstanceOf[PositionManagerActor].orders.size == 0)
+      awaitCond(positionManager.underlyingActor.asInstanceOf[PositionManagerActor].orders.size == 0)
     }
 
     "balance acquired position from Balancing state" in {
@@ -166,14 +166,15 @@ class PositionManagerSpec extends TestKit(ActorSystem("PositionManagerSpec", com
       then("should but required contracts")
       trading.expectMsg(Buy(futureContract1, 10, parameters1.lastClQuote + parameters1.limits.upper))
       and("go to Balancing state")
-      assert(positionManager.stateName == PositionManagerState.Balancing)
+      awaitCond(positionManager.stateName == PositionManagerState.Balancing)
 
       when("order filled")
       positionManager ! OrderEvent(order, Fill(10, 0, None))
+
       then("stay in balancing state")
-      assert(positionManager.stateName == PositionManagerState.Balancing)
-      assert(positionManager.stateData.asInstanceOf[ManagedPosition].actual == Position(10))
-      assert(positionManager.stateData.asInstanceOf[ManagedPosition].target == Position(15))
+      awaitCond(positionManager.stateName == PositionManagerState.Balancing)
+      awaitCond(positionManager.stateData.asInstanceOf[ManagedPosition].actual == Position(10))
+      awaitCond(positionManager.stateData.asInstanceOf[ManagedPosition].target == Position(15))
     }
 
   }

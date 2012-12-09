@@ -3,6 +3,7 @@ package com.ergodicity.capture
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import org.slf4j.LoggerFactory
 import akka.actor.ActorSystem
+import akka.util.duration._
 import org.mockito.Mockito._
 import com.twitter.finagle.kestrel.Client
 import com.ergodicity.marketdb.model.{Market, Security, OrderPayload}
@@ -62,7 +63,7 @@ class MarketDbCaptureSpec extends TestKit(ActorSystem("MarketDbCaptureSpec")) wi
       capture ! TnCommit
       assert(capture.stateName == MarketDbCaptureState.Idle)
 
-      Thread.sleep(300)
+      Thread.sleep(1.second.toMillis)
 
       verify(client).write(argThat(is("Orders")), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]]))
     }

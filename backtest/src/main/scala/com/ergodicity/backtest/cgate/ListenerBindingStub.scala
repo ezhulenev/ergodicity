@@ -125,7 +125,7 @@ object ReplyStreamListenerStubActor {
   }
 }
 
-class ReplyStreamListenerStubActor() extends Actor with FSM[ListenerStubState, Seq[ReplyEvent]] {
+class ReplyStreamListenerStubActor() extends Actor with LoggingFSM[ListenerStubState, Seq[ReplyEvent]] {
 
   import ListenerStubActor.Command._
   import ReplyStreamListenerStubActor._
@@ -242,7 +242,7 @@ object ReplicationStreamListenerStubActor {
   }
 }
 
-class ReplicationStreamListenerStubActor(replState: String = "") extends Actor with FSM[ListenerStubState, Seq[StreamEvent.StreamData]] {
+class ReplicationStreamListenerStubActor(replState: String = "") extends Actor with LoggingFSM[ListenerStubState, Seq[StreamEvent.StreamData]] {
 
   import ReplicationStreamListenerStubActor._
   import ListenerStubActor.Command._

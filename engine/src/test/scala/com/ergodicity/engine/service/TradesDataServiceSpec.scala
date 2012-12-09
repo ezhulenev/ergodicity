@@ -53,7 +53,7 @@ class TradesDataServiceSpec extends TestKit(ActorSystem("TradesDataServiceSpec",
       when("got assigned contents")
       service ! AssignedContents(Set())
       then("go to Starting state")
-      Thread.sleep(100)
+      Thread.sleep(300)
       assert(service.stateName == TradesDataState.StartingTradesTracker)
 
       when("Fut/OptTrade data stream goes online")

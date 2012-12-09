@@ -28,4 +28,5 @@ package object cgate {
 
     case object Premium extends Type
   }
+
 }

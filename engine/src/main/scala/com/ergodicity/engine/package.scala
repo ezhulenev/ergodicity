@@ -11,7 +11,7 @@ package object engine {
     akka.actor.debug {
       receive = off
       lifecycle = off
-      fsm = on
+      fsm = off
     }
 
     deque-dispatcher {

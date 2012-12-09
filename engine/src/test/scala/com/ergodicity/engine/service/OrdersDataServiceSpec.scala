@@ -74,7 +74,7 @@ class OrdersDataServiceSpec  extends TestKit(ActorSystem("OrdersDataServiceSpec"
       futuresSnapshot.expectMsg(GetOrdersSnapshot)
       optionsSnapshot.expectMsg(GetOrdersSnapshot)
 
-      Thread.sleep(100)
+      Thread.sleep(300)
 
       when("receive snapshots")
       then("should go to StartingOrderBooks state")

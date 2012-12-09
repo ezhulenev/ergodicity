@@ -49,7 +49,7 @@ class PortfolioServiceSpec extends TestKit(ActorSystem("PortfolioServiceSpec", c
       when("got assigned contents")
       service ! AssignedContents(Set())
       then("go to Starting state")
-      Thread.sleep(100)
+      Thread.sleep(300)
       assert(service.stateName == PortfolioState.StartingPositionsTracker)
 
       when("Pos data stream goes online")

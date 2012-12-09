@@ -2,6 +2,7 @@ package com.ergodicity.capture
 
 import org.scalatest.{BeforeAndAfterAll, WordSpec}
 import org.slf4j.LoggerFactory
+import akka.util.duration._
 import org.mockito.Mockito._
 import org.mockito.Matchers._
 import org.hamcrest.CoreMatchers._
@@ -59,7 +60,7 @@ class MarketDbBuncherSpec extends TestKit(ActorSystem("MarketDbBuncherSpec")) wi
 
       buncher ! FlushBunch
 
-      Thread.sleep(300)
+      Thread.sleep(1.second.toMillis)
 
       verify(client).write(argThat(is(Queue)), argThat(org.hamcrest.CoreMatchers.anything[Offer[ChannelBuffer]]))
       assert(buncher.stateName == BuncherState.Idle)

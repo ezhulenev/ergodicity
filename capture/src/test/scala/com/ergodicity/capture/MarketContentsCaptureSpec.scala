@@ -5,6 +5,7 @@ import org.scalatest.{WordSpec, BeforeAndAfterAll}
 import akka.testkit.{ImplicitSender, TestFSMRef, TestKit}
 import org.slf4j.LoggerFactory
 import akka.actor.ActorSystem
+import akka.util.duration._
 import com.ergodicity.cgate.config.Replication
 import java.io.File
 import com.ergodicity.cgate.DataStream
@@ -63,7 +64,7 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
       val capture = TestFSMRef(new MarketContentsCapture(FutInfoStream, OptInfoStream, repository), "MarketContentsCapture")
       val underlying = capture.underlyingActor.asInstanceOf[MarketContentsCapture]
 
-      Thread.sleep(100)
+      Thread.sleep(300.millis.toMillis)
 
       capture ! SubscribeMarketContents(self)
       capture ! Snapshot(underlying.FutSessContentsRepository, gmkFuture :: Nil)
@@ -82,7 +83,7 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
       val capture = TestFSMRef(new MarketContentsCapture(FutInfoStream, OptInfoStream, repository), "MarketContentsCapture")
       val underlying = capture.underlyingActor.asInstanceOf[MarketContentsCapture]
 
-      Thread.sleep(100)
+      Thread.sleep(300.millis.toMillis)
 
       capture ! SubscribeMarketContents(self)
       capture ! Snapshot(underlying.OptSessContentsRepository, rtsOption :: Nil)
@@ -97,7 +98,7 @@ class MarketContentsCaptureSpec extends TestKit(ActorSystem("MarketContentsCaptu
     Class.forName("org.h2.Driver")
     SessionFactory.concreteFactory = Some(() =>
       SQRLSession.create(
-        java.sql.DriverManager.getConnection("jdbc:h2:~/MarketContentsCaptureSpec", "sa", ""),
+        java.sql.DriverManager.getConnection("jdbc:h2:~/MarketContentsCaptureSpec2", "sa", ""),
         new H2Adapter)
     )
 

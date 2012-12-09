@@ -11,7 +11,7 @@ import com.ergodicity.backtest.service.{OrderBooksService, SessionsService, Sess
 import com.ergodicity.core.order.OrderBooksTracking.Snapshots
 import com.ergodicity.core.order.OrdersSnapshotActor.OrdersSnapshot
 import com.ergodicity.core.session.InstrumentState
-import com.ergodicity.core.{Mocking => _, _}
+import com.ergodicity.core._
 import com.ergodicity.engine.Engine.{StopEngine, StartTrading, StartEngine}
 import com.ergodicity.engine.EngineState
 import com.ergodicity.engine.strategy.CoverAllPositions
@@ -78,6 +78,9 @@ class BacktestEngineSpec extends TestKit(ActorSystem("BacktestEngineSpec", com.e
       then("engine should start strategies")
       expectMsg(3.seconds, Transition(engineActor, EngineState.Ready, EngineState.StartingStrategies))
       expectMsg(3.seconds, Transition(engineActor, EngineState.StartingStrategies, EngineState.Active))
+
+      // Let engine to warm up
+      Thread.sleep(1.second.toMillis)
 
       when("stop engine")
       watch(engineActor)
