@@ -1,12 +1,13 @@
 package com.ergodicity.backtest
 
-import akka.actor.{Props, ActorSystem}
+import akka.actor.{ActorRef, Props, ActorSystem}
 import com.ergodicity.backtest.cgate._
 import com.ergodicity.engine.Listener._
 import com.ergodicity.engine.{StrategyEngineActor, Engine, ServicesActor}
 import com.ergodicity.engine.service._
 import com.ergodicity.engine.underlying.{UnderlyingPublisher, UnderlyingTradingConnections, UnderlyingConnection}
 import com.ergodicity.engine.strategy.{StrategiesFactory, CoverAllPositions}
+import com.ergodicity.backtest.BacktestEngine.{BacktestStubs, GetStubs}
 
 trait Connections extends UnderlyingConnection with UnderlyingTradingConnections {
   self: BacktestEngine =>
@@ -41,6 +42,18 @@ trait Publisher extends UnderlyingPublisher {
   lazy val underlyingPublisher = PublisherStub wrap publisherStub
 }
 
+object BacktestEngine {
+
+  case object GetStubs
+
+  case class BacktestStubs(futInfo: ActorRef, optInfo: ActorRef,
+                           futTrades: ActorRef, optTrades: ActorRef,
+                           futOrders: ActorRef, optOrders: ActorRef,
+                           futOrderBook: ActorRef, optOrderBook: ActorRef,
+                           ordLog: ActorRef, pos: ActorRef)
+
+}
+
 abstract class BacktestEngine(system: ActorSystem) extends Engine with Connections with Listeners with Publisher {
 
   import system._
@@ -72,6 +85,19 @@ abstract class BacktestEngine(system: ActorSystem) extends Engine with Connectio
   implicit lazy val underlyingServices = new BacktestServices(this)
   lazy val ServicesActor = actorOf(Props(underlyingServices), "Services")
   lazy val StrategiesActor = actorOf(Props(new StrategyEngineActor(strategies)), "StrategiesEngine")
+
+  whenUnhandled {
+    case Event(GetStubs, _) =>
+      val stubs = BacktestStubs(
+        futInfoListenerStub, optInfoListenerStub,
+        futTradesListenerStub, optTradesListenerStub,
+        futOrdersListenerStub, optOrdersListenerStub,
+        futOrderBookListenerStub, optOrderBookListenerStub,
+        ordLogListenerStub, posListenerStub
+      )
+      sender ! stubs
+      stay()
+  }
 }
 
 class BacktestServices(val engine: BacktestEngine) extends ServicesActor with ReplicationConnection with TradingConnection with InstrumentData with Portfolio with TradesData with OrdersData with Trading

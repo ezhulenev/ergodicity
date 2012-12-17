@@ -31,7 +31,7 @@ class MarketRepositorySpec extends TestKit(ActorSystem("MarketRepositorySpec")) 
     val end = begin + 1.hour
 
     inTransaction {
-      val sessions = repository sessions (begin to end)
+      val sessions = repository scan (begin to end)
       sessions.size should equal(0)
     }
   }
@@ -42,7 +42,7 @@ class MarketRepositorySpec extends TestKit(ActorSystem("MarketRepositorySpec")) 
 
     inTransaction {
       sessions.insert(new Session(100, begin.getMillis, end.getMillis, 0, 0l, 0l, 0, 0l, 0l, 0, 0l, 0l, 0l, 0l))
-      val sess = repository sessions (begin to end)
+      val sess = repository scan (begin to end)
       sess.size should equal(1)
     }
   }
