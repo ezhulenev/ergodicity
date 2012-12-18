@@ -9,8 +9,7 @@ import com.ergodicity.backtest.Backtest.BacktestReport
 import com.ergodicity.backtest.Backtest.Config
 import com.ergodicity.backtest.BacktestEngine.BacktestStubs
 import com.ergodicity.backtest.BacktestEngine.GetStubs
-import com.ergodicity.backtest.service.SessionContext
-import com.ergodicity.backtest.service.SessionsService
+import com.ergodicity.backtest.service.{OrderBooksService, SessionContext, SessionsService}
 import com.ergodicity.core._
 import com.ergodicity.engine.Engine.StartEngine
 import com.ergodicity.engine.strategy.StrategiesFactory
@@ -18,6 +17,8 @@ import com.ergodicity.schema.Session
 import org.joda.time.Interval
 import org.squeryl.PrimitiveTypeMode._
 import com.ergodicity.backtest.service.SessionsService.SessionAssigned
+import com.ergodicity.core.order.OrderBooksTracking.Snapshots
+import com.ergodicity.core.order.OrdersSnapshotActor.OrdersSnapshot
 
 object Backtest {
 
@@ -67,6 +68,9 @@ class Backtest(systemName: String, strategies: StrategiesFactory)(implicit confi
     log.debug("Contents: futures = {}, options = {}", f.size, o.size)
 
     val assigned = sessions.assign(s, f, o)
+    // Dispatch empty order books snapshots
+    val orderBooks = new OrderBooksService(stubs.ordLog, stubs.futOrderBook, stubs.optOrderBook)
+    orderBooks.dispatchSnapshots(Snapshots(OrdersSnapshot.empty, OrdersSnapshot.empty))
 
     engine ! StartEngine
 

@@ -26,6 +26,10 @@ object OrdersSnapshotActor {
 
   case object GetOrdersSnapshot
 
+  object OrdersSnapshot {
+    val empty = OrdersSnapshot(0, new DateTime(0), Nil)
+  }
+
   case class OrdersSnapshot(revision: Long, moment: DateTime, orders: Seq[(Order, Seq[Fill])])
 
 }
