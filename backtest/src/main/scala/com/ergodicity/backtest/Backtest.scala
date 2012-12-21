@@ -68,6 +68,7 @@ class Backtest(systemName: String, strategies: StrategiesFactory)(implicit confi
     log.debug("Contents: futures = {}, options = {}", f.size, o.size)
 
     val assigned = sessions.assign(s, f, o)
+
     // Dispatch empty order books snapshots
     val orderBooks = new OrderBooksService(stubs.ordLog, stubs.futOrderBook, stubs.optOrderBook)
     orderBooks.dispatchSnapshots(Snapshots(OrdersSnapshot.empty, OrdersSnapshot.empty))
