@@ -147,7 +147,7 @@ object ErgodicityBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val backtest = Seq(scalaz, marketDbApi, squeryl, h2Driver, postgresDriver, mockito, scalaSTM) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
+  val backtest = Seq(finagleCore, scalaz, marketDbApi, marketDbIteratee, squeryl, h2Driver, postgresDriver, mockito, scalaSTM) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val capture = Seq(sbinary, scalaz, finagleKestrel, marketDbApi, squeryl, h2Driver, postgresDriver, ostrich, scalaIO) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
@@ -194,6 +194,7 @@ object Dependency {
 
   // Compile
   val marketDbApi            = "com.ergodicity.marketdb"          %% "marketdb-api"           % V.MarketDb intransitive()
+  val marketDbIteratee       = "com.ergodicity.marketdb"          %% "marketdb-iteratee"      % V.MarketDb intransitive()
 
   val logback                = "ch.qos.logback"                    % "logback-classic"        % V.Logback
   val scalaz                 = "org.scalaz"                       %% "scalaz-core"            % V.Scalaz

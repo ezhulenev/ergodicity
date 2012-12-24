@@ -4,12 +4,14 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.testkit.{ImplicitSender, TestKit}
 import com.ergodicity.backtest.Backtest.Config
-import com.ergodicity.core.FutureContract
 import com.ergodicity.core._
 import com.ergodicity.core.session.InstrumentState
 import com.ergodicity.engine.strategy.CoverAllPositions
+import com.ergodicity.marketdb.Connection
+import com.ergodicity.marketdb.api.{MarketDbConfig, GetMarketDbConfig, MarketDbRep, MarketDbReq}
 import com.ergodicity.schema.ErgodicitySchema._
 import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
+import com.twitter.finagle.Service
 import org.joda.time.DateTime
 import org.scala_tools.time.Implicits._
 import org.scalatest.matchers.ShouldMatchers
@@ -47,6 +49,12 @@ class BacktestSpec extends TestKit(ActorSystem("BacktestSpec", com.ergodicity.en
 
   implicit val repository = new MarketRepository
   implicit val config = Config(begin to end, Nil)
+  implicit val marketdb = new Service[MarketDbReq, MarketDbRep] {
+    def apply(request: MarketDbReq) = request match {
+      case GetMarketDbConfig => com.twitter.util.Future(MarketDbConfig(Connection("zookeeper")))
+      case _ => com.twitter.util.Future(throw new IllegalArgumentException)
+    }
+  }
 
   "Backtest" should "execute backtesting for single session" in {
     val backtest = new Backtest("Test", CoverAllPositions())
