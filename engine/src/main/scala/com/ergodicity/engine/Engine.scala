@@ -1,16 +1,20 @@
 package com.ergodicity.engine
 
-import akka.actor.FSM.{SubscribeTransitionCallBack, Transition}
+import akka.actor.AllForOneStrategy
+import akka.actor.FSM.SubscribeTransitionCallBack
+import akka.actor.FSM.Transition
 import akka.actor.SupervisorStrategy.Stop
+import akka.actor.Terminated
 import akka.actor._
 import akka.util
 import akka.util.duration._
 import com.ergodicity.cgate.ListenerBinding
 import com.ergodicity.cgate.config.Replication
-import com.ergodicity.engine.Engine.{StopEngine, StartTrading, StartEngine}
+import com.ergodicity.engine.Engine._
 import com.ergodicity.engine.Services.{StopServices, StartServices}
 import com.ergodicity.engine.StrategyEngine.{StopStrategies, LoadStrategies, StartStrategies}
 import ru.micexrts.cgate.CGateException
+import scala.Some
 
 
 object Engine {
@@ -24,6 +28,38 @@ object Engine {
 
   case object StopEngine
 
+  case object NotifyOnReady
+
+  case object EngineReady
+
+  trait ReadyNotifier {
+    def apply(ref: ActorRef): ReadyNotifier
+
+    def reset(): ReadyNotifier
+  }
+
+  object ReadyNotifier {
+
+    case object DirectNotify extends ReadyNotifier {
+      def apply(ref: ActorRef) = {
+        ref ! EngineReady
+        DirectNotify
+      }
+
+      def reset() = DirectNotify
+    }
+
+    case class PendingNotify(pending: Seq[ActorRef]) extends ReadyNotifier {
+      def apply(ref: ActorRef) = copy(ref +: pending)
+
+      def reset() = {
+        pending.foreach(_ ! EngineReady)
+        DirectNotify
+      }
+    }
+
+    def empty: ReadyNotifier = PendingNotify(Nil)
+  }
 }
 
 sealed trait EngineState
@@ -55,6 +91,8 @@ trait Engine extends Actor with FSM[EngineState, Option[(ActorRef, ActorRef)]] {
   override val supervisorStrategy = AllForOneStrategy() {
     case _: CGateException ⇒ Stop
   }
+
+  protected var notifier: ReadyNotifier = ReadyNotifier.empty
 
   import EngineState._
 
@@ -121,7 +159,15 @@ trait Engine extends Actor with FSM[EngineState, Option[(ActorRef, ActorRef)]] {
   }
 
   onTransition {
-    case StartingServices -> Ready => log.info("Engine ready")
+    case _ -> Ready =>
+      log.info("Engine ready")
+      notifier = notifier.reset()
+  }
+
+  whenUnhandled {
+    case Event(NotifyOnReady, _) =>
+      notifier = notifier(sender)
+      stay()
   }
 }
 

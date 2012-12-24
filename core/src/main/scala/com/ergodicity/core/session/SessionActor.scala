@@ -124,6 +124,10 @@ case class SessionActor(session: Session) extends Actor with LoggingFSM[SessionS
       stay()
   }
 
+  onTransition {
+    case from -> to => log.info("Session transition from {} to {}", from, to)
+  }
+
   initialize
 
   private def handleSessContents: StateFunction = {

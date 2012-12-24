@@ -8,6 +8,7 @@ import com.ergodicity.engine.service._
 import com.ergodicity.engine.underlying.{UnderlyingPublisher, UnderlyingTradingConnections, UnderlyingConnection}
 import com.ergodicity.engine.strategy.{StrategiesFactory, CoverAllPositions}
 import com.ergodicity.backtest.BacktestEngine.{BacktestStubs, GetStubs}
+import com.ergodicity.engine.Engine.NotifyOnReady
 
 trait Connections extends UnderlyingConnection with UnderlyingTradingConnections {
   self: BacktestEngine =>
@@ -87,6 +88,10 @@ abstract class BacktestEngine(system: ActorSystem) extends Engine with Connectio
   lazy val StrategiesActor = actorOf(Props(new StrategyEngineActor(strategies)), "StrategiesEngine")
 
   whenUnhandled {
+    case Event(NotifyOnReady, _) =>
+      notifier = notifier(sender)
+      stay()
+
     case Event(GetStubs, _) =>
       val stubs = BacktestStubs(
         futInfoListenerStub, optInfoListenerStub,

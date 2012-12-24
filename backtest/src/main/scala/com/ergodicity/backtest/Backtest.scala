@@ -9,16 +9,15 @@ import com.ergodicity.backtest.Backtest.BacktestReport
 import com.ergodicity.backtest.Backtest.Config
 import com.ergodicity.backtest.BacktestEngine.BacktestStubs
 import com.ergodicity.backtest.BacktestEngine.GetStubs
+import com.ergodicity.backtest.service.SessionsService.SessionAssigned
 import com.ergodicity.backtest.service.{OrderBooksService, SessionContext, SessionsService}
 import com.ergodicity.core._
-import com.ergodicity.engine.Engine.StartEngine
-import com.ergodicity.engine.strategy.StrategiesFactory
-import com.ergodicity.schema.Session
-import org.joda.time.Interval
-import org.squeryl.PrimitiveTypeMode._
-import com.ergodicity.backtest.service.SessionsService.SessionAssigned
 import com.ergodicity.core.order.OrderBooksTracking.Snapshots
 import com.ergodicity.core.order.OrdersSnapshotActor.OrdersSnapshot
+import com.ergodicity.engine.Engine.{StartTrading, NotifyOnReady, StartEngine}
+import com.ergodicity.engine.strategy.StrategiesFactory
+import org.joda.time.Interval
+import org.squeryl.PrimitiveTypeMode._
 
 object Backtest {
 
@@ -31,14 +30,14 @@ object Backtest {
 class Backtest(systemName: String, strategies: StrategiesFactory)(implicit config: Config, repository: MarketRepository) {
   val system = ActorSystem(systemName)
 
-  implicit val timeout = akka.util.Timeout(1.second)
+  implicit val timeout = akka.util.Timeout(15.second)
   implicit val executionContext = system.dispatcher
 
   val log = Logging(system, classOf[Backtest])
 
   val engine = system.actorOf(Props(new BacktestEngine(system) {
     def strategies = Backtest.this.strategies
-  }))
+  }), "Engine")
 
   val stubs = Await.result((engine ? GetStubs).mapTo[BacktestStubs], 1.second)
 
@@ -73,9 +72,15 @@ class Backtest(systemName: String, strategies: StrategiesFactory)(implicit confi
     val orderBooks = new OrderBooksService(stubs.ordLog, stubs.futOrderBook, stubs.optOrderBook)
     orderBooks.dispatchSnapshots(Snapshots(OrdersSnapshot.empty, OrdersSnapshot.empty))
 
+    // Start engine (services & strategies)
     engine ! StartEngine
+    Await.result((engine ? NotifyOnReady), 15.seconds)
 
-    // processSession(assigned)
+    // Start trading
+    engine ! StartTrading
+
+    // Process first session
+    processSession(assigned)
 
     // Process remaining sessions
     for ((session, futures, options) <- contents.tail) {
