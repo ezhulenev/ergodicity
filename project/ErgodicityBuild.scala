@@ -147,8 +147,8 @@ object ErgodicityBuild extends Build {
 object Dependencies {
   import Dependency._
 
-  val backtest = Seq(finagleCore, scalaz, marketDbApi, marketDbIteratee, marketDbMock, squeryl, h2Driver, postgresDriver, mockito, scalaSTM) ++
-    Seq(Test.akkaTestkit, Test.mockito, Test.scalatest, Test.powermockApi, Test.powermockJUnit)
+  val backtest = Seq(finagleCore, scalaz, marketDbApi, marketDbIteratee, squeryl, h2Driver, postgresDriver, mockito, scalaSTM) ++
+    Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
   val capture = Seq(sbinary, scalaz, finagleKestrel, marketDbApi, squeryl, h2Driver, postgresDriver, ostrich, scalaIO) ++ Seq(Test.akkaTestkit, Test.mockito, Test.scalatest)
 
@@ -173,7 +173,6 @@ object Dependency {
 
     val Scalatest    = "1.6.1"
     val Mockito      = "1.9.0"
-    val Powermock    = "1.4.11"
     val Scalaz       = "6.0.4"
     val Logback      = "1.0.3"
     val ScalaSTM     = "0.6"
@@ -199,9 +198,8 @@ object Dependency {
   }
 
   // Compile
-  val marketDbApi            = "com.ergodicity.marketdb"          %% "marketdb-api"           % V.MarketDb
-  val marketDbIteratee       = "com.ergodicity.marketdb"          %% "marketdb-iteratee"      % V.MarketDb
-  val marketDbMock           = "com.ergodicity.marketdb"          %% "marketdb-mock"          % V.MarketDb
+  val marketDbApi            = "com.ergodicity.marketdb"          %% "marketdb-api"           % V.MarketDb intransitive()
+  val marketDbIteratee       = "com.ergodicity.marketdb"          %% "marketdb-iteratee"      % V.MarketDb intransitive()
 
   val logback                = "ch.qos.logback"                    % "logback-classic"        % V.Logback
   val scalaz                 = "org.scalaz"                       %% "scalaz-core"            % V.Scalaz
@@ -241,7 +239,5 @@ object Dependency {
     val mockito        = "org.mockito"                 % "mockito-all"                   % V.Mockito      % "test"
     val scalatest      = "org.scalatest"              %% "scalatest"                     % V.Scalatest    % "it,test"
     val akkaTestkit    = "com.typesafe.akka"           % "akka-testkit"                  % V.Akka         % "it, test"
-    val powermockApi   = "org.powermock"               % "powermock-api-mockito"         % V.Powermock    % "test"
-    val powermockJUnit = "org.powermock"               % "powermock-module-junit4"       % V.Powermock    % "test"
   }
 }
