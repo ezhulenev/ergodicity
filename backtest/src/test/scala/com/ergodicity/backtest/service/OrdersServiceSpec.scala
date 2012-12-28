@@ -24,6 +24,8 @@ import com.ergodicity.schema.{OptSessContents, FutSessContents, Session}
 import org.joda.time.DateTime
 import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import com.ergodicity.core.order.OrderActor.{OrderEvent, SubscribeOrderEvents}
+import com.ergodicity.marketdb.model.{Security, OrderPayload}
+import com.ergodicity.marketdb.model
 
 class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -86,6 +88,8 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
 
   implicit val timeout = Timeout(1.second)
 
+  val market = model.Market("Test")
+
   "OrderBooks Service" must {
     "dispatch orders from underlying MarketDb" in {
       val engine = testkit.TestActorRef(new TestEngine, "Engine")
@@ -93,9 +97,6 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
 
       services ! SubscribeTransitionCallBack(self)
       expectMsg(CurrentState(services, ServicesState.Idle))
-
-      given("engine's trading service")
-      val trading = services.underlyingActor.service(Trading.Trading)
 
       given("assigned session")
       implicit val sessions = new SessionsService(engine.underlyingActor.futInfoListenerStub, engine.underlyingActor.optInfoListenerStub)
@@ -114,7 +115,8 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
 
       when("create order")
       val orderId = 123l
-      val managedOrder = orders.create(orderId, OrderDirection.Buy, futureContract.isin, 1, 100, ImmediateOrCancel, new DateTime)
+      val create = OrderPayload(market, Security(futureContract.isin.isin), orderId, new DateTime, ImmediateOrCancel.toInt, OrdersService.Action.Create, OrderDirection.Buy.toShort, 100, 1, 1, None)
+      orders.dispatch(create)
 
       then("order actor should be created in Active state")
       Thread.sleep(500)
@@ -130,7 +132,8 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
       expectMsg(OrderEvent(order, Create(order)))
 
       when("order filled")
-      managedOrder.fill(new DateTime, 1, (12345l, 100))
+      val fill = OrderPayload(market, Security(futureContract.isin.isin), orderId, new DateTime, ImmediateOrCancel.toInt, OrdersService.Action.Fill, OrderDirection.Buy.toShort, 100, 1, 0, Some((12345l, 100)))
+      orders.dispatch(fill)
 
       then("should receive fill notification")
       expectMsg(OrderEvent(order, Fill(1, 0, Some((12345l, 100)))))
@@ -138,7 +141,8 @@ class OrdersServiceSpec extends TestKit(ActorSystem("OrdersServiceSpec", com.erg
       when("try to fill already filled order")
       then("should get exception")
       intercept[IllegalStateException] {
-        managedOrder.fill(new DateTime, 1, (12345l, 100))
+        val fill = OrderPayload(market, Security(futureContract.isin.isin), orderId, new DateTime, ImmediateOrCancel.toInt, OrdersService.Action.Fill, OrderDirection.Buy.toShort, 100, 1, 0, Some((12345l, 100)))
+        orders.dispatch(fill)
       }
     }
   }

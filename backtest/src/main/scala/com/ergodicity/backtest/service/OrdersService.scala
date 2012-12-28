@@ -6,6 +6,8 @@ import com.ergodicity.cgate.StreamEvent.StreamData
 import com.ergodicity.cgate.scheme.{OptOrder, FutOrder}
 import com.ergodicity.core._
 import org.joda.time.DateTime
+import scala.collection.mutable
+import com.ergodicity.marketdb.model.OrderPayload
 
 object OrdersService {
 
@@ -15,16 +17,16 @@ object OrdersService {
 
   case class OptionOrder(session: SessionId, id: IsinId, event: OrderEvent)
 
+  object Action {
+    val Cancel: Short = 0
+    val Create: Short = 1
+    val Fill: Short = 2
+  }
+
   class ManagedOrder(orderId: Long, dir: OrderDirection, isin: Isin, amount: Int, price: BigDecimal, orderType: OrderType, time: DateTime)
                     (implicit context: SessionContext, service: OrdersService) {
     private[this] def check(assertion: Boolean, message: String = "Check error") {
       if (!assertion) throw new IllegalStateException(message)
-    }
-
-    object Action {
-      val Cancel: Short = 0
-      val Create: Short = 1
-      val Fill: Short = 2
     }
 
     var rest = amount
@@ -119,7 +121,31 @@ class OrdersService(futOrders: ActorRef, optOrders: ActorRef)(implicit context: 
 
   import OrdersService._
 
+  val orders = mutable.Map[Long, ManagedOrder]()
+
   private[this] implicit val self = this
+
+  def dispatch(payloads: OrderPayload*) {
+    payloads.foreach {
+      case order if (order.action == Action.Create && !orders.contains(order.orderId)) =>
+        orders(order.orderId) = create(order.orderId, OrderDirection(order.dir), Isin(order.security.isin), order.amount, order.price, OrderType(order.status), order.time)
+
+      case order if (order.action == Action.Cancel && orders.contains(order.orderId)) =>
+        orders(order.orderId).cancel(order.time)
+
+      case order if (order.action == Action.Fill && orders.contains(order.orderId) && order.deal.isDefined) =>
+        orders(order.orderId).fill(order.time, order.amount, order.deal.get)
+
+      case order if (order.action == Action.Fill && orders.contains(order.orderId) && !order.deal.isDefined) =>
+        throw new IllegalStateException("Deal is not defined for order = " + order)
+
+      case order if (order.action == Action.Create && orders.contains(order.orderId)) =>
+        throw new IllegalStateException("Order for given id already created; Order = " + order)
+
+      case order if (order.action != Action.Create && !orders.contains(order.orderId)) =>
+        throw new IllegalStateException("No order with given id; Order = " + order)
+    }
+  }
 
   def create(orderId: Long, dir: OrderDirection, isin: Isin, amount: Int, price: BigDecimal, orderType: OrderType, time: DateTime) =
     new ManagedOrder(orderId, dir, isin, amount, price, orderType, time)

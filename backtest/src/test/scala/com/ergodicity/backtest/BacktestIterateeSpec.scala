@@ -9,6 +9,9 @@ import org.scalatest.{GivenWhenThen, BeforeAndAfterAll, WordSpec}
 import akka.event.Logging
 import scalaz.IterV
 import scalaz.IterV.{El, Cont, Done}
+import com.ergodicity.backtest.service.{OrdersService, TradesService}
+import org.mockito.Mockito._
+import org.mockito.Matchers._
 
 class BacktestIterateeSpec extends TestKit(ActorSystem("BacktestEngineSpec", com.ergodicity.engine.EngineSystemConfig)) with ImplicitSender with WordSpec with BeforeAndAfterAll with GivenWhenThen {
   val log = Logging(system, self)
@@ -27,6 +30,9 @@ class BacktestIterateeSpec extends TestKit(ActorSystem("BacktestEngineSpec", com
 
   "Backtest Iteratee" must {
     "iterate over market payloads" in {
+      implicit val trades = mock(classOf[TradesService])
+      implicit val orders = mock(classOf[OrdersService])
+
       val Count = 10
 
       val tradePayloads = for (i <- 1 to Count) yield TradePayload(market, security, i, BigDecimal("111"), 1, time + i.second, NoSystem)
@@ -42,6 +48,9 @@ class BacktestIterateeSpec extends TestKit(ActorSystem("BacktestEngineSpec", com
       log.info("Report = " + report)
       assert(report.trades == Count)
       assert(report.orders == 2 * Count)
+
+      verify(trades, times(Count)).dispatch(any())
+      verify(orders, times(2 * Count)).dispatch(any())
     }
   }
 

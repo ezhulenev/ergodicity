@@ -5,17 +5,23 @@ import scalaz.IterV.{EOF, Done, Cont}
 import org.joda.time.Interval
 import com.ergodicity.marketdb.model.{TradePayload, OrderPayload, MarketPayload}
 import com.ergodicity.marketdb.TimeSeries
+import com.ergodicity.backtest.service.{OrdersService, TradesService}
 
 object BacktestIteratee {
 
   case class DispatcherReport(trades: Int, orders: Int) {
-    def +(p: MarketPayload) = p match {
-      case _: OrderPayload => copy(orders = orders + 1)
-      case _: TradePayload => copy(trades = trades + 1)
+    def +(p: MarketPayload)(implicit ts: TradesService, os: OrdersService) = p match {
+      case order: OrderPayload =>
+        os.dispatch(order)
+        copy(orders = orders + 1)
+
+      case trade: TradePayload =>
+        ts.dispatch(trade)
+        copy(trades = trades + 1)
     }
   }
 
-  def dispatcher[P <: MarketPayload]: IterV[P, DispatcherReport] = {
+  def dispatcher[P <: MarketPayload](implicit trades: TradesService, orders: OrdersService): IterV[P, DispatcherReport] = {
     def step(report: DispatcherReport, p: P)(s: Input[P]): IterV[P, DispatcherReport] = {
       s(el = p2 => Cont(step(report + p2, p2)),
         empty = Cont(step(report + p, p)),
