@@ -26,7 +26,7 @@ Ergodicity is built using Event-Driven architecture. Each market data received f
 
 ##### Example of Order Actor
 
-sealed trait OrderState
+        sealed trait OrderState
 
         object OrderState {
         
