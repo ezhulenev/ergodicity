@@ -19,3 +19,69 @@ The [`MarketDb`](http://github.com/Ergodicity/marketdb) project is also a part o
 * `core`     - core components of platform: Order, OrderBook, Trade, Session etc...
 * `engine`   - strategy execution engine
 * `schema`   - shared project for `backtest` and `capture' with database schema
+
+## Ergodicity principles
+
+Ergodicity is built using Event-Driven architecture. Each market data received from Stock Exchange (trade, add order, cancel order, session updates, etc.) considered as an event. Core components of a platform presented as Actors: Trading session, each stock assigned for session, each order, etc. Akka as a backbone for the platform allows to take advantage of this approach, and build platform with fault tolerance and high scalability by it's nature.
+
+##### Example of Order Actor
+
+sealed trait OrderState
+
+        object OrderState {
+        
+          case object Active extends OrderState
+        
+          case object Filled extends OrderState
+        
+          case object Cancelled extends OrderState
+        
+        }
+
+        class OrderActor(val order: Order) extends Actor with FSM[OrderState, Trace] {
+        
+          import OrderState._
+        
+          var subscribers = Set[ActorRef]()
+        
+          startWith(Active, Trace(order.amount, Create(order) :: Nil))
+        
+          when(Active) {
+            case Event(fill@Fill(amount, rest, _), Trace(restAmount, actions)) =>
+              dispatch(fill)
+              if (restAmount - amount != rest)
+                throw new IllegalOrderEvent("Rest amounts doesn't match", fill)
+        
+              if (restAmount - amount == 0)
+                goto(Filled) using Trace(0, actions :+ fill)
+              else stay() using Trace(restAmount - amount, actions :+ fill)
+          }
+        
+          when(Filled) {
+            case Event(e@Fill(_, _, _), _) => throw new IllegalOrderEvent("Order already Filled", e)
+          }
+        
+          when(Cancelled) {
+            case e => throw new IllegalOrderEvent("Order already Cancelled", e)
+          }
+        
+          whenUnhandled {
+            case Event(cancel@Cancel(cancelAmount), Trace(restAmount, actions)) =>
+              dispatch(cancel)
+              goto(Cancelled) using Trace(restAmount - cancelAmount, actions :+ cancel)
+        
+            case Event(SubscribeOrderEvents(ref), trace) =>
+              trace.actions foreach (ref ! OrderEvent(order, _))
+              subscribers = subscribers + ref
+              stay()
+          }
+        
+          onTransition {
+            case Active -> Filled => log.debug("Order filled")
+            case Active -> Cancelled => log.debug("Order cancelled")
+          }
+        
+          private def dispatch(action: Action) {
+            subscribers foreach (_ ! OrderEvent(order, action))
+          }
+        }
