@@ -22,7 +22,7 @@ The [`MarketDb`](http://github.com/Ergodicity/marketdb) project is also a part o
 
 ## Ergodicity principles
 
-Ergodicity is built using Event-Driven architecture. Each market data received from Stock Exchange (trade, add order, cancel order, session updates, etc.) considered as an event. Core components of a platform presented as Actors: Trading session, each stock assigned for session, each order, etc. Akka as a backbone for the platform allows to take advantage of this approach, and build platform with fault tolerance and high scalability by it's nature.
+Ergodicity is built using Event-Driven architecture. Each market data received from Stock Exchange (trade, add order, cancel order, session updates, etc.) considered as an event. Core components of a platform presented as Actors: Trading session, each stock assigned for session, each order, etc. Akka as a backbone for the platform allows to take advantage of this approach, and build platform with fault tolerance and high scalability in it's nature.
 
 ##### Example of Order Actor
 
