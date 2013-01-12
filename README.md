@@ -11,7 +11,7 @@ Ergodicity is open source actor-based automated trading platform, providing tool
 
 Platfrom uses Scala as it's primary language and relies on Event-Driven architecture using [Akka](http://akka.io/) Actors for concurrency and scalability.
 
-## Ergodicity Projects and Packages
+## Projects and Packages
 
 The [`MarketDb`](http://github.com/Ergodicity/marketdb) project is also a part of Ergodicity platfrom, and used for market data capture and strategies backtest
 
