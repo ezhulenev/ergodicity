@@ -5,6 +5,8 @@ Ergodicity is built using [sbt](http://code.google.com/p/simple-build-tool/wiki/
 
 # Ergodicity
 
+## What is Ergodicity
+
 Ergodicity is open source actor-based automated trading platform, providing tools for strategy-driven trading with the use of Level 1 and Level 2 market data. Ergodicity supports direct market-data connectivity to ["Russian Trading System" Stock Exchange](http://www.rts.ru/en/) using it's proprietary protocol [Plaza2](http://www.rts.ru/a22520/?nt=115) for real-time low-latency execution. Furthermore it provides tick-by-tick backtest engine for running the same strategies on historical data stored in [MarketDb](http://github.com/Ergodicity/marketdb) for performance analysis and optimization.
 
 Platfrom uses Scala as it's primary language and relies on Event-Driven architecture using [Akka](http://akka.io/) Actors for concurrency and scalability.
@@ -20,7 +22,7 @@ The [`MarketDb`](http://github.com/Ergodicity/marketdb) project is also a part o
 * `engine`   - strategy execution engine
 * `schema`   - shared project for `backtest` and `capture' with database schema
 
-## Ergodicity principles
+## Main Features
 
 Ergodicity is built using Event-Driven architecture. Each market data received from Stock Exchange (trade, add order, cancel order, session updates, etc.) considered as an event. Core components of a platform presented as Actors: Trading session, each stock assigned for session, each order, etc. Akka as a backbone for the platform allows to take advantage of this approach, and build platform with fault tolerance and high scalability in it's nature.
 
@@ -85,3 +87,4 @@ Ergodicity is built using Event-Driven architecture. Each market data received f
             subscribers foreach (_ ! OrderEvent(order, action))
           }
         }
+        
