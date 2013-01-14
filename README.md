@@ -88,3 +88,9 @@ Ergodicity is built using Event-Driven architecture. Each market data received f
           }
         }
         
+
+## CGate
+
+In order to compile Ergodicity projects it's required to install CGate library. Windows and linux version are available on [RTS server](http://ftp.rts.ru/pub/forts/test/CGate/). After installation you should add `$CGATE_HOME/p2bin` directory into `$Path` variable to provide access to code generation tool.
+
+Refer `project/SchemeTools.scala` for details.
