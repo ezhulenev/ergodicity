@@ -36,7 +36,7 @@ object SchemeTools {
           projectDir / "scheme" / props.ini,
           props.scheme
         )
-        cmd.!!
+        cmd
     }
 
     val target = outDir / "com" / "ergodicity" / "cgate" / "scheme"

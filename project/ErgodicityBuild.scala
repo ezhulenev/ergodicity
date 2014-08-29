@@ -1,15 +1,12 @@
 import sbt._
 import sbt.Keys._
-import sbtassembly.Plugin._
-import AssemblyKeys._
-import net.virtualvoid.sbt.graph.Plugin._
 
 object ErgodicityBuild extends Build {
 
   lazy val buildSettings = Seq(
-    organization := "com.ergodicity",
-    version      := "0.1-SNAPSHOT",
-    scalaVersion := "2.9.2"
+    organization := "com.scalafi.akkatrading",
+    version      := "0.0.1",
+    scalaVersion := "2.9.1"
   )
 
   lazy val ergodicity = Project(
@@ -17,13 +14,13 @@ object ErgodicityBuild extends Build {
     base = file("."),
     aggregate = Seq(backtest, cgate, core, capture, engine, schema)
   ).configs( IntegrationTest )
-    .settings( (Defaults.itSettings ++ graphSettings) : _*)
+    .settings(Defaults.itSettings : _*)
 
   lazy val backtest = Project(
     id = "backtest",
     base = file("backtest"),
     dependencies = Seq(engine, schema),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.backtest)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ Seq(libraryDependencies ++= Dependencies.backtest)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
@@ -31,8 +28,8 @@ object ErgodicityBuild extends Build {
     id = "capture",
     base = file("capture"),
     dependencies = Seq(core, schema),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.capture) ++
-      assemblySettings ++ extAssemblySettings
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ Seq(libraryDependencies ++= Dependencies.capture)
+      
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
@@ -40,7 +37,7 @@ object ErgodicityBuild extends Build {
     id = "engine",
     base = file("engine"),
     dependencies = Seq(core),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.engine)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ Seq(libraryDependencies ++= Dependencies.engine)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
@@ -48,14 +45,14 @@ object ErgodicityBuild extends Build {
     id = "core",
     base = file("core"),
     dependencies = Seq(cgate),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.core)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ Seq(libraryDependencies ++= Dependencies.core)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
   lazy val cgate = Project(
     id = "cgate",
     base = file("cgate"),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.cgate) ++ Seq(
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ Seq(libraryDependencies ++= Dependencies.cgate) ++ Seq(
       (sourceGenerators in Compile) <+= (sourceManaged in Compile) map {
         case out: File => SchemeTools.generateSchemes(file("cgate").getAbsoluteFile, out)
       })
@@ -66,7 +63,7 @@ object ErgodicityBuild extends Build {
     id = "quant",
     base = file("quant"),
     dependencies = Seq(core),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.quant)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ Seq(libraryDependencies ++= Dependencies.quant)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
@@ -74,7 +71,7 @@ object ErgodicityBuild extends Build {
     id = "schema",
     base = file("schema"),
     dependencies = Seq(core),
-    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ graphSettings ++ Seq(libraryDependencies ++= Dependencies.schema)
+    settings = Project.defaultSettings ++ repositoriesSetting ++ compilerSettings ++ Seq(libraryDependencies ++= Dependencies.schema)
   ).configs( IntegrationTest )
     .settings( Defaults.itSettings : _*)
 
@@ -97,51 +94,10 @@ object ErgodicityBuild extends Build {
     resolvers += "Typesafe Snapshots Repository" at "http://repo.typesafe.com/typesafe/snapshots/",
     resolvers += "Typesafe Repository ide-2.9" at "http://repo.typesafe.com/typesafe/simple/ide-2.9/",
     resolvers += "Twitter Repository" at "http://maven.twttr.com/",
-    resolvers += "Akka Repository" at "http://akka.io/snapshots/"
+    resolvers += "Akka Repository" at "http://akka.io/snapshots/",
+    resolvers += "Scalafi Repository" at "http://dl.bintray.com/ezhulenev/releases"
   )
 
-  private val LicenseFile = """(license|licence|notice|copying)([.]\w+)?$""".r
-  private def isLicenseFile(fileName: String): Boolean =
-    fileName.toLowerCase match {
-      case LicenseFile(_, ext) if ext != ".class" => true // DISLIKE
-      case _ => false
-    }
-
-  private val ReadMe = """(readme)([.]\w+)?$""".r
-  private def isReadme(fileName: String): Boolean =
-    fileName.toLowerCase match {
-      case ReadMe(_, ext) if ext != ".class" => true
-      case _ => false
-    }
-
-  private object PathList {
-    private val sysFileSep = System.getProperty("file.separator")
-    def unapplySeq(path: String): Option[List[String]] = {
-      val split = path.split(if (sysFileSep.equals( """\""")) """\\""" else sysFileSep)
-      if (split.size == 0) None
-      else Some(split.toList)
-    }
-  }
-
-  lazy val extAssemblySettings = scala.Seq[sbt.Project.Setting[_]](
-    jarName in assembly <<= (name, version) { (name, version) => "market-capture-" + version + ".jar" } ,
-    test in assembly := {},
-
-    mergeStrategy in assembly := {
-      case PathList(ps @ _*) if isReadme(ps.last) || isLicenseFile(ps.last) =>
-        MergeStrategy.rename
-      case PathList("META-INF", xs @ _*) =>
-        (xs.map {_.toLowerCase}) match {
-          case ("manifest.mf" :: Nil) => MergeStrategy.discard
-          case list @ (head :: tail) if (list.reverse.head == "manifest.mf") => MergeStrategy.discard
-          case list @ (head :: tail) if (list.reverse.head == "notice.txt") => MergeStrategy.discard
-          case "plexus" :: _ => MergeStrategy.discard
-          case "maven" :: _ => MergeStrategy.discard
-          case e => MergeStrategy.deduplicate
-        }
-      case _ => MergeStrategy.deduplicate
-    }
-  )
 }
 
 object Dependencies {
@@ -169,7 +125,7 @@ object Dependency {
   // Versions
 
   object V {
-    val MarketDb     = "0.1-SNAPSHOT"
+    val MarketDb     = "0.0.1"
 
     val Scalatest    = "1.6.1"
     val Mockito      = "1.9.0"
@@ -190,7 +146,7 @@ object Dependency {
     // Async HBase
     val AsyncHBase              = "1.3.2"
     val StumbleuponAsync        = "1.2.0"
-    val Zookeeper               =  "3.4.3"
+    val Zookeeper               = "3.4.3"
 
     // Twitter dependencies
     val Finagle      = "5.3.6"
@@ -198,8 +154,8 @@ object Dependency {
   }
 
   // Compile
-  val marketDbApi            = "com.ergodicity.marketdb"          %% "marketdb-api"           % V.MarketDb intransitive()
-  val marketDbIteratee       = "com.ergodicity.marketdb"          %% "marketdb-iteratee"      % V.MarketDb intransitive()
+  val marketDbApi            = "com.scalafi.marketdb"             %% "marketdb-api"           % V.MarketDb intransitive()
+  val marketDbIteratee       = "com.scalafi.marketdb"             %% "marketdb-iteratee"      % V.MarketDb intransitive()
 
   val logback                = "ch.qos.logback"                    % "logback-classic"        % V.Logback
   val scalaz                 = "org.scalaz"                       %% "scalaz-core"            % V.Scalaz
