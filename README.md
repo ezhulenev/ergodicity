@@ -1,8 +1,3 @@
-Ergodicity is built using [sbt](http://code.google.com/p/simple-build-tool/wiki/RunningSbt). To build:
-
-    $ ./sbt package
-
-
 # Ergodicity
 
 ## What is Ergodicity
